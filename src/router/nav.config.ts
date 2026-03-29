@@ -18,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Usuarios",
     to: "/usuarios",
     icon: "users",
-    roles: ["ROLE_ADMIN"],
+    roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
   },
   {
     label: "Bibliotecas",
