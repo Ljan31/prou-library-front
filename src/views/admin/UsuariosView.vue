@@ -758,7 +758,9 @@ const filterRoleOptions = [
             <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
               <div>
                 <p class="text-sm font-medium text-slate-700">Estado de cuenta</p>
-                <p class="text-xs text-slate-400">{{ editForm.enabled ? 'El usuario puede iniciar sesión' : "r" }}</p>
+                <p class="text-xs text-slate-400">
+                  {{ editForm.enabled ? 'El usuario puede iniciar sesión' : 'El usuario no puede iniciar sesión' }}
+                </p>
               </div>
               <button class="relative w-11 h-6 rounded-full transition-colors duration-200"
                 :class="editForm.enabled ? 'bg-indigo-600' : 'bg-slate-200'"
