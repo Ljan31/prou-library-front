@@ -1,0 +1,148 @@
+/* ============================================
+   SIGEB – Sistema de Gestión Bibliográfica
+   Design Tokens – Equipo 2 UI/UX
+   ============================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap");
+
+:root {
+  /* ── Colores Primarios ── */
+  --color-primary-50: #eef3ff;
+  --color-primary-100: #dce7ff;
+  --color-primary-200: #b2c9ff;
+  --color-primary-300: #7aa4ff;
+  --color-primary-400: #4078ff;
+  --color-primary-500: #1a56ff;
+  --color-primary-600: #0035f5;
+  --color-primary-700: #0029cc;
+  --color-primary-800: #0022a3;
+  --color-primary-900: #001880;
+  --color-primary-950: #000e50;
+
+  /* ── Colores Secundarios (Teal académico) ── */
+  --color-secondary-50: #f0fafa;
+  --color-secondary-100: #d9f2f2;
+  --color-secondary-200: #abe4e5;
+  --color-secondary-300: #71cfd1;
+  --color-secondary-400: #3bb5b8;
+  --color-secondary-500: #219799;
+  --color-secondary-600: #1a797b;
+  --color-secondary-700: #176163;
+  --color-secondary-800: #154f51;
+  --color-secondary-900: #133f41;
+
+  /* ── Neutrales ── */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f7f8fc;
+  --color-neutral-100: #eef0f7;
+  --color-neutral-200: #dce0ed;
+  --color-neutral-300: #c1c8de;
+  --color-neutral-400: #9aa4c0;
+  --color-neutral-500: #6b7694;
+  --color-neutral-600: #4e5872;
+  --color-neutral-700: #37405a;
+  --color-neutral-800: #242b42;
+  --color-neutral-900: #161c30;
+  --color-neutral-950: #0a0e1a;
+
+  /* ── Semánticos ── */
+  --color-success-50: #f0fdf5;
+  --color-success-100: #dcfce8;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+
+  --color-error-50: #fff1f2;
+  --color-error-100: #ffe4e6;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error-700: #b91c1c;
+
+  --color-info-50: #eff6ff;
+  --color-info-100: #dbeafe;
+  --color-info-500: #3b82f6;
+  --color-info-600: #2563eb;
+
+  /* ── Tipografía ── */
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.875rem; /* 14px */
+  --text-base: 1rem; /* 16px */
+  --text-lg: 1.125rem; /* 18px */
+  --text-xl: 1.25rem; /* 20px */
+  --text-2xl: 1.5rem; /* 24px */
+  --text-3xl: 1.875rem; /* 30px */
+  --text-4xl: 2.25rem; /* 36px */
+
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* ── Espaciado ── */
+  --space-1: 0.25rem; /* 4px */
+  --space-2: 0.5rem; /* 8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-8: 2rem; /* 32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /* 48px */
+  --space-16: 4rem; /* 64px */
+
+  /* ── Radios ── */
+  --radius-sm: 0.25rem; /* 4px */
+  --radius-md: 0.5rem; /* 8px */
+  --radius-lg: 0.75rem; /* 12px */
+  --radius-xl: 1rem; /* 16px */
+  --radius-2xl: 1.5rem; /* 24px */
+  --radius-full: 9999px;
+
+  /* ── Sombras ── */
+  --shadow-xs: 0 1px 2px 0 rgba(22, 28, 48, 0.05);
+  --shadow-sm:
+    0 1px 3px 0 rgba(22, 28, 48, 0.1), 0 1px 2px -1px rgba(22, 28, 48, 0.06);
+  --shadow-md:
+    0 4px 6px -1px rgba(22, 28, 48, 0.1), 0 2px 4px -2px rgba(22, 28, 48, 0.06);
+  --shadow-lg:
+    0 10px 15px -3px rgba(22, 28, 48, 0.1),
+    0 4px 6px -4px rgba(22, 28, 48, 0.05);
+  --shadow-xl:
+    0 20px 25px -5px rgba(22, 28, 48, 0.1),
+    0 8px 10px -6px rgba(22, 28, 48, 0.05);
+  --shadow-2xl: 0 25px 50px -12px rgba(22, 28, 48, 0.25);
+  --shadow-primary: 0 4px 14px 0 rgba(26, 86, 255, 0.3);
+
+  /* ── Transiciones ── */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Sidebar ── */
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 68px;
+
+  /* ── Z-index ── */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}
