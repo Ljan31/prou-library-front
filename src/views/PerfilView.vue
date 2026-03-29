@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useAuthStore } from '@/store/auth.store'
-import { useUiStore } from '@/store/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
 import SCard from '@/components/ui/SCard.vue'
 import SBadge from '@/components/ui/SBadge.vue'
 

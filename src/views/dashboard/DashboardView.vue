@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useAuthStore } from '@/store/auth.store'
-import { useUiStore } from '@/store/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
 import SCard from '@/components/ui/SCard.vue'
 import SBadge from '@/components/ui/SBadge.vue'
 import SSkeleton from '@/components/feedback/SSkeleton.vue'
@@ -79,10 +79,10 @@ const quickLinks = computed(() => {
 
     <!-- Stats -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-      <SCard v-for="(stat, i) in statCards" :key="i" padding="md">
+      <SCard v-for="(stat, i) in statCards" :key="i" padding="lg">
         <div class="flex items-start justify-between">
           <div>
-            <p class="text-xs text-slate-500 font-medium">{{ stat.label }}</p>
+            <p class="text-xl text-slate-500 font-medium">{{ stat.label }}</p>
             <p class="text-2xl font-bold text-slate-900 mt-1">{{ stat.value }}</p>
           </div>
           <div class="w-9 h-9 rounded-lg flex items-center justify-center" :class="stat.color">

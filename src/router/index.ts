@@ -15,26 +15,20 @@ declare module "vue-router" {
   }
 }
 
-// ─── Route definitions ─────────────────────────────────────────────────────
+// ─── Routes ────────────────────────────────────────────────────────────────
 const routes: RouteRecordRaw[] = [
-  // Public routes
   {
     path: "/login",
     name: "login",
     component: () => import("@/views/auth/LoginView.vue"),
     meta: { title: "Iniciar Sesión", requiresAuth: false },
   },
-
-  // Main app (requires auth)
   {
     path: "/",
     component: () => import("@/layouts/AppLayout.vue"),
     meta: { requiresAuth: true },
     children: [
-      {
-        path: "",
-        redirect: "/dashboard",
-      },
+      { path: "", redirect: "/dashboard" },
       {
         path: "dashboard",
         name: "dashboard",
@@ -45,14 +39,14 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Dashboard",
         },
       },
-      // Admin-only
+      // Admin
       {
         path: "usuarios",
         name: "usuarios",
         component: () => import("@/views/admin/UsuariosView.vue"),
         meta: {
           roles: ["ROLE_ADMIN"],
-          title: "Gestión de Usuarios",
+          title: "Usuarios",
           breadcrumb: "Usuarios",
         },
       },
@@ -62,7 +56,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/admin/BibliotecasView.vue"),
         meta: {
           roles: ["ROLE_ADMIN"],
-          title: "Gestión de Bibliotecas",
+          title: "Bibliotecas",
           breadcrumb: "Bibliotecas",
         },
       },
@@ -76,14 +70,14 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Reportes",
         },
       },
-      // Staff routes
+      // Staff + shared
       {
         path: "catalogo",
         name: "catalogo",
         component: () => import("@/views/bibliotecario/CatalogoView.vue"),
         meta: {
           roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_ESTUDIANTE"],
-          title: "Catálogo Bibliográfico",
+          title: "Catálogo",
           breadcrumb: "Catálogo",
         },
       },
@@ -103,7 +97,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/bibliotecario/PrestamosView.vue"),
         meta: {
           roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
-          title: "Gestión de Préstamos",
+          title: "Préstamos",
           breadcrumb: "Préstamos",
         },
       },
@@ -117,7 +111,7 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Devoluciones",
         },
       },
-      // Student routes
+      // Estudiante
       {
         path: "mis-prestamos",
         name: "mis-prestamos",
@@ -128,14 +122,14 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Mis Préstamos",
         },
       },
-      // Shared
+      // All roles
       {
         path: "certificados",
         name: "certificados",
         component: () => import("@/views/CertificadosView.vue"),
         meta: {
           roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_ESTUDIANTE"],
-          title: "Certificados de No Deuda",
+          title: "Certificados",
           breadcrumb: "Certificados",
         },
       },
@@ -149,7 +143,6 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Notificaciones",
         },
       },
-      // Profile
       {
         path: "perfil",
         name: "perfil",
@@ -162,8 +155,6 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-
-  // Error pages
   {
     path: "/403",
     name: "403",
@@ -174,61 +165,56 @@ const routes: RouteRecordRaw[] = [
     path: "/:pathMatch(.*)*",
     name: "404",
     component: () => import("@/views/errors/NotFoundView.vue"),
-    meta: { title: "Página no encontrada" },
+    meta: { title: "No encontrado" },
   },
 ];
 
-// ─── Router instance ────────────────────────────────────────────────────────
+// ─── Router ────────────────────────────────────────────────────────────────
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(_, __, savedPosition) {
+  scrollBehavior(_to, _from, savedPosition) {
     return savedPosition ?? { top: 0 };
   },
 });
 
-// ─── Guards ─────────────────────────────────────────────────────────────────
-router.beforeEach(async (to, _from, next) => {
-  // Lazy import to avoid circular deps
-  const { useAuthStore } = await import("@/store/auth.store");
-  const { useUiStore } = await import("@/store/ui.store");
+// ─── Global navigation guard ───────────────────────────────────────────────
+router.beforeEach(async (to, _from) => {
+  const { useAuthStore } = await import("@/stores/auth.store");
+  const { useUiStore } = await import("@/stores/ui.store");
 
-  const authStore = useAuthStore();
-  const uiStore = useUiStore();
+  const auth = useAuthStore();
+  const ui = useUiStore();
 
-  // Initialize session once (restore from token)
-  if (!authStore.initialized) {
-    await authStore.initSession();
+  // Restore session once on first navigation
+  if (!auth.initialized) {
+    await auth.initSession();
   }
 
-  // Update page title
+  // Update document title
   if (to.meta.title) {
-    uiStore.setPageTitle(to.meta.title as string);
+    ui.setPageTitle(to.meta.title as string);
   }
 
   const requiresAuth = to.meta.requiresAuth !== false;
   const routeRoles = to.meta.roles as RoleKey[] | undefined;
 
-  // 1. Route requires auth → redirect to login
-  if (requiresAuth && !authStore.isAuthenticated) {
-    return next({ name: "login", query: { redirect: to.fullPath } });
+  // 1. Needs auth but not logged in → login
+  if (requiresAuth && !auth.isAuthenticated) {
+    return { name: "login", query: { redirect: to.fullPath } };
   }
 
-  // 2. Logged in user trying to visit login → go home
-  if (!requiresAuth && authStore.isAuthenticated && to.name === "login") {
-    return next("/dashboard");
+  // 2. Already logged in, hitting /login → dashboard
+  if (!requiresAuth && auth.isAuthenticated && to.name === "login") {
+    return { path: "/dashboard" };
   }
 
-  // 3. Role guard: if route has required roles, check user has at least one
-  if (
-    routeRoles &&
-    routeRoles.length > 0 &&
-    !authStore.hasAnyRole(routeRoles)
-  ) {
-    return next({ name: "403" });
+  // 3. Role check
+  if (routeRoles && routeRoles.length > 0 && !auth.hasAnyRole(routeRoles)) {
+    return { name: "403" };
   }
 
-  next();
+  // Vue Router v5: returning undefined / void = proceed
 });
 
 export default router;

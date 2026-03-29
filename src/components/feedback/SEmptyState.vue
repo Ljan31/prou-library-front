@@ -1,122 +1,42 @@
-<template>
-  <div :class="['s-empty', `s-empty--${size}`]" role="status">
-    <!-- Ícono personalizado o SVG por defecto -->
-    <div class="s-empty__illustration" aria-hidden="true">
-      <slot name="icon">
-        <!-- Empty books illustration -->
-        <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="10" y="20" width="36" height="50" rx="4" fill="var(--color-neutral-100)"
-            stroke="var(--color-neutral-300)" stroke-width="1.5" />
-          <rect x="14" y="28" width="20" height="2" rx="1" fill="var(--color-neutral-300)" />
-          <rect x="14" y="34" width="28" height="2" rx="1" fill="var(--color-neutral-300)" />
-          <rect x="14" y="40" width="24" height="2" rx="1" fill="var(--color-neutral-300)" />
-          <rect x="52" y="10" width="36" height="60" rx="4" fill="var(--color-neutral-100)"
-            stroke="var(--color-neutral-300)" stroke-width="1.5" />
-          <rect x="56" y="20" width="20" height="2" rx="1" fill="var(--color-neutral-300)" />
-          <rect x="56" y="26" width="28" height="2" rx="1" fill="var(--color-neutral-300)" />
-          <rect x="56" y="32" width="16" height="2" rx="1" fill="var(--color-neutral-300)" />
-          <rect x="94" y="25" width="16" height="45" rx="4" fill="var(--color-neutral-100)"
-            stroke="var(--color-neutral-300)" stroke-width="1.5" />
-          <circle cx="60" cy="82" r="12" fill="var(--color-primary-50)" stroke="var(--color-primary-200)"
-            stroke-width="1.5" />
-          <path d="M56 82h8M60 78v8" stroke="var(--color-primary-400)" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      </slot>
-    </div>
-
-    <div class="s-empty__text">
-      <h3 class="s-empty__title">{{ title }}</h3>
-      <p v-if="description" class="s-empty__description">{{ description }}</p>
-    </div>
-
-    <div v-if="$slots.action" class="s-empty__action">
-      <slot name="action" />
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-type Size = 'sm' | 'md' | 'lg'
-
 withDefaults(defineProps<{
   title?: string
   description?: string
-  size?: Size
+  icon?: 'book' | 'search' | 'inbox' | 'chart'
 }>(), {
   title: 'Sin resultados',
-  description: 'No hay datos disponibles para mostrar.',
-  size: 'md',
+  description: 'No se encontraron datos para mostrar.',
+  icon: 'inbox'
 })
 </script>
 
-<style scoped>
-.s-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 1rem;
-  padding: 3rem 2rem;
-  animation: fadeInUp var(--transition-normal) ease both;
-}
-
-.s-empty--sm {
-  padding: 2rem 1.5rem;
-  gap: 0.75rem;
-}
-
-.s-empty--lg {
-  padding: 5rem 3rem;
-  gap: 1.25rem;
-}
-
-.s-empty__illustration svg {
-  width: 120px;
-  height: auto;
-  opacity: 0.9;
-}
-
-.s-empty--sm .s-empty__illustration svg {
-  width: 80px;
-}
-
-.s-empty--lg .s-empty__illustration svg {
-  width: 160px;
-}
-
-.s-empty__text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.s-empty__title {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  color: var(--color-neutral-700);
-  margin: 0;
-}
-
-.s-empty--sm .s-empty__title {
-  font-size: var(--text-base);
-}
-
-.s-empty--lg .s-empty__title {
-  font-size: var(--text-xl);
-}
-
-.s-empty__description {
-  font-size: var(--text-sm);
-  color: var(--color-neutral-400);
-  max-width: 300px;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.s-empty__action {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-}
-</style>
+<template>
+  <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
+    <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+      <svg class="w-8 h-8 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <template v-if="icon === 'book'">
+          <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
+        </template>
+        <template v-else-if="icon === 'search'">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </template>
+        <template v-else-if="icon === 'chart'">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+          <line x1="2" y1="20" x2="22" y2="20" />
+        </template>
+        <template v-else>
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+          <path
+            d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" />
+        </template>
+      </svg>
+    </div>
+    <h3 class="text-sm font-semibold text-slate-700 mb-1">{{ title }}</h3>
+    <p class="text-sm text-slate-400 max-w-xs leading-relaxed">{{ description }}</p>
+    <slot />
+  </div>
+</template>

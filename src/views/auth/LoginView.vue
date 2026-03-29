@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/store/auth.store'
-import { useUiStore } from '@/store/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
 import SButton from '@/components/ui/SButton.vue'
 import SInput from '@/components/ui/SInput.vue'
 
@@ -36,7 +36,7 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-900 via-primary-950 to-slate-900 flex">
+  <div class="min-h-screen bg-linear-to-br from-slate-900 via-primary-950 to-slate-900 flex">
 
     <!-- Left panel: branding -->
     <div class="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden">
@@ -103,7 +103,7 @@ async function handleLogin() {
         </div>
 
         <!-- Card -->
-        <div class="bg-white/[0.04] border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
+        <div class="bg-white/4 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
           <div class="mb-7">
             <h2 class="text-2xl font-semibold text-white mb-1.5">Iniciar sesión</h2>
             <p class="text-slate-400 text-sm">Ingresa tus credenciales institucionales</p>
@@ -115,7 +115,7 @@ async function handleLogin() {
               <label class="text-sm font-medium text-slate-300">
                 Usuario <span class="text-red-400">*</span>
               </label>
-              <input v-model="form.username" type="text" placeholder="nombre.apellido" autocomplete="username" class="h-10 px-3 text-sm rounded-lg bg-white/[0.06] border text-white placeholder:text-slate-500
+              <input v-model="form.username" type="text" placeholder="nombre.apellido" autocomplete="username" class="h-10 px-3 text-sm rounded-lg bg-white/6 border text-white placeholder:text-slate-500
                        outline-none transition-all duration-150
                        focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50"
                 :class="errors.username ? 'border-red-500/60' : 'border-white/10'" @input="errors.username = ''" />
@@ -128,7 +128,7 @@ async function handleLogin() {
                 Contraseña <span class="text-red-400">*</span>
               </label>
               <input v-model="form.password" type="password" placeholder="••••••••" autocomplete="current-password"
-                class="h-10 px-3 text-sm rounded-lg bg-white/[0.06] border text-white placeholder:text-slate-500
+                class="h-10 px-3 text-sm rounded-lg bg-white/6 border text-white placeholder:text-slate-500
                        outline-none transition-all duration-150
                        focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50"
                 :class="errors.password ? 'border-red-500/60' : 'border-white/10'" @input="errors.password = ''" />

@@ -8,7 +8,7 @@
  *   v-if="can('ROLE_ADMIN')"
  */
 import { computed } from "vue";
-import { useAuthStore } from "@/store/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import type { RoleKey } from "@/types";
 
 export function usePermissions() {

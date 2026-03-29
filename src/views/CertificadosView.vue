@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useUiStore } from '@/store/ui.store'
+import { useUiStore } from '@/stores/ui.store'
 import SCard from '@/components/ui/SCard.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 const ui = useUiStore()

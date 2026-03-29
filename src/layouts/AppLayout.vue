@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { RouterView } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
-import { useUiStore } from '@/store/ui.store'
+import { useUiStore } from '@/stores/ui.store'
 
 const ui = useUiStore()
 

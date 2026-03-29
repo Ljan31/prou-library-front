@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useUiStore } from '@/store/ui.store'
+import { useUiStore } from '@/stores/ui.store'
 
 const ui = useUiStore()
 
@@ -27,10 +27,10 @@ const iconColors = {
 
 <template>
   <Teleport to="body">
-    <div class="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none">
+    <div class="fixed bottom-5 right-5 z-9999 flex flex-col gap-2 pointer-events-none">
       <TransitionGroup name="slide-up" tag="div" class="flex flex-col gap-2">
         <div v-for="toast in ui.toasts" :key="toast.id"
-          class="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border-l-4 shadow-lg min-w-[280px] max-w-[360px]"
+          class="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border-l-4 shadow-lg min-w-70 max-w-90"
           :class="colors[toast.type]" style="box-shadow: 0 4px 20px rgba(0,0,0,0.12)">
           <svg class="w-4 h-4 mt-0.5 shrink-0" :class="iconColors[toast.type]" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" v-html="icons[toast.type]" />

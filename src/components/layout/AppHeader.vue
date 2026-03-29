@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { useAuthStore } from '@/store/auth.store'
-import { useUiStore } from '@/store/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useUiStore } from '@/stores/ui.store'
 import AppBreadcrumbs from '@/components/layout/AppBreadcrumbs.vue'
 
 const auth = useAuthStore()
@@ -61,7 +61,7 @@ function closeUserMenu() {
             class="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-xs shrink-0">
             {{ auth.displayName.charAt(0).toUpperCase() }}
           </div>
-          <span class="hidden sm:block text-sm font-medium text-slate-700 max-w-[120px] truncate">
+          <span class="hidden sm:block text-sm font-medium text-slate-700 max-w-30 truncate">
             {{ auth.displayName }}
           </span>
           <svg class="w-4 h-4 text-slate-400 transition-transform" :class="userMenuOpen ? 'rotate-180' : ''"
