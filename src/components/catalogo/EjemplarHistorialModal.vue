@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import BaseModal from './BaseModal.vue'
 import api from '@/services/axios'
-import SModal from '@/components/ui/SModal.vue'
-import SButton from '@/components/ui/SButton.vue'
-import SSpinner from '@/components/feedback/SSpinner.vue'
-import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import { estadoEjemplarConfig } from '@/utils/catalogo'
 import type { Ejemplar } from '@/types/catalogo'
 
@@ -20,21 +17,17 @@ interface HistorialItem {
 const props = defineProps<{ ejemplar: Ejemplar }>()
 const emit = defineEmits<{ close: [] }>()
 
-// ─── Estado ─────────────────────────────────────────
+const cargando = ref(false)
 const historial = ref<HistorialItem[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
+const error = ref('')
 
-// ─── API ────────────────────────────────────────────
-async function cargarHistorial() {
-  loading.value = true
-  error.value = null
-
+onMounted(async () => {
+  cargando.value = true
   try {
     const res = await api.get(`/ejemplares/${props.ejemplar.id_ejemplar}/historial`)
-
-    // 🔥 importante: tu backend usa wrapper { success, data }
-    // historial.value = res.data?.data ?? res.data ?? []
+    // historial.value = Array.isArray(res.data.data)
+    //   ? res.data.data
+    //   : (res.data?.data?.content ?? [])
     historial.value = (res.data?.data ?? []).map((item: any) => ({
       id: item.id_historial,
       estadoAnterior: item.estadoAnterior,
@@ -43,101 +36,101 @@ async function cargarHistorial() {
       fecha: item.fechaCambio,
       usuario: item.usuarioCambio
     }))
-  } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Error al cargar historial'
+  } catch {
+    error.value = 'No se pudo cargar el historial'
   } finally {
-    loading.value = false
+    cargando.value = false
   }
-}
-
-onMounted(() => {
-  cargarHistorial()
 })
 
-// ─── Utils ──────────────────────────────────────────
 function formatFecha(fecha: string): string {
-  return new Date(fecha).toLocaleString('es-BO', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  try {
+    return new Date(fecha).toLocaleString('es-BO', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
+  } catch {
+    return fecha
+  }
 }
 </script>
 
 <template>
-  <SModal :model-value="true" :title="`Historial — ${ejemplar.codigo_ejemplar}`" size="md"
-    @update:model-value="emit('close')">
-
-    <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-8">
-      <SSpinner />
+  <BaseModal :title="`Historial — ${ejemplar.codigo_ejemplar}`" size="md" @close="emit('close')">
+    <!-- Cargando -->
+    <div v-if="cargando" class="flex justify-center py-8">
+      <svg class="w-6 h-6 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
     </div>
 
     <!-- Error -->
-    <p v-else-if="error" class="text-red-500 text-sm text-center py-6">
-      {{ error }}
-    </p>
+    <p v-else-if="error" class="text-sm text-red-500 text-center py-6">{{ error }}</p>
 
-    <!-- Empty -->
-    <SEmptyState v-else-if="!historial.length" title="Sin historial"
-      description="No hay registros de cambios de estado para este ejemplar." icon="book" />
+    <!-- Vacío -->
+    <div v-else-if="!historial.length" class="text-center py-8">
+      <svg class="w-10 h-10 text-slate-200 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p class="text-sm text-slate-500">Sin registros de cambios de estado</p>
+    </div>
 
-    <!-- Data -->
-    <div v-else class="space-y-1">
+    <!-- Timeline -->
+    <div v-else class="space-y-0">
       <div v-for="(item, idx) in historial" :key="item.id" class="relative flex gap-3">
-
-        <!-- Timeline -->
+        <!-- Línea y dot -->
         <div class="flex flex-col items-center">
-          <span :class="[
-            'w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1',
-            estadoEjemplarConfig[item.estadoNuevo]?.dot ?? 'bg-slate-300'
-          ]"></span>
-          <div v-if="idx < historial.length - 1" class="w-px flex-1 bg-slate-200 my-1"></div>
+          <span :class="['w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5 z-10',
+            estadoEjemplarConfig[item.estadoNuevo as keyof typeof estadoEjemplarConfig]?.dot ?? 'bg-slate-300']" />
+          <div v-if="idx < historial.length - 1" class="w-px flex-1 bg-slate-200 my-1" />
         </div>
 
         <!-- Contenido -->
-        <div class="flex-1 pb-4">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="flex items-center gap-1.5">
+        <div class="flex-1 pb-5">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex-1">
+              <!-- Transición de estado -->
+              <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-xs text-slate-400">
-                  {{ estadoEjemplarConfig[item.estadoAnterior]?.label ?? item.estadoAnterior }}
+                  {{ estadoEjemplarConfig[item.estadoAnterior as keyof typeof estadoEjemplarConfig]?.label ??
+                    item.estadoAnterior }}
                 </span>
-
-                <svg class="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-3 h-3 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
-
-                <span :class="[
-                  'text-xs font-medium',
+                <span :class="['text-xs font-semibold',
                   item.estadoNuevo === 'DISPONIBLE' ? 'text-emerald-600' :
                     item.estadoNuevo === 'PRESTADO' ? 'text-red-600' :
-                      ['BAJA', 'PERDIDO'].includes(item.estadoNuevo) ? 'text-slate-900' :
-                        'text-amber-600'
-                ]">
-                  {{ estadoEjemplarConfig[item.estadoNuevo]?.label ?? item.estadoNuevo }}
+                      ['BAJA', 'PERDIDO'].includes(item.estadoNuevo) ? 'text-slate-700' :
+                        'text-amber-600']">
+                  {{ estadoEjemplarConfig[item.estadoNuevo as keyof typeof estadoEjemplarConfig]?.label ??
+                    item.estadoNuevo }}
                 </span>
               </div>
 
-              <p class="text-xs text-slate-600 mt-0.5">{{ item.motivo }}</p>
-              <p v-if="item.usuario" class="text-xs text-slate-400 mt-0.5">
-                por {{ item.usuario }}
-              </p>
+              <!-- Motivo -->
+              <p class="text-xs text-slate-600 mt-0.5 leading-relaxed">{{ item.motivo }}</p>
+
+              <!-- Usuario -->
+              <p v-if="item.usuario" class="text-xs text-slate-400 mt-0.5">por {{ item.usuario }}</p>
             </div>
 
-            <time class="text-xs text-slate-400 flex-shrink-0 ml-2">
+            <!-- Fecha -->
+            <time class="text-xs text-slate-400 flex-shrink-0 text-right whitespace-nowrap">
               {{ formatFecha(item.fecha) }}
             </time>
           </div>
         </div>
-
       </div>
     </div>
 
     <template #footer>
-      <SButton variant="ghost" @click="emit('close')">Cerrar</SButton>
+      <button @click="emit('close')"
+        class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
+        Cerrar
+      </button>
     </template>
-  </SModal>
+  </BaseModal>
 </template>
