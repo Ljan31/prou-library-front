@@ -13,6 +13,9 @@ const { isAdmin, isBibliotecario, isEstudiante } = usePermissions()
 onMounted(() => {
   ui.setBreadcrumbs([{ label: 'Certificados' }])
   fetchPrestamos()
+  if (isEstudiante.value && auth.user?.id) {
+    fetchCertificadosUsuario(auth.user.id)
+  }
 })
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,6 +63,27 @@ const activeTab = ref<Tab>('generar')
 const prestamos = ref<Prestamo[]>([])
 const prestamosLoading = ref(false)
 const prestamosError = ref<string | null>(null)
+
+
+const certificadosUsuario = ref<Certificado[]>([])
+const certificadosLoading = ref(false)
+const certificadosError = ref<string | null>(null)
+
+async function fetchCertificadosUsuario(userId: number) {
+  certificadosLoading.value = true
+  certificadosError.value = null
+  try {
+    const { data } = await api.get(`/certificados/usuario/${userId}`)
+    certificadosUsuario.value = data.data ?? []
+  } catch (e: unknown) {
+    certificadosError.value =
+      e instanceof Error ? e.message : 'Error al cargar certificados'
+    certificadosUsuario.value = []
+  } finally {
+    certificadosLoading.value = false
+  }
+}
+
 
 async function fetchPrestamos() {
   // Solo necesario para estudiante
@@ -118,6 +142,8 @@ function selectUser(u: UsuarioBusqueda) {
   selectedUser.value = u
   userQuery.value = u.persona.nombreCompleto
   userDropdownOpen.value = false
+
+  fetchCertificadosUsuario(u.id_usuario)
 }
 
 function resetUserSearch() {
@@ -126,6 +152,8 @@ function resetUserSearch() {
   userResults.value = []
   certGenerado.value = null
   certError.value = null
+  certificadosUsuario.value = []
+
 }
 
 function highlight(text: string, query: string): string {
@@ -146,9 +174,11 @@ const targetUserId = computed(() => {
   return auth.user?.id ?? null
 })
 
+const tieneCertificados = computed(() => certificadosUsuario.value.length > 0)
+
 const canGenerate = computed(() => {
-  if (isAdmin.value || isBibliotecario.value) return !!selectedUser.value
-  return !tieneDeuda.value
+  if (isAdmin.value || isBibliotecario.value) return !!selectedUser.value && !tieneCertificados.value
+  return !tieneDeuda.value && !tieneCertificados.value
 })
 
 async function generarCertificado() {
@@ -280,7 +310,10 @@ const certUsernameUsuario = computed(() => {
 
 <template>
   <div class="page-container space-y-6">
-
+    <div v-if="tieneCertificados && activeTab === 'generar'"
+      class="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-700">
+      ⚠️ Este usuario ya tiene certificados generados. No puede generar otro.
+    </div>
     <!-- ── Header ── -->
     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
       <div>
@@ -289,6 +322,7 @@ const certUsernameUsuario = computed(() => {
       </div>
       <!-- Tabs -->
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+
         <button @click="activeTab = 'generar'" :class="[
           'px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
           activeTab === 'generar' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
@@ -301,6 +335,56 @@ const certUsernameUsuario = computed(() => {
         ]">
           Validar Código
         </button>
+      </div>
+    </div>
+
+
+    <!-- Certificados existentes -->
+    <div v-if="certificadosUsuario.length"
+      class="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
+
+      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-indigo-100 bg-indigo-50/50">
+        <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="font-semibold text-slate-800 text-sm">
+          Certificados ya generados
+        </h3>
+
+        <span class="ml-auto text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+          {{ certificadosUsuario.length }}
+        </span>
+      </div>
+
+      <div class="divide-y divide-slate-50">
+        <div v-for="c in certificadosUsuario" :key="c.id_certificado"
+          class="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition">
+
+          <div class="flex-1">
+            <p class="text-sm font-semibold text-slate-800">
+              Código: <span class="font-mono text-indigo-600">{{ c.codigo_verificacion }}</span>
+            </p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Emitido: {{ formatDateTime(c.fechaEmision) }} ·
+              Vence: {{ formatDateTime(c.fechaVencimiento) }}
+            </p>
+          </div>
+
+          <span :class="[
+            'text-xs font-bold px-2.5 py-1 rounded-full',
+            c.estadoCertificado === 'VIGENTE'
+              ? 'bg-emerald-100 text-emerald-700'
+              : 'bg-red-100 text-red-700'
+          ]">
+            {{ c.estadoCertificado }}
+          </span>
+
+          <a :href="`http://localhost:8098${c.urlDescarga}`" target="_blank"
+            class="text-xs text-indigo-600 hover:underline font-medium">
+            Descargar
+          </a>
+        </div>
       </div>
     </div>
 
@@ -442,9 +526,9 @@ const certUsernameUsuario = computed(() => {
             </div>
 
             <!-- Botón generar -->
-            <button @click="generarCertificado" :disabled="!selectedUser || generandoCert" :class="[
+            <button @click="generarCertificado" :disabled="!selectedUser || generandoCert || tieneCertificados" :class="[
               'w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
-              selectedUser && !generandoCert
+              selectedUser && !generandoCert && !tieneCertificados
                 ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 active:scale-[0.98]'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed'
             ]">
@@ -645,9 +729,9 @@ const certUsernameUsuario = computed(() => {
                 {{ certError }}
               </div>
               <!-- Botón -->
-              <button @click="generarCertificado" :disabled="tieneDeuda || generandoCert" :class="[
+              <button @click="generarCertificado" :disabled="tieneDeuda || generandoCert || tieneCertificados" :class="[
                 'w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
-                !tieneDeuda && !generandoCert
+                !tieneDeuda && !generandoCert && !tieneCertificados
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 active:scale-[0.98]'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
               ]">
@@ -906,7 +990,7 @@ const certUsernameUsuario = computed(() => {
                 <p class="text-xs text-slate-400 mb-0.5">Código</p>
                 <p class="font-mono text-xs text-indigo-700 break-all">{{
                   validacionResult.certificado.codigo_verificacion
-                  }}</p>
+                }}</p>
               </div>
               <div>
                 <p class="text-xs text-slate-400 mb-0.5">Estado</p>
@@ -921,7 +1005,7 @@ const certUsernameUsuario = computed(() => {
                 <p class="text-xs text-slate-400 mb-0.5">Fecha de Emisión</p>
                 <p class="font-medium text-slate-700 text-xs">{{
                   formatDateTime(validacionResult.certificado.fechaEmision)
-                  }}</p>
+                }}</p>
               </div>
               <div>
                 <p class="text-xs text-slate-400 mb-0.5">Fecha de Vencimiento</p>
