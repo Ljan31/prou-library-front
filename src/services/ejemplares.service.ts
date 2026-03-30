@@ -13,7 +13,10 @@ export async function obtenerEjemplares(): Promise<Ejemplar[]> {
     throw new Error("No se pudo cargar los ejemplares");
   }
 }
-
+export async function obtenerEjemplar(id: number): Promise<Ejemplar> {
+  const res = await api.get(`/api/ejemplares/${id}`);
+  return res.data.data;
+}
 /**
  * Crear un ejemplar
  */
