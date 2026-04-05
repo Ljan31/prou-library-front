@@ -126,11 +126,11 @@ const quickLinks = computed(() => {
           </svg>
         </div>
         <div>
-          <p class="text-sm font-semibold text-slate-800">Base de arquitectura lista ✅</p>
+          <!-- <p class="text-sm font-semibold text-slate-800">Base de arquitectura lista ✅</p>
           <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">
             Auth real con JWT, Pinia stores, router guards por rol, layout dinámico y design tokens configurados.
             Los Equipos 2 y 3 pueden construir sus módulos sobre esta base.
-          </p>
+          </p> -->
         </div>
       </div>
     </SCard>
