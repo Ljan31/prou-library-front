@@ -162,7 +162,13 @@ async function handleLogin() {
             </button>
           </form>
         </div>
-
+        <p class="text-center text-xm text-slate-500 mt-5">
+          ¿No tienes cuenta?
+          <button class="text-indigo-400 hover:text-indigo-300 transition-colors ml-1"
+            @click="router.push('/register')">
+            Regístrate como estudiante
+          </button>
+        </p>
         <p class="text-center text-xs text-slate-600 mt-5">
           SIGEB v1.0 · UMSA Facultad de Humanidades
         </p>

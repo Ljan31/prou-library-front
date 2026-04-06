@@ -24,6 +24,15 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "Iniciar Sesión", requiresAuth: false },
   },
   {
+    path: "/register",
+    name: "register",
+    component: () => import("@/views/auth/RegisterView.vue"),
+    meta: {
+      requiresAuth: false,
+      title: "Crear cuenta de estudiante",
+    },
+  },
+  {
     path: "/",
     component: () => import("@/layouts/AppLayout.vue"),
     meta: { requiresAuth: true },
