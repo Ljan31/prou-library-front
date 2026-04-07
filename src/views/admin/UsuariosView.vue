@@ -67,7 +67,9 @@ const PAGE_SIZE = 10
 const currentPage = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(users.value.length / PAGE_SIZE)))
 const paginatedUsers = computed(() =>
-  users.value.slice((currentPage.value - 1) * PAGE_SIZE, currentPage.value * PAGE_SIZE)
+  users.value
+    .filter((u): u is UserResponse => !!u && typeof u.id_usuario === 'number')
+    .slice((currentPage.value - 1) * PAGE_SIZE, currentPage.value * PAGE_SIZE)
 )
 watch(users, () => { currentPage.value = 1 })
 

@@ -8,7 +8,7 @@ import { carreraService } from '@/services/estudiante.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
 import type { UserResponse } from '@/services/user.service'
 import type { CarreraBasic } from '@/services/estudiante.service'
-import type { BibliotecaResponse } from '@/services/bibliotecas.service'
+import type { BibliotecaResponse } from '@/services/biblioteca.service'
 
 const props = defineProps<{ user: UserResponse | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -19,7 +19,7 @@ const { allCarreras, allBibliotecas } = useUsers()
 const aux = useAuxAssign()
 aux.watchCarrera()
 
-// ── Safe helpers ───────────────────────────────────────────────────────────
+// ── Safe helpers (prevents crash when persona is undefined) ────────────────
 const safeNombreCompleto = computed(() =>
   props.user?.persona?.nombreCompleto ?? props.user?.username ?? ''
 )
@@ -28,19 +28,27 @@ const safeInitials = computed(() => {
   const a = props.user?.persona?.apellido_pat?.[0] ?? ''
   return (n + a).toUpperCase()
 })
-const isEstudiante = computed(() => props.user?.roles?.some(r => r.name === 'ROLE_ESTUDIANTE') ?? false)
-const isBibliotecario = computed(() => props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false)
+
+// ── Role checks ────────────────────────────────────────────────────────────
+const isEstudiante = computed(() =>
+  props.user?.roles?.some(r => r.name === 'ROLE_ESTUDIANTE') ?? false
+)
+const isBibliotecario = computed(() =>
+  props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false
+)
+// Button visible: staff can manage students; admin can manage bibliotecarios
 const canManageAux = computed(() => {
   if (isEstudiante.value && isStaff.value) return true
   if (isBibliotecario.value && isAdmin.value) return true
   return false
 })
 
-// ── Carreras del usuario (estudiantes) ─────────────────────────────────────
+// ── Carreras del usuario (students only) ──────────────────────────────────
 const detailCarreras = ref<CarreraBasic[]>([])
 const detailCarrerasLoading = ref(false)
 
-// ── Bibliotecas donde es encargado ─────────────────────────────────────────
+// ── Bibliotecas donde el usuario es encargado ─────────────────────────────
+// Shown for ALL roles (admin, bibliotecario, estudiante)
 const encargadoBibliotecas = ref<BibliotecaResponse[]>([])
 const encargadoLoading = ref(false)
 
@@ -50,9 +58,10 @@ watch(() => props.user, async (u) => {
   aux.resetAux()
   if (!u) return
 
-  if (isEstudiante.value || isBibliotecario.value) {
-    loadEncargadoBibliotecas(u.id_usuario)
-  }
+  // Always load libraries where the user is an encargado
+  loadEncargadoBibliotecas(u.id_usuario)
+
+  // Load carreras only for students
   if (isEstudiante.value) {
     fetchDetailCarreras(u.id_usuario)
   }
@@ -70,10 +79,14 @@ async function fetchDetailCarreras(usuarioId: number) {
 async function loadEncargadoBibliotecas(usuarioId: number) {
   encargadoLoading.value = true
   try {
-    const fromCache = allBibliotecas.value.filter(b => b.encargados?.some(e => e.id_usuario === usuarioId))
+    // Try global cache first
+    const fromCache = allBibliotecas.value.filter(
+      b => b.encargados?.some(e => e.id_usuario === usuarioId)
+    )
     if (fromCache.length) {
       encargadoBibliotecas.value = fromCache
     } else {
+      // Fallback: fetch all and filter
       const res = await bibliotecasService.getAll()
       const raw = res.data as any
       const all: BibliotecaResponse[] = Array.isArray(raw) ? raw : (raw?.data ?? [])
@@ -148,27 +161,39 @@ async function handleRemoveCarrera() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// MODAL: Asignar como auxiliar/encargado de biblioteca
+// MODAL: Asignar encargado/auxiliar de biblioteca
 // ══════════════════════════════════════════════════════════════════════════
 const showAuxModal = ref(false)
 
 function openAuxModal() {
   aux.resetAux()
+  // For bibliotecarios: load all libraries (no carrera filter needed)
+  if (isBibliotecario.value) {
+    aux.loadAllBibliotecasForPicker()
+  }
   showAuxModal.value = true
 }
 
 async function handleAssignAux() {
   if (!props.user) return
-  const ok = await aux.assignAux(props.user, detailCarreras.value)
-  console.log("ok", ok)
-  if (ok) await loadEncargadoBibliotecas(props.user.id_usuario)
+  // Estudiantes need carrera filter; bibliotecarios don't
+  const needsCarrera = isEstudiante.value
+  const ok = await aux.assignAux(props.user, needsCarrera)
+  if (ok) {
+    // Reload this user's encargado libraries to reflect the change in the panel
+    await loadEncargadoBibliotecas(props.user.id_usuario)
+  }
 }
 
-// Carrera options: estudiante → sus carreras; bibliotecario → no aplica
-const showCarreraFilter = computed(() => isEstudiante.value)
-const auxBibliotecaOptions = computed(() =>
-  isEstudiante.value ? aux.auxBibliotecas.value : allBibliotecas.value
-)
+// Library options for the aux modal
+const auxBibliotecaOptions = computed(() => {
+  if (isBibliotecario.value) {
+    // Show all libraries (loaded into aux.auxBibliotecas via loadAllBibliotecasForPicker)
+    return aux.auxBibliotecas.value.length ? aux.auxBibliotecas.value : allBibliotecas.value
+  }
+  // Estudiante: filtered by carrera via auxBibliotecas
+  return aux.auxBibliotecas.value
+})
 </script>
 
 <template>
@@ -180,8 +205,7 @@ const auxBibliotecaOptions = computed(() =>
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/60">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0"
-            :class="user.enabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'">
-            {{ safeInitials }}
+            :class="user.enabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'">{{ safeInitials }}
           </div>
           <div>
             <p class="text-sm font-semibold text-slate-900">{{ safeNombreCompleto }}</p>
@@ -233,9 +257,8 @@ const auxBibliotecaOptions = computed(() =>
             <p class="text-xs text-slate-400 mb-0.5">Rol(es)</p>
             <div class="flex flex-wrap gap-1">
               <span v-for="r in (user.roles ?? [])" :key="r.id_role"
-                class="text-xs px-2 py-0.5 rounded-full ring-1 font-medium" :class="roleBadgeClass(r.name)">
-                {{ roleLabel(r.name) }}
-              </span>
+                class="text-xs px-2 py-0.5 rounded-full ring-1 font-medium" :class="roleBadgeClass(r.name)">{{
+                  roleLabel(r.name) }}</span>
             </div>
           </div>
           <div>
@@ -248,8 +271,8 @@ const auxBibliotecaOptions = computed(() =>
           </div>
         </div>
 
-        <!-- Bibliotecas donde es encargado -->
-        <div v-if="encargadoLoading || encargadoBibliotecas.length">
+        <!-- ── Bibliotecas donde es encargado (ALL roles) ── -->
+        <div v-if="encargadoLoading || encargadoBibliotecas.length" class="pt-4 border-t border-slate-100">
           <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Encargado en</p>
           <div v-if="encargadoLoading" class="flex items-center gap-1.5 text-xs text-slate-400">
             <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
@@ -269,16 +292,16 @@ const auxBibliotecaOptions = computed(() =>
                   stroke-linecap="round" stroke-linejoin="round" />
               </svg>
               {{ bib.nombre }}
-              <span class="opacity-60">·</span>
+              <span class="opacity-50">·</span>
               {{bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.rol ?? '—'}}
               <a v-if="bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.imagenUrl"
                 :href="bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.imagenUrl!" target="_blank"
-                class="underline text-indigo-500 hover:text-indigo-700">Resolución</a>
+                class="underline text-indigo-500 hover:text-indigo-700 shrink-0">Resolución</a>
             </div>
           </div>
         </div>
 
-        <!-- Carreras (solo estudiantes) -->
+        <!-- ── Carreras (solo estudiantes) ── -->
         <div v-if="isEstudiante" class="pt-4 border-t border-slate-100">
           <div class="flex items-center justify-between mb-3">
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Carreras asignadas</p>
@@ -291,6 +314,7 @@ const auxBibliotecaOptions = computed(() =>
               Asignar carrera
             </button>
           </div>
+
           <div v-if="detailCarrerasLoading" class="flex items-center gap-2 text-xs text-slate-400">
             <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -450,47 +474,52 @@ const auxBibliotecaOptions = computed(() =>
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <span v-if="isEstudiante">El estudiante será asignado como <strong>encargado auxiliar</strong> en una
-                biblioteca de su carrera.</span>
-              <span v-else>El bibliotecario será asignado como <strong>encargado</strong> de la biblioteca
-                seleccionada.</span>
+              <span v-if="isEstudiante">
+                El estudiante será asignado como <strong>encargado auxiliar</strong> en una biblioteca de su carrera.
+              </span>
+              <span v-else>
+                El bibliotecario será asignado como <strong>encargado</strong> de la biblioteca seleccionada.
+              </span>
             </div>
 
-            <!-- Carrera (solo estudiantes) -->
-            <div v-if="showCarreraFilter">
-              <label class="block text-xs font-medium text-slate-600 mb-1.5">Carrera del estudiante <span
-                  class="text-red-500">*</span></label>
+            <!-- Carrera (ONLY for students) -->
+            <div v-if="isEstudiante">
+              <label class="block text-xs font-medium text-slate-600 mb-1.5">
+                Carrera del estudiante <span class="text-red-500">*</span>
+              </label>
               <select v-model="aux.auxCarreraId.value"
                 class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400">
                 <option value="">{{ detailCarreras.length ? 'Seleccionar carrera…' : 'Sin carreras inscritas' }}
                 </option>
-                <option v-for="c in detailCarreras" :key="c.id_carrera" :value="c.id_carrera">{{ c.nombre_carrera }}
+                <option v-for="c in detailCarreras" :key="c.id_carrera" :value="c.id_carrera">
+                  {{ c.nombre_carrera }}
                 </option>
               </select>
             </div>
 
             <!-- Biblioteca -->
             <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1.5">Biblioteca <span
-                  class="text-red-500">*</span></label>
+              <label class="block text-xs font-medium text-slate-600 mb-1.5">
+                Biblioteca <span class="text-red-500">*</span>
+              </label>
               <div v-if="aux.auxBibliotecasLoading.value" class="flex items-center gap-2 text-xs text-slate-400 h-10">
                 <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Buscando bibliotecas…
+                Cargando bibliotecas…
               </div>
-              <select v-else v-model="aux.auxBibliotecaId.value"
-                :disabled="showCarreraFilter && !aux.auxCarreraId.value"
+              <select v-else v-model="aux.auxBibliotecaId.value" :disabled="isEstudiante && !aux.auxCarreraId.value"
                 class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed">
                 <option value="">
-                  {{ showCarreraFilter && !aux.auxCarreraId.value
+                  {{ isEstudiante && !aux.auxCarreraId.value
                     ? 'Selecciona una carrera primero'
                     : auxBibliotecaOptions.length
                       ? 'Seleccionar biblioteca…'
                       : 'Sin bibliotecas disponibles' }}
                 </option>
-                <option v-for="b in auxBibliotecaOptions" :key="b.id_biblioteca" :value="b.id_biblioteca">{{ b.nombre }}
+                <option v-for="b in auxBibliotecaOptions" :key="b.id_biblioteca" :value="b.id_biblioteca">
+                  {{ b.nombre }}
                 </option>
               </select>
 
@@ -502,9 +531,8 @@ const auxBibliotecaOptions = computed(() =>
                   <div class="flex flex-wrap gap-1.5">
                     <span v-for="enc in aux.selectedBib()!.encargados" :key="enc.id_usuario"
                       class="text-xs px-2 py-0.5 rounded-full font-medium"
-                      :class="enc.rol === 'PRINCIPAL' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'">
-                      {{ enc.nombreCompleto }} · {{ enc.rol }}
-                    </span>
+                      :class="enc.rol === 'PRINCIPAL' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'">{{
+                        enc.nombreCompleto }} · {{ enc.rol }}</span>
                   </div>
                 </div>
               </template>
@@ -528,7 +556,7 @@ const auxBibliotecaOptions = computed(() =>
                 <img v-if="aux.auxResolucionPreview.value" :src="aux.auxResolucionPreview.value"
                   class="w-10 h-10 rounded-lg object-cover border border-amber-200" alt="Preview" />
               </div>
-              <p class="text-xs text-slate-400 mt-1">Resolución de designación (opcional pero recomendada)</p>
+              <p class="text-xs text-slate-400 mt-1">Resolución de designación (opcional)</p>
             </div>
 
             <!-- Feedback -->

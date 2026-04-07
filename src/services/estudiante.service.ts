@@ -68,7 +68,10 @@ export const estudianteService = {
   register(
     payload: CreateEstudiantePayload,
   ): Promise<AxiosResponse<ApiResponse<unknown>>> {
-    return api.post("/users/estudiante", payload);
+    // return api.post("/users/estudiante", payload);
+    const data = api.post("/users/estudiante", payload);
+    console.log("register service: ", data);
+    return data;
   },
 };
 

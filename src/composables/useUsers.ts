@@ -35,21 +35,29 @@ export function unwrapList<T>(data: unknown): T[] {
   return [];
 }
 
-/** Extrae un objeto único de cualquier forma de respuesta del backend */
+/**
+ * Extrae un objeto único — maneja hasta 2 niveles de envoltorio ApiResponse.
+ * Soporta: UserResponse | {data: UserResponse} | {success, data: UserResponse}
+ * o incluso {success, data: {success, data: UserResponse}} (doble envoltorio).
+ */
 export function unwrapOne<T>(data: unknown): T {
-  if (
-    data &&
-    typeof data === "object" &&
-    "success" in (data as object) &&
-    "data" in (data as object)
-  ) {
-    return (data as { data: T }).data;
+  let current = data;
+  // Unwrap up to 3 levels of {success, data: ...} or {data: ...}
+  for (let i = 0; i < 3; i++) {
+    if (!current || typeof current !== "object") break;
+    const obj = current as Record<string, unknown>;
+    // If it looks like ApiResponse (has 'data' and either 'success' or 'message')
+    if ("data" in obj && ("success" in obj || "message" in obj)) {
+      current = obj.data;
+    } else {
+      break;
+    }
   }
-  return data as T;
+  return current as T;
 }
 
 /** Valida que el objeto tiene los campos mínimos de UserResponse */
-function isValidUser(u: unknown): u is UserResponse {
+export function isValidUser(u: unknown): u is UserResponse {
   if (!u || typeof u !== "object") return false;
   const obj = u as Record<string, unknown>;
   return typeof obj.id_usuario === "number" && typeof obj.username === "string";
@@ -87,7 +95,7 @@ export function useUsers() {
         res = await userService.search(searchQuery.trim());
       else if (filterRole) res = await userService.filterByRole(filterRole);
       else res = await userService.getAll();
-      // Filter out any malformed items before storing
+      console.log("cargando useUsers fetchusers");
       users.value = unwrapList<UserResponse>(res.data).filter(isValidUser);
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : "Error al cargar usuarios";
@@ -117,7 +125,19 @@ export function useUsers() {
   async function loadBibliotecas() {
     try {
       const res = await bibliotecasService.getAll();
-      console.log("res", res);
+      allBibliotecas.value = unwrapList<BibliotecaResponse>(res.data);
+    } catch {
+      /* silent */
+    }
+  }
+
+  /**
+   * Re-fetches the full library list and updates the singleton cache.
+   * Call this after any encargado assignment to keep local state in sync.
+   */
+  async function refreshBibliotecas() {
+    try {
+      const res = await bibliotecasService.getAll();
       allBibliotecas.value = unwrapList<BibliotecaResponse>(res.data);
     } catch {
       /* silent */
@@ -162,10 +182,42 @@ export function useUsers() {
     else users.value.unshift(updated);
   }
 
-  /** Adds a newly created user to the top of the list (safe) */
+  /**
+   * Safely adds a newly created user to the top of the list.
+   * Handles any level of ApiResponse wrapping from backend.
+   */
   function addUser(raw: unknown) {
-    const u = isValidUser(raw) ? raw : unwrapOne<UserResponse>(raw);
-    if (isValidUser(u)) users.value.unshift(u);
+    console.log("raw", raw);
+    // Try direct first
+    if (isValidUser(raw)) {
+      console.log("ANTES users", users.value);
+      users.value.unshift(raw);
+      console.log("DESPUÉS users", users.value);
+      return;
+    }
+    // Deep unwrap
+    const unwrapped = unwrapOne<unknown>(raw);
+    if (isValidUser(unwrapped)) {
+      users.value.unshift(unwrapped);
+      return;
+    }
+    // Last resort: try one more level
+    if (
+      unwrapped &&
+      typeof unwrapped === "object" &&
+      "data" in (unwrapped as object)
+    ) {
+      const deeper = (unwrapped as Record<string, unknown>).data;
+      if (isValidUser(deeper)) {
+        users.value.unshift(deeper);
+        return;
+      }
+    }
+    // Could not extract — log and skip (don't crash)
+    console.warn(
+      "[useUsers.addUser] Could not extract valid UserResponse from:",
+      raw,
+    );
   }
 
   // ── Role helper ───────────────────────────────────────────────────────────
@@ -173,7 +225,7 @@ export function useUsers() {
     return roles.value.find((r) => r.id_role === Number(id))?.name ?? "";
   }
 
-  // ── Stats (fully defensive — guards every field) ──────────────────────────
+  // ── Stats (fully defensive) ────────────────────────────────────────────────
   const stats = computed(() => {
     const valid = users.value.filter(isValidUser);
     return {
@@ -210,6 +262,7 @@ export function useUsers() {
     fetchRoles,
     loadAllCarreras,
     loadBibliotecas,
+    refreshBibliotecas,
     toggleEnabled,
     patchUser,
     addUser,
