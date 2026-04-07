@@ -60,6 +60,7 @@ const filterRoleOptions = [
   { value: 'ADMIN', label: 'Administrador' },
   { value: 'BIBLIOTECARIO', label: 'Bibliotecario' },
   { value: 'ESTUDIANTE', label: 'Estudiante' },
+  { value: 'AUXILIAR', label: 'Auxiliar' },
 ]
 
 // ─── Pagination ───────────────────────────────────────────────────────────

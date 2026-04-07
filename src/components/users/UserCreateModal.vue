@@ -105,7 +105,6 @@ async function handleCreate() {
   try {
     // All responses go through addUser which handles any wrapping level
     if (isEstudiante.value) {
-      console.log("isEstudiante", isEstudiante.value)
       const { estudianteService } = await import('@/services/estudiante.service')
       const res = await estudianteService.register({
         username: String(form.username),
@@ -122,11 +121,10 @@ async function handleCreate() {
           ? form.carreras.map(c => ({ carreraId: c.carreraId, matricula: c.matricula || undefined }))
           : undefined,
       })
-      console.log("register ", res.data)
       // estudianteService wraps in ApiResponse<UserResponse>
       addUser(res.data.data)
     } else {
-      console.log('other ',)
+      .log('other ',)
       const payload: CreateUserPayload & { bibliotecaId?: number } = {
         username: String(form.username),
         password: form.password,
@@ -143,7 +141,6 @@ async function handleCreate() {
         ...(form.bibliotecaId ? { bibliotecaId: Number(form.bibliotecaId) } : {}),
       }
       const res = await userService.create(payload)
-      console.log('register else ', res.data)
       addUser(res.data)
     }
 
@@ -151,19 +148,15 @@ async function handleCreate() {
     emit('created')
     ui.toast.success('Usuario creado', `${form.nombre} ${form.apellido_pat}`)
   } catch (e: unknown) {
-    console.log("e ", e)
-
     let msg = 'Error al crear usuario'
 
     if (typeof e === 'object' && e !== null && 'response' in e) {
       const err = e as any
       msg = err.response?.data?.message || msg
-      console.log("BACKEND 👉", err.response?.data)
+      // console.log("BACKEND 👉", err.response?.data)
     } else if (e instanceof Error) {
       msg = e.message
     }
-
-    console.log("msg: ", msg)
 
     const lower = msg.toLowerCase()
 

@@ -95,7 +95,6 @@ export function useUsers() {
         res = await userService.search(searchQuery.trim());
       else if (filterRole) res = await userService.filterByRole(filterRole);
       else res = await userService.getAll();
-      console.log("cargando useUsers fetchusers");
       users.value = unwrapList<UserResponse>(res.data).filter(isValidUser);
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : "Error al cargar usuarios";
@@ -187,12 +186,9 @@ export function useUsers() {
    * Handles any level of ApiResponse wrapping from backend.
    */
   function addUser(raw: unknown) {
-    console.log("raw", raw);
     // Try direct first
     if (isValidUser(raw)) {
-      console.log("ANTES users", users.value);
       users.value.unshift(raw);
-      console.log("DESPUÉS users", users.value);
       return;
     }
     // Deep unwrap
