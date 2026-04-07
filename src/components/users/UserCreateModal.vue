@@ -124,7 +124,6 @@ async function handleCreate() {
       // estudianteService wraps in ApiResponse<UserResponse>
       addUser(res.data.data)
     } else {
-      .log('other ',)
       const payload: CreateUserPayload & { bibliotecaId?: number } = {
         username: String(form.username),
         password: form.password,
