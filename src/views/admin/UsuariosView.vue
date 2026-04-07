@@ -1,21 +1,5 @@
 <script setup lang="ts">
-/**
- * UsersView — Vista principal del módulo de usuarios.
- *
- * Esta vista es intencionalmente delgada: sólo orquesta estado global
- * (búsqueda, filtros, paginación, modales) y delega la lógica compleja
- * a sub-componentes y al composable useUsers.
- *
- * Estructura de archivos del módulo:
- *   views/admin/UsersView.vue             ← este archivo (orquestador)
- *   components/users/UserDetailPanel.vue  ← panel detalle + modales de carrera + auxiliar
- *   components/users/UserEditModal.vue    ← modal edición de datos personales
- *   components/users/UserCreateModal.vue  ← modal creación (inteligente por rol)
- *   composables/useUsers.ts               ← estado singleton + lógica compartida
- *   services/user.service.ts              ← llamadas REST usuarios
- *   services/estudiante.service.ts        ← llamadas REST carreras
- *   services/biblioteca.service.ts        ← llamadas REST bibliotecas
- */
+
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { usePermissions } from '@/composables/usePermissions'

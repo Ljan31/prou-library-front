@@ -197,7 +197,7 @@ const auxBibliotecaOptions = computed(() => {
 </script>
 
 <template>
-  <template v-if="user">
+  <div v-if="user">
     <!-- ── Panel principal ── -->
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
 
@@ -593,5 +593,5 @@ const auxBibliotecaOptions = computed(() => {
         </div>
       </div>
     </Transition>
-  </template>
+  </div>
 </template>
