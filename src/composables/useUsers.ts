@@ -106,7 +106,10 @@ export function useUsers() {
   async function fetchRoles() {
     try {
       const res = await userService.getRoles();
-      roles.value = unwrapList<RoleData>(res.data);
+      // roles.value = unwrapList<RoleData>(res.data);
+      roles.value = unwrapList<RoleData>(res.data).filter(
+        (role) => role.name !== "ROLE_AUXILIAR",
+      );
     } catch {
       /* silent */
     }
