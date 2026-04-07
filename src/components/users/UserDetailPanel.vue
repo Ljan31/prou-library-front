@@ -3,11 +3,12 @@ import { ref, computed, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { usePermissions } from '@/composables/usePermissions'
 import { useUsers, roleLabel, roleBadgeClass } from '@/composables/useUsers'
+import { useAuxAssign } from '@/composables/useAuxAssign'
 import { carreraService } from '@/services/estudiante.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
 import type { UserResponse } from '@/services/user.service'
 import type { CarreraBasic } from '@/services/estudiante.service'
-import type { BibliotecaResponse } from '@/services/biblioteca.service'
+import type { BibliotecaResponse } from '@/services/bibliotecas.service'
 
 const props = defineProps<{ user: UserResponse | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -15,8 +16,10 @@ const emit = defineEmits<{ close: [] }>()
 const ui = useUiStore()
 const { isAdmin, isStaff } = usePermissions()
 const { allCarreras, allBibliotecas } = useUsers()
+const aux = useAuxAssign()
+aux.watchCarrera()
 
-// ── Safe computed helpers (evitan el crash con persona undefined) ───────────
+// ── Safe helpers ───────────────────────────────────────────────────────────
 const safeNombreCompleto = computed(() =>
   props.user?.persona?.nombreCompleto ?? props.user?.username ?? ''
 )
@@ -25,19 +28,34 @@ const safeInitials = computed(() => {
   const a = props.user?.persona?.apellido_pat?.[0] ?? ''
   return (n + a).toUpperCase()
 })
-const isEstudiante = computed(() =>
-  props.user?.roles?.some(r => r.name === 'ROLE_ESTUDIANTE') ?? false
-)
-const canManageAux = computed(() => isStaff.value && isEstudiante.value)
+const isEstudiante = computed(() => props.user?.roles?.some(r => r.name === 'ROLE_ESTUDIANTE') ?? false)
+const isBibliotecario = computed(() => props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false)
+const canManageAux = computed(() => {
+  if (isEstudiante.value && isStaff.value) return true
+  if (isBibliotecario.value && isAdmin.value) return true
+  return false
+})
 
-// ── Carreras del usuario ───────────────────────────────────────────────────
+// ── Carreras del usuario (estudiantes) ─────────────────────────────────────
 const detailCarreras = ref<CarreraBasic[]>([])
 const detailCarrerasLoading = ref(false)
 
+// ── Bibliotecas donde es encargado ─────────────────────────────────────────
+const encargadoBibliotecas = ref<BibliotecaResponse[]>([])
+const encargadoLoading = ref(false)
+
 watch(() => props.user, async (u) => {
   detailCarreras.value = []
+  encargadoBibliotecas.value = []
+  aux.resetAux()
   if (!u) return
-  if (u.roles?.some(r => r.name === 'ROLE_ESTUDIANTE')) fetchDetailCarreras(u.id_usuario)
+
+  if (isEstudiante.value || isBibliotecario.value) {
+    loadEncargadoBibliotecas(u.id_usuario)
+  }
+  if (isEstudiante.value) {
+    fetchDetailCarreras(u.id_usuario)
+  }
 }, { immediate: true })
 
 async function fetchDetailCarreras(usuarioId: number) {
@@ -47,6 +65,21 @@ async function fetchDetailCarreras(usuarioId: number) {
     const raw = res.data as any
     detailCarreras.value = Array.isArray(raw) ? raw : (raw?.data ?? [])
   } catch { /* silent */ } finally { detailCarrerasLoading.value = false }
+}
+
+async function loadEncargadoBibliotecas(usuarioId: number) {
+  encargadoLoading.value = true
+  try {
+    const fromCache = allBibliotecas.value.filter(b => b.encargados?.some(e => e.id_usuario === usuarioId))
+    if (fromCache.length) {
+      encargadoBibliotecas.value = fromCache
+    } else {
+      const res = await bibliotecasService.getAll()
+      const raw = res.data as any
+      const all: BibliotecaResponse[] = Array.isArray(raw) ? raw : (raw?.data ?? [])
+      encargadoBibliotecas.value = all.filter(b => b.encargados?.some(e => e.id_usuario === usuarioId))
+    }
+  } catch { /* silent */ } finally { encargadoLoading.value = false }
 }
 
 const detailAvailableCarreras = computed(() =>
@@ -115,69 +148,32 @@ async function handleRemoveCarrera() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// MODAL: Asignar como auxiliar de biblioteca
-// Visible solo cuando: usuario logueado es staff Y usuario visto es estudiante
+// MODAL: Asignar como auxiliar/encargado de biblioteca
 // ══════════════════════════════════════════════════════════════════════════
 const showAuxModal = ref(false)
-const auxCarreraId = ref<number | ''>('')
-const auxBibliotecas = ref<BibliotecaResponse[]>([])
-const auxBibliotecasLoading = ref(false)
-const auxBibliotecaId = ref<number | ''>('')
-const auxLoading = ref(false)
-const auxError = ref('')
-const auxSuccess = ref(false)
 
 function openAuxModal() {
-  auxCarreraId.value = ''
-  auxBibliotecaId.value = ''
-  auxBibliotecas.value = []
-  auxError.value = ''
-  auxSuccess.value = false
+  aux.resetAux()
   showAuxModal.value = true
 }
 
-watch(auxCarreraId, async (carreraId) => {
-  auxBibliotecaId.value = ''
-  auxBibliotecas.value = []
-  auxError.value = ''
-  if (!carreraId) return
-  auxBibliotecasLoading.value = true
-  try {
-    const local = allBibliotecas.value.filter(b => b.carrera?.id_carrera === Number(carreraId))
-    if (local.length) {
-      auxBibliotecas.value = local
-    } else {
-      const res = await bibliotecasService.getByCarrera(Number(carreraId))
-      const raw = res.data as any
-      auxBibliotecas.value = Array.isArray(raw) ? raw : (raw?.data ?? [])
-    }
-  } catch { /* silent */ } finally { auxBibliotecasLoading.value = false }
-})
-
 async function handleAssignAux() {
-  auxError.value = ''
-  auxSuccess.value = false
-  if (!auxCarreraId.value) { auxError.value = 'Selecciona una carrera'; return }
-  if (!auxBibliotecaId.value) { auxError.value = 'Selecciona una biblioteca'; return }
   if (!props.user) return
-  auxLoading.value = true
-  try {
-    await bibliotecasService.assignEncargados(Number(auxBibliotecaId.value), [props.user.id_usuario])
-    const bibNombre = auxBibliotecas.value.find(b => b.id_biblioteca === Number(auxBibliotecaId.value))?.nombre ?? ''
-    auxSuccess.value = true
-    ui.toast.success('Auxiliar asignado', `${safeNombreCompleto.value} es auxiliar en ${bibNombre}`)
-    auxCarreraId.value = ''
-    auxBibliotecaId.value = ''
-    auxBibliotecas.value = []
-  } catch (e: unknown) {
-    auxError.value = e instanceof Error ? e.message : 'No se pudo asignar como auxiliar'
-  } finally { auxLoading.value = false }
+  const ok = await aux.assignAux(props.user, detailCarreras.value)
+  console.log("ok", ok)
+  if (ok) await loadEncargadoBibliotecas(props.user.id_usuario)
 }
+
+// Carrera options: estudiante → sus carreras; bibliotecario → no aplica
+const showCarreraFilter = computed(() => isEstudiante.value)
+const auxBibliotecaOptions = computed(() =>
+  isEstudiante.value ? aux.auxBibliotecas.value : allBibliotecas.value
+)
 </script>
 
 <template>
   <template v-if="user">
-    <!-- ── Panel de detalle ── -->
+    <!-- ── Panel principal ── -->
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
 
       <!-- Header -->
@@ -193,16 +189,15 @@ async function handleAssignAux() {
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <!-- Botón auxiliar: solo para estudiantes, solo si es staff -->
-          <button v-if="canManageAux && detailCarreras.length > 0"
+          <button v-if="canManageAux"
             class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 font-medium transition-all"
-            title="Asignar como auxiliar de biblioteca" @click="openAuxModal">
+            @click="openAuxModal">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path
                 d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"
                 stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            Auxiliar de biblioteca
+            {{ isBibliotecario ? 'Asignar encargado' : 'Auxiliar de biblioteca' }}
           </button>
           <button
             class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
@@ -214,8 +209,9 @@ async function handleAssignAux() {
         </div>
       </div>
 
-      <!-- Info grid -->
-      <div class="p-5">
+      <div class="p-5 space-y-5">
+
+        <!-- Info grid -->
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
           <div>
             <p class="text-xs text-slate-400 mb-0.5">Email</p>
@@ -230,15 +226,16 @@ async function handleAssignAux() {
             <p class="text-slate-700">{{ user.persona?.celular || '—' }}</p>
           </div>
           <div>
-            <p class="text-xs text-slate-400 mb-0.5">Biblioteca</p>
+            <p class="text-xs text-slate-400 mb-0.5">Biblioteca asignada</p>
             <p class="text-slate-700">{{ user.biblioteca?.nombre ?? '—' }}</p>
           </div>
           <div>
             <p class="text-xs text-slate-400 mb-0.5">Rol(es)</p>
             <div class="flex flex-wrap gap-1">
               <span v-for="r in (user.roles ?? [])" :key="r.id_role"
-                class="text-xs px-2 py-0.5 rounded-full ring-1 font-medium" :class="roleBadgeClass(r.name)">{{
-                roleLabel(r.name) }}</span>
+                class="text-xs px-2 py-0.5 rounded-full ring-1 font-medium" :class="roleBadgeClass(r.name)">
+                {{ roleLabel(r.name) }}
+              </span>
             </div>
           </div>
           <div>
@@ -251,8 +248,38 @@ async function handleAssignAux() {
           </div>
         </div>
 
-        <!-- ── Carreras (solo estudiantes) ── -->
-        <div v-if="isEstudiante" class="mt-5 pt-5 border-t border-slate-100">
+        <!-- Bibliotecas donde es encargado -->
+        <div v-if="encargadoLoading || encargadoBibliotecas.length">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Encargado en</p>
+          <div v-if="encargadoLoading" class="flex items-center gap-1.5 text-xs text-slate-400">
+            <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Cargando…
+          </div>
+          <div v-else class="flex flex-wrap gap-2">
+            <div v-for="bib in encargadoBibliotecas" :key="bib.id_biblioteca"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium" :class="bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.rol === 'PRINCIPAL'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-slate-50 border-slate-200 text-slate-600'">
+              <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                  d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18"
+                  stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              {{ bib.nombre }}
+              <span class="opacity-60">·</span>
+              {{bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.rol ?? '—'}}
+              <a v-if="bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.imagenUrl"
+                :href="bib.encargados?.find(e => e.id_usuario === user.id_usuario)?.imagenUrl!" target="_blank"
+                class="underline text-indigo-500 hover:text-indigo-700">Resolución</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Carreras (solo estudiantes) -->
+        <div v-if="isEstudiante" class="pt-4 border-t border-slate-100">
           <div class="flex items-center justify-between mb-3">
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Carreras asignadas</p>
             <button v-if="isAdmin && detailAvailableCarreras.length"
@@ -264,15 +291,13 @@ async function handleAssignAux() {
               Asignar carrera
             </button>
           </div>
-
-          <div v-if="detailCarrerasLoading" class="flex items-center gap-2 text-xs text-slate-400 py-2">
+          <div v-if="detailCarrerasLoading" class="flex items-center gap-2 text-xs text-slate-400">
             <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
             Cargando carreras…
           </div>
-
           <div v-else-if="detailCarreras.length" class="flex flex-wrap gap-2">
             <div v-for="c in detailCarreras" :key="c.id_carrera"
               class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-100 text-sky-700 text-xs font-medium group">
@@ -285,16 +310,16 @@ async function handleAssignAux() {
               <span v-if="c.matricula" class="text-sky-400 font-mono">· {{ c.matricula }}</span>
               <button v-if="isAdmin"
                 class="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-sky-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                title="Remover carrera" @click="openConfirmRemove(c)">
+                @click="openConfirmRemove(c)">
                 <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                   <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" />
                 </svg>
               </button>
             </div>
           </div>
-
           <p v-else class="text-xs text-slate-400 italic">Sin carreras asignadas</p>
         </div>
+
       </div>
     </div>
 
@@ -335,7 +360,6 @@ async function handleAssignAux() {
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Matrícula</label>
               <input v-model="assignMatricula" type="text" placeholder="Ej. 2024-001234 (opcional)"
                 class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-              <p class="text-xs text-slate-400 mt-1">Puedes dejarlo vacío si no tienes matrícula aún.</p>
             </div>
           </div>
           <div class="px-6 pb-6 flex gap-3 justify-end">
@@ -394,7 +418,7 @@ async function handleAssignAux() {
       </div>
     </Transition>
 
-    <!-- ══ MODAL: Asignar auxiliar de biblioteca ══ -->
+    <!-- ══ MODAL: Asignar encargado / auxiliar ══ -->
     <Transition name="fade">
       <div v-if="showAuxModal"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
@@ -402,7 +426,9 @@ async function handleAssignAux() {
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
           <div class="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <h3 class="text-base font-semibold text-slate-900">Auxiliar de biblioteca</h3>
+              <h3 class="text-base font-semibold text-slate-900">
+                {{ isBibliotecario ? 'Asignar encargado' : 'Auxiliar de biblioteca' }}
+              </h3>
               <p class="text-xs text-slate-500 mt-0.5">{{ safeNombreCompleto }}</p>
             </div>
             <button
@@ -415,7 +441,7 @@ async function handleAssignAux() {
           </div>
 
           <div class="p-6 space-y-4">
-            <!-- Banner informativo -->
+            <!-- Banner -->
             <div
               class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
               <svg class="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -424,21 +450,21 @@ async function handleAssignAux() {
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <span>
-                El estudiante será asignado como <strong>encargado auxiliar</strong> en la biblioteca
-                seleccionada, asociada a una de sus carreras.
-              </span>
+              <span v-if="isEstudiante">El estudiante será asignado como <strong>encargado auxiliar</strong> en una
+                biblioteca de su carrera.</span>
+              <span v-else>El bibliotecario será asignado como <strong>encargado</strong> de la biblioteca
+                seleccionada.</span>
             </div>
 
-            <!-- Carrera -->
-            <div>
+            <!-- Carrera (solo estudiantes) -->
+            <div v-if="showCarreraFilter">
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Carrera del estudiante <span
                   class="text-red-500">*</span></label>
-              <select v-model="auxCarreraId"
+              <select v-model="aux.auxCarreraId.value"
                 class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400">
-                <option value="">Seleccionar carrera…</option>
-                <option v-for="c in detailCarreras" :key="c.id_carrera" :value="c.id_carrera">
-                  {{ c.nombre_carrera }}
+                <option value="">{{ detailCarreras.length ? 'Seleccionar carrera…' : 'Sin carreras inscritas' }}
+                </option>
+                <option v-for="c in detailCarreras" :key="c.id_carrera" :value="c.id_carrera">{{ c.nombre_carrera }}
                 </option>
               </select>
             </div>
@@ -447,38 +473,35 @@ async function handleAssignAux() {
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Biblioteca <span
                   class="text-red-500">*</span></label>
-              <div v-if="auxBibliotecasLoading" class="flex items-center gap-2 text-xs text-slate-400 h-10">
+              <div v-if="aux.auxBibliotecasLoading.value" class="flex items-center gap-2 text-xs text-slate-400 h-10">
                 <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
                 Buscando bibliotecas…
               </div>
-              <select v-else v-model="auxBibliotecaId" :disabled="!auxCarreraId"
+              <select v-else v-model="aux.auxBibliotecaId.value"
+                :disabled="showCarreraFilter && !aux.auxCarreraId.value"
                 class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed">
                 <option value="">
-                  {{
-                    !auxCarreraId
-                      ? 'Selecciona una carrera primero'
-                      : auxBibliotecas.length
-                        ? 'Seleccionar biblioteca…'
-                        : 'Sin bibliotecas para esta carrera'
-                  }}
+                  {{ showCarreraFilter && !aux.auxCarreraId.value
+                    ? 'Selecciona una carrera primero'
+                    : auxBibliotecaOptions.length
+                      ? 'Seleccionar biblioteca…'
+                      : 'Sin bibliotecas disponibles' }}
                 </option>
-                <option v-for="b in auxBibliotecas" :key="b.id_biblioteca" :value="b.id_biblioteca">
-                  {{ b.nombre }}
+                <option v-for="b in auxBibliotecaOptions" :key="b.id_biblioteca" :value="b.id_biblioteca">{{ b.nombre }}
                 </option>
               </select>
 
-              <!-- Encargados actuales de la biblioteca seleccionada -->
-              <template v-if="auxBibliotecaId">
-                <div v-if="auxBibliotecas.find(b => b.id_biblioteca === Number(auxBibliotecaId))?.encargados?.length"
+              <!-- Encargados actuales -->
+              <template v-if="aux.auxBibliotecaId.value && aux.selectedBib()">
+                <div v-if="aux.selectedBib()!.encargados?.length"
                   class="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
                   <p class="text-xs text-slate-400 mb-1.5 font-medium">Encargados actuales</p>
                   <div class="flex flex-wrap gap-1.5">
-                    <span
-                      v-for="enc in auxBibliotecas.find(b => b.id_biblioteca === Number(auxBibliotecaId))?.encargados"
-                      :key="enc.id_usuario" class="text-xs px-2 py-0.5 rounded-full font-medium"
+                    <span v-for="enc in aux.selectedBib()!.encargados" :key="enc.id_usuario"
+                      class="text-xs px-2 py-0.5 rounded-full font-medium"
                       :class="enc.rol === 'PRINCIPAL' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'">
                       {{ enc.nombreCompleto }} · {{ enc.rol }}
                     </span>
@@ -487,14 +510,42 @@ async function handleAssignAux() {
               </template>
             </div>
 
+            <!-- Imagen de resolución -->
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1.5">Imagen de resolución</label>
+              <div class="flex items-center gap-3">
+                <label
+                  class="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-amber-200 bg-white hover:bg-amber-50 transition-colors text-xs text-slate-600 font-medium">
+                  <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  {{ aux.auxResolucionFile.value ? aux.auxResolucionFile.value.name : 'Subir imagen / PDF' }}
+                  <input type="file" accept="image/*,.pdf" class="hidden" @change="aux.onFileSelected" />
+                </label>
+                <img v-if="aux.auxResolucionPreview.value" :src="aux.auxResolucionPreview.value"
+                  class="w-10 h-10 rounded-lg object-cover border border-amber-200" alt="Preview" />
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Resolución de designación (opcional pero recomendada)</p>
+            </div>
+
             <!-- Feedback -->
-            <p v-if="auxError" class="text-xs text-red-500">{{ auxError }}</p>
-            <div v-if="auxSuccess" class="flex items-center gap-1.5 text-xs text-emerald-600">
+            <p v-if="aux.auxError.value" class="text-xs text-red-500 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {{ aux.auxError.value }}
+            </p>
+            <div v-if="aux.auxSuccess.value" class="flex items-center gap-1.5 text-xs text-emerald-600">
               <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
                   stroke-linejoin="round" />
               </svg>
-              Auxiliar asignado correctamente
+              Asignación registrada correctamente
             </div>
           </div>
 
@@ -503,12 +554,12 @@ async function handleAssignAux() {
               @click="showAuxModal = false">Cancelar</button>
             <button
               class="px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center gap-2"
-              :disabled="auxLoading || !auxBibliotecaId" @click="handleAssignAux">
-              <svg v-if="auxLoading" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+              :disabled="aux.auxLoading.value || !aux.auxBibliotecaId.value" @click="handleAssignAux">
+              <svg v-if="aux.auxLoading.value" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              {{ auxLoading ? 'Asignando…' : 'Confirmar auxiliar' }}
+              {{ aux.auxLoading.value ? 'Asignando…' : 'Confirmar asignación' }}
             </button>
           </div>
         </div>

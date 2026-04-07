@@ -112,6 +112,21 @@ export const bibliotecasService = {
       .put(`/bibliotecas/${bibliotecaId}/encargados`, encargadosIds)
       .then((r) => r.data);
   },
+  uploadEncargadoImagen(
+    bibliotecaId: number,
+    usuarioId: number,
+    file: File,
+  ): Promise<ApiResponse<{ imagenUrl: string }>> {
+    const formData = new FormData();
+    formData.append("imagen", file);
+    formData.append("usuarioId", String(usuarioId));
+
+    return api
+      .post(`/bibliotecas/${bibliotecaId}/encargados/imagen`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
 };
 
 // ─── Carreras ─────────────────────────────────────────────────────────────

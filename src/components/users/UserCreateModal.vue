@@ -12,7 +12,7 @@ const emit = defineEmits<{
 }>()
 
 const ui = useUiStore()
-const { roles, allCarreras, allBibliotecas, users, roleNameForId } = useUsers()
+const { roles, allCarreras, allBibliotecas, addUser, roleNameForId } = useUsers()
 
 const loading = ref(false)
 
@@ -34,11 +34,10 @@ const form = reactive({
 })
 const errors = reactive<Record<string, string>>({})
 
-// ─── Role-derived state ────────────────────────────────────────────────────
+// ─── Role-derived ─────────────────────────────────────────────────────────
 const selectedRoleName = computed(() => roleNameForId(form.roleId))
 const isEstudiante = computed(() => selectedRoleName.value === 'ROLE_ESTUDIANTE')
 const isBibliotecario = computed(() => selectedRoleName.value === 'ROLE_BIBLIOTECARIO')
-
 const availableCarreras = computed(() =>
   allCarreras.value.filter(c => !form.carreras.some(s => s.carreraId === c.id_carrera))
 )
@@ -52,7 +51,6 @@ watch(() => form.roleId, () => {
   delete errors._pickerCarreraId
 })
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
 function reset() {
   Object.assign(form, {
     username: '', password: '', nombre: '', apellido_pat: '',
@@ -63,11 +61,7 @@ function reset() {
   Object.keys(errors).forEach(k => delete errors[k])
 }
 
-function close() {
-  emit('update:modelValue', false)
-  reset()
-}
-
+function close() { emit('update:modelValue', false); reset() }
 watch(() => props.modelValue, (v) => { if (v) reset() })
 
 function addCarrera() {
@@ -75,20 +69,12 @@ function addCarrera() {
   if (!form._pickerCarreraId) { errors._pickerCarreraId = 'Selecciona una carrera'; return }
   const found = allCarreras.value.find(c => c.id_carrera === Number(form._pickerCarreraId))
   if (!found) return
-  form.carreras.push({
-    carreraId: found.id_carrera,
-    nombre: found.nombre_carrera,
-    matricula: form._pickerMatricula.trim(),
-  })
+  form.carreras.push({ carreraId: found.id_carrera, nombre: found.nombre_carrera, matricula: form._pickerMatricula.trim() })
   form._pickerCarreraId = ''
   form._pickerMatricula = ''
 }
+function removeCarrera(id: number) { form.carreras = form.carreras.filter(c => c.carreraId !== id) }
 
-function removeCarrera(id: number) {
-  form.carreras = form.carreras.filter(c => c.carreraId !== id)
-}
-
-// ─── Validate ─────────────────────────────────────────────────────────────
 function validate(): boolean {
   Object.keys(errors).forEach(k => delete errors[k])
   if (!form.username.trim()) errors.username = 'Requerido'
@@ -103,11 +89,12 @@ function validate(): boolean {
   return Object.keys(errors).length === 0
 }
 
-// ─── Submit ────────────────────────────────────────────────────────────────
 async function handleCreate() {
   if (!validate()) return
   loading.value = true
   try {
+    let rawResponse: unknown
+
     if (isEstudiante.value) {
       const { estudianteService } = await import('@/services/estudiante.service')
       const res = await estudianteService.register({
@@ -125,8 +112,7 @@ async function handleCreate() {
           ? form.carreras.map(c => ({ carreraId: c.carreraId, matricula: c.matricula || undefined }))
           : undefined,
       })
-      const newUser = (res.data as any).data
-      if (newUser) users.value.unshift(newUser)
+      rawResponse = res.data
     } else {
       const payload: CreateUserPayload & { bibliotecaId?: number } = {
         username: String(form.username),
@@ -143,9 +129,11 @@ async function handleCreate() {
         ...(isBibliotecario.value && form.bibliotecaId ? { bibliotecaId: Number(form.bibliotecaId) } : {}),
       }
       const res = await userService.create(payload)
-      const newUser = (res.data as any)?.data ?? res.data
-      users.value.unshift(newUser)
+      rawResponse = res.data
     }
+
+    // Use safe addUser helper — handles any wrapping format
+    addUser(rawResponse)
     close()
     emit('created')
     ui.toast.success('Usuario creado', `${form.nombre} ${form.apellido_pat}`)
@@ -166,7 +154,6 @@ async function handleCreate() {
       @click.self="close">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[92vh] flex flex-col">
 
-        <!-- Header -->
         <div class="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h3 class="text-lg font-semibold text-slate-900">Nuevo usuario</h3>
           <button
@@ -178,33 +165,28 @@ async function handleCreate() {
           </button>
         </div>
 
-        <!-- Scrollable body -->
         <div class="overflow-y-auto flex-1 p-6 space-y-5">
 
-          <!-- SECCIÓN: Cuenta + Rol -->
+          <!-- Cuenta + Rol -->
           <div>
             <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Cuenta</p>
             <div class="space-y-3">
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">
-                  Rol <span class="text-red-500">*</span>
-                </label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Rol <span
+                    class="text-red-500">*</span></label>
                 <select v-model="form.roleId"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.roleId ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'">
                   <option value="">Seleccionar rol…</option>
-                  <option v-for="role in roles" :key="role.id_role" :value="role.id_role">
-                    {{ roleLabel(role.name) }}
+                  <option v-for="role in roles" :key="role.id_role" :value="role.id_role">{{ roleLabel(role.name) }}
                   </option>
                 </select>
                 <p v-if="errors.roleId" class="text-xs text-red-500 mt-0.5">{{ errors.roleId }}</p>
               </div>
-
               <div class="grid grid-cols-2 gap-3">
                 <div class="col-span-2">
-                  <label class="block text-xs font-medium text-slate-600 mb-1">
-                    Username <span class="text-red-500">*</span>
-                  </label>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Username <span
+                      class="text-red-500">*</span></label>
                   <input v-model="form.username" type="text" placeholder="nombre.apellido"
                     class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                     :class="errors.username ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
@@ -212,9 +194,8 @@ async function handleCreate() {
                   <p v-if="errors.username" class="text-xs text-red-500 mt-0.5">{{ errors.username }}</p>
                 </div>
                 <div class="col-span-2">
-                  <label class="block text-xs font-medium text-slate-600 mb-1">
-                    Contraseña <span class="text-red-500">*</span>
-                  </label>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Contraseña <span
+                      class="text-red-500">*</span></label>
                   <input v-model="form.password" type="password" placeholder="Mínimo 8 caracteres"
                     class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                     :class="errors.password ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
@@ -225,7 +206,7 @@ async function handleCreate() {
             </div>
           </div>
 
-          <!-- SECCIÓN: Datos personales -->
+          <!-- Datos personales -->
           <div>
             <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Datos personales</p>
             <div class="grid grid-cols-2 gap-3">
@@ -278,7 +259,7 @@ async function handleCreate() {
             </div>
           </div>
 
-          <!-- SECCIÓN DINÁMICA: Biblioteca (solo BIBLIOTECARIO) -->
+          <!-- Biblioteca (solo BIBLIOTECARIO) -->
           <Transition name="slide-up">
             <div v-if="isBibliotecario" class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
               <div class="flex items-center gap-2 mb-3">
@@ -290,24 +271,22 @@ async function handleCreate() {
                       stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </div>
-                <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">
-                  Biblioteca asignada <span class="text-red-400 normal-case font-normal">*</span>
-                </p>
+                <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Biblioteca asignada <span
+                    class="text-red-400 normal-case font-normal">*</span></p>
               </div>
               <select v-model="form.bibliotecaId"
                 class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
                 :class="errors.bibliotecaId ? 'border-red-300 bg-red-50' : 'border-emerald-200 bg-white'">
                 <option value="">Seleccionar biblioteca…</option>
-                <option v-for="bib in allBibliotecas" :key="bib.id_biblioteca" :value="bib.id_biblioteca">
-                  {{ bib.nombre }}
-                </option>
+                <option v-for="bib in allBibliotecas" :key="bib.id_biblioteca" :value="bib.id_biblioteca">{{ bib.nombre
+                }}</option>
               </select>
               <p v-if="errors.bibliotecaId" class="text-xs text-red-500 mt-1">{{ errors.bibliotecaId }}</p>
               <p v-else class="text-xs text-emerald-600 mt-1.5">El bibliotecario solo gestionará esta biblioteca.</p>
             </div>
           </Transition>
 
-          <!-- SECCIÓN DINÁMICA: Carreras (solo ESTUDIANTE) -->
+          <!-- Carreras (solo ESTUDIANTE) -->
           <Transition name="slide-up">
             <div v-if="isEstudiante" class="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
               <div class="flex items-center gap-2 mb-3">
@@ -319,19 +298,16 @@ async function handleCreate() {
                       stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </div>
-                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">
-                  Carreras <span class="normal-case font-normal text-sky-400">(opcional)</span>
-                </p>
+                <p class="text-xs font-semibold text-sky-700 uppercase tracking-wider">Carreras <span
+                    class="normal-case font-normal text-sky-400">(opcional)</span></p>
               </div>
-
               <div class="flex gap-2 mb-1.5">
                 <select v-model="form._pickerCarreraId"
                   class="flex-1 h-9 px-2 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400 text-slate-700"
                   :class="errors._pickerCarreraId ? 'border-red-300 bg-red-50' : 'border-sky-200 bg-white'">
                   <option value="">Seleccionar carrera…</option>
-                  <option v-for="c in availableCarreras" :key="c.id_carrera" :value="c.id_carrera">
-                    {{ c.nombre_carrera }}
-                  </option>
+                  <option v-for="c in availableCarreras" :key="c.id_carrera" :value="c.id_carrera">{{ c.nombre_carrera
+                  }}</option>
                 </select>
                 <input v-model="form._pickerMatricula" type="text" placeholder="Matrícula"
                   class="w-28 h-9 px-2 text-sm rounded-lg border border-sky-200 bg-white text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400" />
@@ -340,7 +316,6 @@ async function handleCreate() {
                   :disabled="!form._pickerCarreraId" @click="addCarrera">Agregar</button>
               </div>
               <p v-if="errors._pickerCarreraId" class="text-xs text-red-500 mb-2">{{ errors._pickerCarreraId }}</p>
-
               <TransitionGroup v-if="form.carreras.length" name="list" tag="div" class="space-y-1.5 mt-2">
                 <div v-for="c in form.carreras" :key="c.carreraId"
                   class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-sky-100">
@@ -366,7 +341,6 @@ async function handleCreate() {
 
         </div>
 
-        <!-- Footer -->
         <div class="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end shrink-0">
           <button class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             @click="close">Cancelar</button>

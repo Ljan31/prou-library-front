@@ -54,7 +54,7 @@ const routes: RouteRecordRaw[] = [
         name: "usuarios",
         component: () => import("@/views/admin/UsuariosView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
           title: "Usuarios",
           breadcrumb: "Usuarios",
         },
