@@ -112,6 +112,14 @@ export const bibliotecasService = {
       .put(`/bibliotecas/${bibliotecaId}/encargados`, encargadosIds)
       .then((r) => r.data);
   },
+  removeEncargado(
+    bibliotecaId: number,
+    usuarioId: number,
+  ): Promise<ApiResponse<null>> {
+    return api
+      .delete(`/bibliotecas/${bibliotecaId}/encargados/${usuarioId}`)
+      .then((r) => r.data);
+  },
   uploadEncargadoImagen(
     bibliotecaId: number,
     usuarioId: number,

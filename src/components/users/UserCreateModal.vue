@@ -340,7 +340,7 @@ async function handleCreate() {
                 </p>
               </div>
 
-              <div class="flex gap-2 mb-1.5">
+              <div class="flex gap-2 mb-1.5 flex-wrap">
                 <select v-model="form._pickerCarreraId"
                   class="flex-1 h-9 px-2 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400 text-slate-700"
                   :class="errors._pickerCarreraId ? 'border-red-300 bg-red-50' : 'border-sky-200 bg-white'">
