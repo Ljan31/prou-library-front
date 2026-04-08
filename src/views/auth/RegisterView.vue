@@ -160,7 +160,16 @@ async function handleSubmit() {
     await estudianteService.register(payload)
     currentStep.value = 4 // success screen
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'No se pudo completar el registro'
+    // const msg = e instanceof Error ? e.message : 'No se pudo completar el registro'
+    let msg = 'No se pudo completar el registro'
+
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const err = e as any
+      msg = err.response?.data?.message || msg
+      // console.log("BACKEND 👉", err.response?.data)
+    } else if (e instanceof Error) {
+      msg = e.message
+    }
     // Try to map to field-level errors
     const lower = msg.toLowerCase()
     if (lower.includes('username')) {
