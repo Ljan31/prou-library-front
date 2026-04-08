@@ -106,8 +106,6 @@ export const bibliotecasService = {
     bibliotecaId: number,
     encargadosIds: number[],
   ): Promise<ApiResponse<null>> {
-    console.log("service");
-    console.log(bibliotecaId, encargadosIds);
     return api
       .put(`/bibliotecas/${bibliotecaId}/encargados`, encargadosIds)
       .then((r) => r.data);

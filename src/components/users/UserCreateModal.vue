@@ -141,9 +141,7 @@ async function handleCreate() {
         // Include bibliotecaId only if selected (optional)
         ...(form.bibliotecaId ? { bibliotecaId: Number(form.bibliotecaId) } : {}),
       }
-      console.log("userCreateModal", payload)
       const res = await userService.create(payload)
-      console.log(res.data)
       addUser(res.data)
 
       // === ASIGNACIÓN DE BIBLIOTECA SI ES BIBLIOTECARIO Y SE SELECCIONÓ ===
