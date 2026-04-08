@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useUsers, roleLabel } from '@/composables/useUsers'
+import { useAuxAssign } from '@/composables/useAuxAssign'
 import { userService } from '@/services/user.service'
 import type { CreateUserPayload } from '@/services/user.service'
 
@@ -12,6 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const ui = useUiStore()
+const aux = useAuxAssign()
 const { roles, allCarreras, allBibliotecas, addUser, roleNameForId } = useUsers()
 
 const loading = ref(false)
@@ -139,8 +141,27 @@ async function handleCreate() {
         // Include bibliotecaId only if selected (optional)
         ...(form.bibliotecaId ? { bibliotecaId: Number(form.bibliotecaId) } : {}),
       }
+      console.log("userCreateModal", payload)
       const res = await userService.create(payload)
+      console.log(res.data)
       addUser(res.data)
+
+      // === ASIGNACIÓN DE BIBLIOTECA SI ES BIBLIOTECARIO Y SE SELECCIONÓ ===
+      if (isBibliotecario.value && form.bibliotecaId) {
+        const bibId = Number(form.bibliotecaId)
+
+        // Resetear aux y configurar
+        aux.resetAux()
+        aux.auxBibliotecaId.value = bibId
+
+        // Asignar como PRINCIPAL (normal para bibliotecario nuevo)
+        const asignado = await aux.assignAux(res.data.data, false) // false = no necesita carrera
+
+        if (!asignado) {
+          // mensajeErrorAsignacion.value = aux.auxError.value || 'No se pudo asignar la biblioteca'
+          ui.toast.warning('Usuario creado', 'Pero no se pudo asignar la biblioteca')
+        }
+      }
     }
 
     close()

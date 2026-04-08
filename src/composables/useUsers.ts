@@ -189,6 +189,7 @@ export function useUsers() {
    * Handles any level of ApiResponse wrapping from backend.
    */
   function addUser(raw: unknown) {
+    console.log("raw", raw);
     // Try direct first
     if (isValidUser(raw)) {
       users.value.unshift(raw);
