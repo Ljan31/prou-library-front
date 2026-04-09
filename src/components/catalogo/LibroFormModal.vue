@@ -1,256 +1,157 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
 import BaseModal from './BaseModal.vue'
-import api from '@/services/axios'
-import { invalidarCacheLibros } from '@/services/libros.service'
-import type { Libro, Categoria } from '@/types/catalogo'
+import EdicionFormModal from './EdicionFormModal.vue'
+import { crearLibro, actualizarLibro } from '@/services/libros.service'
+import { eliminarEdicion } from '@/services/ediciones.service'
+import { usePermissions } from '@/composables/usePermissions'
+import { primeraPortada, primerIsbn } from '@/utils/catalogo'
+import type { Libro, Categoria, Edicion } from '@/types/catalogo'
 
 const props = defineProps<{
   libro: Libro | null
   categorias: Categoria[]
 }>()
 
-const emit = defineEmits<{
-  close: []
-  saved: []
-}>()
+const emit = defineEmits<{ close: []; saved: [] }>()
+
+const { isAdmin } = usePermissions()
 
 // ─── Estado ──────────────────────────────────────────────────────────────
 const guardando = ref(false)
 const errorGeneral = ref('')
-const portadaPreview = ref('')
-const pdfNombre = ref('')
-
-const form = reactive({
-  isbn: '',
-  titulo: '',
-  editorial: '',
-  anoPublicacion: new Date().getFullYear(),
-  edicion: '1ª',
-  numero_paginas: null as number | null,
-  idioma: 'Español',
-  categoriaId: null as number | null,
-  descripcion: '',
-  imagen_portada: '',
-})
-
 const errores = reactive<Record<string, string>>({})
 
+// Sub-modal de edición
+const mostrarEdicionModal = ref(false)
+const edicionEditando = ref<Edicion | null>(null)
+
+const form = reactive({
+  titulo: '',
+  idioma: 'es',
+  categoriaId: null as number | null,
+  descripcion: '',
+})
+
+const idiomasOpciones = [
+  { value: 'es', label: 'Español' },
+  { value: 'en', label: 'Inglés' },
+  { value: 'pt', label: 'Portugués' },
+  { value: 'fr', label: 'Francés' },
+  { value: 'de', label: 'Alemán' },
+]
+
+const opcionesCategorias = computed(() =>
+  props.categorias.map(c => ({ value: c.id_categoria, label: c.nombre_categoria }))
+)
+
 // Rellenar al editar
-watch(() => props.libro, (l) => {
-  limpiarErrores()
-  errorGeneral.value = ''
-  if (l) {
-    form.isbn = l.isbn ?? ''
-    form.titulo = l.titulo ?? ''
-    form.editorial = l.editorial ?? ''
-    form.anoPublicacion = l.anoPublicacion ?? new Date().getFullYear()
-    form.edicion = l.edicion ?? '1ª'
-    form.numero_paginas = l.numero_paginas ?? null
-    form.idioma = l.idioma ?? 'Español'
-    form.categoriaId = l.categoria?.id_categoria ?? null
-    form.descripcion = l.descripcion ?? ''
-    form.imagen_portada = l.imagen_portada ?? ''
-    portadaPreview.value = l.imagen_portada ?? ''
+watch(() => props.libro, (nuevoLibro) => {
+  limpiarErrores(); errorGeneral.value = ''
+  // form.titulo = l?.titulo ?? ''
+  // form.idioma = l?.idioma ?? 'es'
+  // form.categoriaId = l?.categoria?.id_categoria ?? null
+  // form.descripcion = l?.descripcion ?? ''
+  if (nuevoLibro) {
+    // Modo editar
+    form.titulo = nuevoLibro.titulo ?? ''
+    form.idioma = nuevoLibro.idioma ?? 'es'
+    form.categoriaId = nuevoLibro.categoria?.id_categoria ?? null
+    form.descripcion = nuevoLibro.descripcion ?? ''
   } else {
-    resetForm()
+    // Modo crear → limpiar formulario
+    form.titulo = ''
+    form.idioma = 'es'
+    form.categoriaId = null
+    form.descripcion = ''
   }
 }, { immediate: true })
-
-function resetForm() {
-  form.isbn = ''
-  form.titulo = ''
-  form.editorial = ''
-  form.anoPublicacion = new Date().getFullYear()
-  form.edicion = '1ª'
-  form.numero_paginas = null
-  form.idioma = 'Español'
-  form.categoriaId = null
-  form.descripcion = ''
-  form.imagen_portada = ''
-  portadaPreview.value = ''
-  pdfNombre.value = ''
-}
 
 function limpiarErrores() {
   Object.keys(errores).forEach(k => delete errores[k])
 }
 
-// ─── Computed ──────────────────────────────────────────────────────────
-const opcionesCategorias = computed(() =>
-  props.categorias.map(c => ({ value: c.id_categoria, label: c.nombre_categoria }))
-)
-
-const idiomasOpciones = [
-  { value: 'Español', label: 'Español' },
-  { value: 'Inglés', label: 'Inglés' },
-  { value: 'Portugués', label: 'Portugués' },
-  { value: 'Francés', label: 'Francés' },
-  { value: 'Alemán', label: 'Alemán' },
-]
-
-// ─── Archivos simulados ───────────────────────────────────────────────
-function onPortadaChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    portadaPreview.value = ev.target?.result as string
-    form.imagen_portada = portadaPreview.value
-  }
-  reader.readAsDataURL(file)
-}
-
-function onPdfChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  pdfNombre.value = file.name
-}
-
-// ─── Validación ───────────────────────────────────────────────────────
 function validar(): boolean {
   limpiarErrores()
   if (!form.titulo.trim()) errores.titulo = 'El título es requerido'
-  if (!form.isbn.trim()) errores.isbn = 'El ISBN es requerido'
-  if (!form.editorial.trim()) errores.editorial = 'La editorial es requerida'
   if (!form.categoriaId) errores.categoriaId = 'La categoría es requerida'
-  const anioActual = new Date().getFullYear()
-  if (!form.anoPublicacion || form.anoPublicacion < 1000 || form.anoPublicacion > anioActual + 1)
-    errores.anoPublicacion = 'Año inválido'
   return Object.keys(errores).length === 0
 }
 
-// ─── Guardar ──────────────────────────────────────────────────────────
 async function guardar() {
   if (!validar()) return
-  guardando.value = true
-  errorGeneral.value = ''
+  guardando.value = true; errorGeneral.value = ''
   try {
     const payload = {
-      isbn: form.isbn,
-      titulo: form.titulo,
-      editorial: form.editorial,
-      anoPublicacion: form.anoPublicacion,
-      edicion: form.edicion,
-      numero_paginas: form.numero_paginas,
+      titulo: form.titulo.trim(),
       idioma: form.idioma,
       categoriaId: form.categoriaId,
-      descripcion: form.descripcion,
-      imagen_portada: form.imagen_portada,
+      descripcion: form.descripcion.trim() || undefined,
     }
     if (props.libro) {
-      await api.put(`/libros/${props.libro.id_libro}`, payload)
+      await actualizarLibro(props.libro.idLibro, payload)
     } else {
-      await api.post('/libros', payload)
+      await crearLibro(payload as { titulo: string; idioma: string; categoriaId: number; descripcion?: string })
     }
-    invalidarCacheLibros()
     emit('saved')
-  } catch (err: unknown) {
-    errorGeneral.value = err instanceof Error ? err.message : 'Error al guardar el libro'
+  } catch (e: unknown) {
+    errorGeneral.value = e instanceof Error ? e.message : 'Error al guardar'
   } finally {
     guardando.value = false
   }
+}
+
+// ─── Gestión de ediciones (solo al editar un libro existente) ─────────────
+function abrirNuevaEdicion() {
+  edicionEditando.value = null
+  mostrarEdicionModal.value = true
+}
+
+function abrirEditarEdicion(ed: Edicion) {
+  edicionEditando.value = ed
+  mostrarEdicionModal.value = true
+}
+
+async function confirmarEliminarEdicion(ed: Edicion) {
+  if (!confirm(`¿Eliminar la edición ISBN ${ed.isbn}? Solo es posible si no tiene ejemplares.`)) return
+  try {
+    await eliminarEdicion(ed.idEdicion)
+    emit('saved') // refrescar el libro padre
+  } catch (e: unknown) {
+    alert(e instanceof Error ? e.message : 'Error al eliminar la edición')
+  }
+}
+
+function onEdicionGuardada() {
+  mostrarEdicionModal.value = false
+  emit('saved') // refresca el libro para ver la nueva edición
 }
 </script>
 
 <template>
   <BaseModal :title="libro ? 'Editar libro' : 'Nuevo libro'" size="lg" @close="emit('close')">
     <div class="space-y-5">
-      <!-- Portada + campos básicos -->
-      <div class="flex gap-5">
-        <!-- Preview portada -->
-        <div class="flex-shrink-0">
-          <p class="text-xs font-medium text-slate-600 mb-1.5">Portada</p>
-          <div
-            class="relative w-28 h-40 rounded-xl overflow-hidden bg-gradient-to-br from-indigo-50 to-slate-100 border border-slate-200 group">
-            <img v-if="portadaPreview" :src="portadaPreview" alt="Portada" class="w-full h-full object-cover" />
-            <div v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-2">
-              <svg class="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span class="text-xs text-slate-400 text-center">Subir portada</span>
-            </div>
-            <!-- Overlay para subir -->
-            <label
-              class="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center cursor-pointer">
-              <svg class="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none"
-                viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <input type="file" accept="image/*" class="sr-only" @change="onPortadaChange" />
-            </label>
-          </div>
-          <p class="text-xs text-slate-400 mt-1 text-center">JPG, PNG</p>
-        </div>
 
-        <!-- Campos principales -->
-        <div class="flex-1 space-y-3">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Título *</label>
-            <input v-model="form.titulo" type="text" placeholder="Título del libro"
-              class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              :class="errores.titulo ? 'border-red-400' : 'border-slate-200'" />
-            <p v-if="errores.titulo" class="text-xs text-red-500 mt-1">{{ errores.titulo }}</p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">ISBN *</label>
-              <input v-model="form.isbn" type="text" placeholder="978-..."
-                class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                :class="errores.isbn ? 'border-red-400' : 'border-slate-200'" />
-              <p v-if="errores.isbn" class="text-xs text-red-500 mt-1">{{ errores.isbn }}</p>
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Edición</label>
-              <input v-model="form.edicion" type="text" placeholder="1ª"
-                class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Editorial *</label>
-            <input v-model="form.editorial" type="text"
-              class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              :class="errores.editorial ? 'border-red-400' : 'border-slate-200'" />
-            <p v-if="errores.editorial" class="text-xs text-red-500 mt-1">{{ errores.editorial }}</p>
-          </div>
-        </div>
+      <!-- ── Campos del libro ── -->
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Título *</label>
+        <input v-model="form.titulo" type="text" placeholder="Título del libro"
+          class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          :class="errores.titulo ? 'border-red-400' : 'border-slate-200'" />
+        <p v-if="errores.titulo" class="text-xs text-red-500 mt-1">{{ errores.titulo }}</p>
       </div>
 
-      <!-- Segunda fila -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="sm:col-span-2">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Categoría *</label>
           <select v-model="form.categoriaId"
             class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             :class="errores.categoriaId ? 'border-red-400' : 'border-slate-200'">
             <option :value="null" disabled>Seleccionar categoría</option>
-            <option v-for="op in opcionesCategorias" :key="op.value" :value="op.value">
-              {{ op.label }}
-            </option>
+            <option v-for="op in opcionesCategorias" :key="op.value" :value="op.value">{{ op.label }}</option>
           </select>
           <p v-if="errores.categoriaId" class="text-xs text-red-500 mt-1">{{ errores.categoriaId }}</p>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Año</label>
-          <input v-model.number="form.anoPublicacion" type="number"
-            class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            :class="errores.anoPublicacion ? 'border-red-400' : 'border-slate-200'" />
-          <p v-if="errores.anoPublicacion" class="text-xs text-red-500 mt-1">{{ errores.anoPublicacion }}</p>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Páginas</label>
-          <input v-model.number="form.numero_paginas" type="number" placeholder="450"
-            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Idioma</label>
           <select v-model="form.idioma"
@@ -258,44 +159,83 @@ async function guardar() {
             <option v-for="op in idiomasOpciones" :key="op.value" :value="op.value">{{ op.label }}</option>
           </select>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">URL portada (opcional)</label>
-          <input v-model="form.imagen_portada" type="text" placeholder="https://..."
-            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
       </div>
 
-      <!-- Descripción -->
       <div>
         <label class="block text-xs font-medium text-slate-600 mb-1">Descripción</label>
         <textarea v-model="form.descripcion" rows="3" placeholder="Descripción breve del libro..."
           class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
       </div>
 
-      <!-- PDF simulado -->
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1.5">PDF del libro (simulado)</label>
-        <label
-          class="inline-flex items-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-          <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          <span class="text-sm text-slate-600">{{ pdfNombre || 'Seleccionar PDF' }}</span>
-          <input type="file" accept="application/pdf" class="sr-only" @change="onPdfChange" />
-        </label>
-        <span v-if="pdfNombre" class="ml-3 text-xs text-emerald-600">✓ Cargado</span>
+      <!-- ── Aviso al crear ── -->
+      <div v-if="!libro" class="flex items-start gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+        <svg class="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-xs text-indigo-700">
+          Después de crear el libro podrás agregar sus <strong>ediciones</strong> (ISBN, editorial, portada) desde el
+          detalle.
+        </p>
       </div>
 
-      <!-- Error general -->
-      <p v-if="errorGeneral" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-        {{ errorGeneral }}
-      </p>
+      <!-- ── Ediciones del libro (solo al editar) ── -->
+      <div v-if="libro">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-medium text-slate-600 uppercase tracking-wide">Ediciones</p>
+          <button @click="abrirNuevaEdicion"
+            class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Nueva edición
+          </button>
+        </div>
+
+        <div v-if="!libro.ediciones?.length"
+          class="text-xs text-slate-400 py-3 text-center border border-dashed border-slate-200 rounded-lg">
+          Sin ediciones. Agrega la primera edición con ISBN, editorial y portada.
+        </div>
+
+        <div v-else class="space-y-2">
+          <div v-for="ed in libro.ediciones" :key="ed.idEdicion"
+            class="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
+            <!-- Portada mini -->
+            <div class="w-8 h-11 rounded overflow-hidden bg-slate-200 flex-shrink-0">
+              <img v-if="ed.imagenPortada" :src="ed.imagenPortada" :alt="ed.isbn" class="w-full h-full object-cover" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-mono font-medium text-slate-800 truncate">{{ ed.isbn }}</p>
+              <p class="text-xs text-slate-500 truncate">{{ ed.editorial }} · {{ ed.anoPublicacion }}
+                <template v-if="ed.edicion"> · {{ ed.edicion }}</template>
+              </p>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button @click="abrirEditarEdicion(ed)"
+                class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button v-if="isAdmin" @click="confirmarEliminarEdicion(ed)"
+                class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p v-if="errorGeneral" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{{ errorGeneral }}</p>
     </div>
 
     <template #footer>
       <button @click="emit('close')"
-        class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
+        class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
         Cancelar
       </button>
       <button @click="guardar" :disabled="guardando"
@@ -308,4 +248,8 @@ async function guardar() {
       </button>
     </template>
   </BaseModal>
+
+  <!-- Sub-modal de edición -->
+  <EdicionFormModal v-if="mostrarEdicionModal && libro" :edicion="edicionEditando" :libro-id="libro.idLibro"
+    @close="mostrarEdicionModal = false" @saved="onEdicionGuardada" />
 </template>

@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
-import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
-
 import SButton from '@/components/ui/SButton.vue'
 import SInput from '@/components/ui/SInput.vue'
 import SSelect from '@/components/ui/SSelect.vue'
@@ -13,20 +11,22 @@ import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import LibroCard from '@/components/catalogo/LibroCard.vue'
 import LibroFormModal from '@/components/catalogo/LibroFormModal.vue'
 import LibroDetalleModal from '@/components/catalogo/LibroDetalleModal.vue'
-
 import type { Libro, Categoria } from '@/types/catalogo'
-import { buscarLibros, eliminarLibro as eliminarLibroService } from '@/services/libros.service'
+import { buscarLibros, eliminarLibro as eliminarLibroService, obtenerLibro } from '@/services/libros.service'
 import { obtenerCategorias } from '@/services/categorias.service'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
 const ui = useUiStore()
-const auth = useAuthStore()
 const { isAdmin, isBibliotecario } = usePermissions()
 
 // ─── Estado UI ────────────────────────────────────────────────────────────
 const mostrarFormModal = ref(false)
 const mostrarDetalleModal = ref(false)
+const mostrarConfirmEliminar = ref(false)
 const libroSeleccionado = ref<Libro | null>(null)
 const libroParaEditar = ref<Libro | null>(null)
+const libroParaEliminar = ref<Libro | null>(null)
+const eliminando = ref(false)
 const vistaActual = ref<'grid' | 'lista'>('grid')
 
 // ─── Filtros ──────────────────────────────────────────────────────────────
@@ -41,8 +41,8 @@ const categorias = ref<Categoria[]>([])
 const opcionesCategorias = computed(() => [
   { value: '', label: 'Todas las categorías' },
   ...categorias.value.map(c => ({
-    value: String(c.id_categoria),
-    label: c.nombre_categoria
+    value: String(c.id_categoria),      // ← idCategoria (nuevo campo)
+    label: c.nombre_categoria           // ← nombreCategoria (nuevo campo)
   }))
 ])
 
@@ -53,37 +53,32 @@ const libros = ref<Libro[]>([])
 const totalPaginas = ref(1)
 const totalLibros = ref(0)
 
-// ─── Inicialización ───────────────────────────────────────────────────────
 onMounted(async () => {
   ui.setBreadcrumbs([{ label: 'Catálogo', to: '/catalogo' }])
-  // Carga en paralelo para arrancar más rápido
   await Promise.all([cargarCategorias(), ejecutarBusqueda()])
 })
 
 async function cargarCategorias() {
   try {
     categorias.value = await obtenerCategorias()
-  } catch {
-    categorias.value = []
+    console.log(categorias.value)
   }
+  catch { categorias.value = [] }
 }
 
 async function ejecutarBusqueda() {
   cargandoLibros.value = true
   errorLibros.value = null
-
   try {
-    const { libros: resultado, totalPaginas: totalP, totalLibros: totalL } = await buscarLibros({
+    const resultado = await buscarLibros({
       titulo: busqueda.value,
       categoriaId: categoriaFiltro.value ? Number(categoriaFiltro.value) : undefined,
       pagina: pagina.value,
       size: porPagina,
-      sort: 'titulo,asc',
     })
-
-    libros.value = resultado
-    totalPaginas.value = totalP
-    totalLibros.value = totalL
+    libros.value = resultado.libros
+    totalPaginas.value = resultado.totalPaginas
+    totalLibros.value = resultado.totalLibros
   } catch (e: unknown) {
     errorLibros.value = e instanceof Error ? e.message : 'Error al cargar libros'
     libros.value = []
@@ -92,7 +87,6 @@ async function ejecutarBusqueda() {
   }
 }
 
-// Debounce en filtros
 let debounceTimer: ReturnType<typeof setTimeout>
 watch([busqueda, categoriaFiltro], () => {
   pagina.value = 1
@@ -112,33 +106,81 @@ function abrirDetalle(libro: Libro) {
 }
 
 function abrirCrear() {
+  console.log('🔵 Botón Nuevo libro clickeado - Permisos:', {
+    isAdmin: isAdmin.value,
+    isBibliotecario: isBibliotecario.value
+  })
+  console.log('✅ Botón Nuevo libro clickeado')
   libroParaEditar.value = null
   mostrarFormModal.value = true
+  console.log('mostrarFormModal seteado a true')
 }
 
 function abrirEditar(libro: Libro) {
   libroParaEditar.value = libro
   mostrarFormModal.value = true
 }
-
-async function eliminarLibro(libro: Libro) {
-  if (!confirm(`¿Eliminar "${libro.titulo}"? Esta acción no se puede deshacer.`)) return
-  try {
-    await eliminarLibroService(libro.id_libro)
-    ui.toast.success('Libro eliminado', `"${libro.titulo}" fue eliminado correctamente`)
-    ejecutarBusqueda()
-  } catch {
-    ui.toast.error('Error', 'No se pudo eliminar el libro')
-  }
+function cerrarFormModal() {
+  mostrarFormModal.value = false
+  // Pequeño delay para limpiar el formulario antes de destruirlo
+  setTimeout(() => {
+    libroParaEditar.value = null
+  }, 300)
 }
 
-function onLibroGuardado() {
+function abrirConfirmEliminar(libro: Libro) {
+  libroParaEliminar.value = libro
+  mostrarConfirmEliminar.value = true
+}
+
+// Ejecuta la eliminación cuando el usuario confirma
+async function confirmarEliminacionLibro() {
+  if (!libroParaEliminar.value) return
+
+  const libro = libroParaEliminar.value
+  eliminando.value = true
+
+  try {
+    await eliminarLibroService(libro.idLibro)
+
+    ui.toast.success('Eliminado', `"${libro.titulo}" ha sido eliminado correctamente`)
+
+    await ejecutarBusqueda()
+
+    // Si el libro eliminado estaba abierto en detalle, cerrarlo
+    if (libroSeleccionado.value?.idLibro === libro.idLibro) {
+      mostrarDetalleModal.value = false
+      libroSeleccionado.value = null
+    }
+  } catch (e: unknown) {
+    const mensaje = e instanceof Error ? e.message : 'No se pudo eliminar el libro'
+    ui.toast.error('Error', mensaje)
+  } finally {
+    eliminando.value = false
+    mostrarConfirmEliminar.value = false
+    libroParaEliminar.value = null
+  }
+}
+// Cuando se guarda el libro, refrescar la lista Y el libro abierto en detalle
+async function onLibroGuardado() {
   mostrarFormModal.value = false
-  ejecutarBusqueda()
-  ui.toast.success(
-    'Guardado',
-    libroParaEditar.value ? 'Libro actualizado correctamente' : 'Libro creado correctamente'
-  )
+  await ejecutarBusqueda()
+  // Si el libro guardado es el que está en el detalle, refrescarlo
+  if (libroSeleccionado.value && libroParaEditar.value?.idLibro === libroSeleccionado.value.idLibro) {
+    try {
+      libroSeleccionado.value = await obtenerLibro(libroSeleccionado.value.idLibro)
+    } catch { /* sin problema */ }
+  }
+  ui.toast.success('Guardado', libroParaEditar.value ? 'Libro actualizado' : 'Libro creado')
+}
+
+// El detalle pide refrescar el libro (cuando se agrega edición/ejemplar)
+async function onDetalleEditar(libro: Libro) {
+  mostrarDetalleModal.value = false
+  // Pequeño delay para que el sub-modal del detalle haya cerrado
+  await new Promise(r => setTimeout(r, 50))
+  libroParaEditar.value = libro
+  mostrarFormModal.value = true
 }
 </script>
 
@@ -153,7 +195,6 @@ function onLibroGuardado() {
           encontrado{{ totalLibros !== 1 ? 's' : '' }}
         </p>
       </div>
-
       <div class="flex items-center gap-3">
         <!-- Toggle vista -->
         <div class="flex rounded-lg border border-slate-200 overflow-hidden">
@@ -174,7 +215,6 @@ function onLibroGuardado() {
             </svg>
           </button>
         </div>
-
         <SButton v-if="isAdmin || isBibliotecario" @click="abrirCrear" variant="primary">
           <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -187,13 +227,13 @@ function onLibroGuardado() {
     <!-- Filtros -->
     <SCard class="mb-6" padding="md">
       <div class="flex flex-col sm:flex-row gap-3">
-        <SInput v-model="busqueda" placeholder="Buscar por título, autor o ISBN..." icon-left="search" clearable
+        <SInput v-model="busqueda" placeholder="Buscar por título, ISBN..." icon-left="search" clearable
           class="flex-1" />
         <SSelect v-model="categoriaFiltro" :options="opcionesCategorias" class="sm:w-64" />
       </div>
     </SCard>
 
-    <!-- Cargando → skeletons -->
+    <!-- Cargando -->
     <div v-if="cargandoLibros">
       <div :class="vistaActual === 'grid'
         ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'
@@ -208,18 +248,14 @@ function onLibroGuardado() {
     <!-- Error -->
     <div v-else-if="errorLibros" class="text-center py-12">
       <p class="text-red-500 text-sm">{{ errorLibros }}</p>
-      <SButton variant="ghost" size="sm" class="mt-3" @click="ejecutarBusqueda">
-        Reintentar
-      </SButton>
+      <SButton variant="ghost" size="sm" class="mt-3" @click="ejecutarBusqueda">Reintentar</SButton>
     </div>
 
     <!-- Sin resultados -->
     <SEmptyState v-else-if="!libros.length" title="Sin resultados"
       description="No hay libros que coincidan con tu búsqueda." icon="search">
       <template #action>
-        <SButton variant="ghost" size="sm" @click="busqueda = ''; categoriaFiltro = ''">
-          Limpiar filtros
-        </SButton>
+        <SButton variant="ghost" size="sm" @click="busqueda = ''; categoriaFiltro = ''">Limpiar filtros</SButton>
       </template>
     </SEmptyState>
 
@@ -228,15 +264,14 @@ function onLibroGuardado() {
       <div :class="vistaActual === 'grid'
         ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'
         : 'flex flex-col gap-3'">
-        <LibroCard v-for="libro in libros" :key="libro.id_libro" :libro="libro" :vista="vistaActual"
+        <LibroCard v-for="libro in libros" :key="libro.idLibro" :libro="libro" :vista="vistaActual"
           :puede-editar="isAdmin || isBibliotecario" @ver="abrirDetalle" @editar="abrirEditar"
-          @eliminar="eliminarLibro" />
+          @eliminar="abrirConfirmEliminar" />
       </div>
 
       <!-- Paginación -->
       <div v-if="totalPaginas > 1" class="flex items-center justify-center gap-2 mt-8">
-        <SButton variant="ghost" size="sm" :disabled="pagina === 1" @click="cambiarPagina(pagina - 1)">
-          Anterior
+        <SButton variant="ghost" size="sm" :disabled="pagina === 1" @click="cambiarPagina(pagina - 1)">Anterior
         </SButton>
         <span class="text-sm text-slate-600">Página {{ pagina }} de {{ totalPaginas }}</span>
         <SButton variant="ghost" size="sm" :disabled="pagina === totalPaginas" @click="cambiarPagina(pagina + 1)">
@@ -246,10 +281,23 @@ function onLibroGuardado() {
     </div>
 
     <!-- Modales -->
-    <LibroFormModal v-if="mostrarFormModal" :libro="libroParaEditar" :categorias="categorias ?? []"
-      @close="mostrarFormModal = false" @saved="onLibroGuardado" />
+    <LibroFormModal v-if="mostrarFormModal" :key="mostrarFormModal ? 'open' : 'closed'" :libro="libroParaEditar"
+      :categorias="categorias" @close="cerrarFormModal" @saved="onLibroGuardado" />
 
     <LibroDetalleModal v-if="mostrarDetalleModal && libroSeleccionado" :libro="libroSeleccionado"
-      @close="mostrarDetalleModal = false" @editar="(l) => { mostrarDetalleModal = false; abrirEditar(l) }" />
+      @close="mostrarDetalleModal = false" @editar="onDetalleEditar" />
+
+    <ConfirmModal v-model="mostrarConfirmEliminar" title="¿Eliminar libro?" variant="danger"
+      confirm-label="Sí, eliminar" :loading="eliminando" @confirm="confirmarEliminacionLibro">
+      Se eliminará permanentemente el libro
+
+      <span class="font-semibold text-slate-800">
+        "{{ libroParaEliminar?.titulo }}"
+      </span>
+
+      <span class="text-xs text-slate-400 mt-2 block">
+        Esta acción no se puede deshacer.
+      </span>
+    </ConfirmModal>
   </div>
 </template>

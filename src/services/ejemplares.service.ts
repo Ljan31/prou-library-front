@@ -1,130 +1,173 @@
 import api from "@/services/axios";
-import type { Ejemplar } from "@/types/catalogo";
+import type {
+  Ejemplar,
+  EstadoEjemplar,
+  HistorialItem,
+  DisponibilidadLibro,
+} from "@/types/catalogo";
 
-/**
- * Listar todos los ejemplares
- */
+function normArr<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    if (Array.isArray(d.content)) return d.content as T[];
+    if (Array.isArray(d.data)) return d.data as T[];
+  }
+  return [];
+}
+
+function unwrap<T>(data: unknown): T {
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    if (d.data) return d.data as T;
+  }
+  return data as T;
+}
+
+// ─── Consultas ────────────────────────────────────────────────────────────
+
+/** GET /api/ejemplares */
 export async function obtenerEjemplares(): Promise<Ejemplar[]> {
-  try {
-    const res = await api.get("/ejemplares");
-    return Array.isArray(res.data.data) ? res.data.data : [];
-  } catch (error) {
-    console.error("Error cargando ejemplares:", error);
-    throw new Error("No se pudo cargar los ejemplares");
-  }
+  const res = await api.get("/ejemplares");
+  return normArr<Ejemplar>(res.data);
 }
+
+/** GET /api/ejemplares/{id} */
 export async function obtenerEjemplar(id: number): Promise<Ejemplar> {
-  const res = await api.get(`/api/ejemplares/${id}`);
-  return res.data.data;
-}
-/**
- * Crear un ejemplar
- */
-export async function crearEjemplar(
-  data: Partial<Ejemplar>,
-): Promise<Ejemplar> {
-  try {
-    const res = await api.post("/ejemplares", data);
-    return res.data.data;
-  } catch (error) {
-    console.error("Error creando ejemplar:", error);
-    throw new Error("No se pudo crear el ejemplar");
-  }
+  const res = await api.get(`/ejemplares/${id}`);
+  return res.data;
 }
 
-/**
- * Actualizar un ejemplar
- */
+/** GET /api/ejemplares/codigo/{codigo} */
+export async function obtenerEjemplarPorCodigo(
+  codigo: string,
+): Promise<Ejemplar> {
+  const res = await api.get(`/ejemplares/codigo/${encodeURIComponent(codigo)}`);
+  return res.data;
+}
+
+/** GET /api/ejemplares/edicion/{edicionId} */
+export async function obtenerEjemplaresPorEdicion(
+  edicionId: number,
+): Promise<Ejemplar[]> {
+  const res = await api.get(`/ejemplares/edicion/${edicionId}`);
+  return normArr<Ejemplar>(res.data);
+}
+
+/** GET /api/ejemplares/libro/{libroId} — todas las ediciones */
+export async function obtenerEjemplaresPorLibro(
+  libroId: number,
+): Promise<Ejemplar[]> {
+  const res = await api.get(`/ejemplares/libro/${libroId}`);
+  return normArr<Ejemplar>(res.data);
+}
+
+/** GET /api/ejemplares/biblioteca/{bibliotecaId} */
+export async function obtenerEjemplaresPorBiblioteca(
+  bibliotecaId: number,
+): Promise<Ejemplar[]> {
+  const res = await api.get(`/ejemplares/biblioteca/${bibliotecaId}`);
+  return normArr<Ejemplar>(res.data);
+}
+
+/** GET /api/ejemplares/estado/{estado} */
+export async function obtenerEjemplaresPorEstado(
+  estado: EstadoEjemplar,
+): Promise<Ejemplar[]> {
+  const res = await api.get(`/ejemplares/estado/${estado}`);
+  return normArr<Ejemplar>(res.data);
+}
+
+/** GET /api/ejemplares/libro/{libroId}/disponibles */
+export async function obtenerDisponiblesPorLibro(
+  libroId: number,
+): Promise<Ejemplar[]> {
+  const res = await api.get(`/ejemplares/libro/${libroId}/disponibles`);
+  return normArr<Ejemplar>(res.data);
+}
+
+/** GET /api/ejemplares/libro/{libroId}/disponibilidad */
+export async function obtenerDisponibilidadLibro(
+  libroId: number,
+): Promise<DisponibilidadLibro> {
+  const res = await api.get(`/ejemplares/libro/${libroId}/disponibilidad`);
+  return res.data;
+}
+
+/** GET /api/ejemplares/{id}/historial */
+export async function obtenerHistorial(id: number): Promise<HistorialItem[]> {
+  const res = await api.get(`/ejemplares/${id}/historial`);
+  return normArr<HistorialItem>(res.data);
+}
+
+// ─── Mutaciones ───────────────────────────────────────────────────────────
+
+/** POST /api/ejemplares — ahora usa edicionId, no libroId */
+export async function crearEjemplar(data: {
+  codigoEjemplar: string;
+  codigoTopografico?: string;
+  ubicacionFisica?: string;
+  edicionId: number; // ← campo nuevo
+  bibliotecaId: number;
+  estadoEjemplar?: EstadoEjemplar;
+  fechaAdquisicion?: string;
+  precioCompra?: number | null;
+  observaciones?: string;
+}): Promise<Ejemplar> {
+  const res = await api.post("/ejemplares", data);
+  return unwrap<Ejemplar>(res.data);
+}
+
+/** PUT /api/ejemplares/{id} */
 export async function actualizarEjemplar(
-  id_ejemplar: number,
-  data: Partial<Ejemplar>,
+  id: number,
+  data: {
+    codigoEjemplar?: string;
+    codigoTopografico?: string;
+    ubicacionFisica?: string;
+    edicionId?: number;
+    bibliotecaId?: number;
+    precioCompra?: number | null;
+    observaciones?: string;
+  },
 ): Promise<Ejemplar> {
-  try {
-    const res = await api.put(`/ejemplares/${id_ejemplar}`, data);
-    return res.data.data;
-  } catch (error) {
-    console.error("Error actualizando ejemplar:", error);
-    throw new Error("No se pudo actualizar el ejemplar");
-  }
+  const res = await api.put(`/ejemplares/${id}`, data);
+  return unwrap<Ejemplar>(res.data);
 }
 
-/**
- * Eliminar un ejemplar
- */
-export async function eliminarEjemplar(id_ejemplar: number): Promise<void> {
-  try {
-    await api.delete(`/ejemplares/${id_ejemplar}`);
-  } catch (error) {
-    console.error("Error eliminando ejemplar:", error);
-    throw new Error("No se pudo eliminar el ejemplar");
-  }
+/** PUT /api/ejemplares/{id}/estado */
+export async function cambiarEstado(
+  id: number,
+  payload: {
+    nuevoEstado: EstadoEjemplar;
+    motivo: string;
+  },
+): Promise<Ejemplar> {
+  const res = await api.put(`/ejemplares/${id}/estado`, payload);
+  return unwrap<Ejemplar>(res.data);
 }
 
-/**
- * Cambiar estado de un ejemplar
- */
-export async function cambiarEstadoEjemplar(
-  id_ejemplar: number,
-  nuevoEstado: string,
+/** PUT /api/ejemplares/{id}/baja?motivo=... — solo ROLE_ADMIN */
+export async function darDeBaja(id: number, motivo: string): Promise<void> {
+  await api.put(`/ejemplares/${id}/baja`, null, { params: { motivo } });
+}
+
+/** PUT /api/ejemplares/{id}/perdido?motivo=... */
+export async function marcarPerdido(id: number, motivo: string): Promise<void> {
+  await api.put(`/ejemplares/${id}/perdido`, null, { params: { motivo } });
+}
+
+/** PUT /api/ejemplares/{ejemplarId}/transferir/{nuevaBibliotecaId}?motivo=... — solo ROLE_ADMIN */
+export async function transferir(
+  ejemplarId: number,
+  nuevaBibliotecaId: number,
   motivo: string,
-): Promise<Ejemplar> {
-  try {
-    const res = await api.put(`/ejemplares/${id_ejemplar}/estado`, {
-      nuevoEstado,
-      motivo,
-    });
-    return res.data;
-  } catch (error) {
-    console.error("Error cambiando estado del ejemplar:", error);
-    throw new Error("No se pudo cambiar el estado del ejemplar");
-  }
-}
-
-/**
- * Marcar un ejemplar como perdido
- */
-export async function marcarPerdido(
-  id_ejemplar: number,
-  motivo: string,
-): Promise<Ejemplar> {
-  try {
-    const res = await api.put(`/ejemplares/${id_ejemplar}/perdido`, null, {
+): Promise<void> {
+  await api.put(
+    `/ejemplares/${ejemplarId}/transferir/${nuevaBibliotecaId}`,
+    null,
+    {
       params: { motivo },
-    });
-    return res.data;
-  } catch (error) {
-    console.error("Error marcando ejemplar como perdido:", error);
-    throw new Error("No se pudo marcar el ejemplar como perdido");
-  }
-}
-
-/**
- * Dar de baja un ejemplar
- */
-export async function darDeBaja(
-  id_ejemplar: number,
-  motivo: string,
-): Promise<Ejemplar> {
-  try {
-    const res = await api.put(`/ejemplares/${id_ejemplar}/baja`, null, {
-      params: { motivo },
-    });
-    return res.data;
-  } catch (error) {
-    console.error("Error dando de baja ejemplar:", error);
-    throw new Error("No se pudo dar de baja el ejemplar");
-  }
-}
-
-/**
- * Obtener historial de cambios de estado de un ejemplar
- */
-export async function obtenerHistorial(id_ejemplar: number): Promise<any[]> {
-  try {
-    const res = await api.get(`/ejemplares/${id_ejemplar}/historial`);
-    return Array.isArray(res.data.data) ? res.data.data : [];
-  } catch (error) {
-    console.error("Error obteniendo historial del ejemplar:", error);
-    throw new Error("No se pudo obtener el historial del ejemplar");
-  }
+    },
+  );
 }

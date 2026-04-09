@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import SBadge from '@/components/ui/SBadge.vue'
+import { computed } from 'vue'
+import { primeraPortada, primeraEditorial, primerIsbn } from '@/utils/catalogo'
 import type { Libro } from '@/types/catalogo'
 
 const props = defineProps<{
@@ -14,21 +15,20 @@ const emit = defineEmits<{
   eliminar: [libro: Libro]
 }>()
 
-const disponibilidadVariant = (libro: Libro) => {
-  if (libro.ejemplaresDisponibles === 0) return 'danger'
-  if (libro.ejemplaresDisponibles <= 1) return 'warning'
-  return 'success'
-}
+const portada = computed(() => primeraPortada(props.libro.ediciones))
+const editorial = computed(() => primeraEditorial(props.libro.ediciones))
+const isbn = computed(() => primerIsbn(props.libro.ediciones))
+const numEdiciones = computed(() => props.libro.ediciones?.length ?? 0)
 </script>
 
 <template>
-  <!-- Vista GRID -->
+  <!-- ── Vista GRID ── -->
   <div v-if="vista === 'grid'"
     class="group relative bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-indigo-300 hover:shadow-md transition-all duration-200 cursor-pointer"
     @click="emit('ver', libro)">
     <!-- Portada -->
     <div class="relative aspect-[2/3] bg-gradient-to-br from-indigo-50 to-slate-100 overflow-hidden">
-      <img v-if="libro.imagen_portada" :src="libro.imagen_portada" :alt="libro.titulo"
+      <img v-if="portada" :src="portada" :alt="libro.titulo"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
       <div v-else class="w-full h-full flex items-center justify-center">
         <svg class="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,17 +39,15 @@ const disponibilidadVariant = (libro: Libro) => {
 
       <!-- Badge disponibilidad -->
       <div class="absolute top-2 right-2">
-        <span :class="[
-          'text-xs font-medium px-2 py-0.5 rounded-full',
+        <span :class="['text-xs font-medium px-2 py-0.5 rounded-full',
           libro.ejemplaresDisponibles === 0 ? 'bg-red-100 text-red-700' :
             libro.ejemplaresDisponibles <= 1 ? 'bg-amber-100 text-amber-700' :
-              'bg-emerald-100 text-emerald-700'
-        ]">
+              'bg-emerald-100 text-emerald-700']">
           {{ libro.ejemplaresDisponibles }} disp.
         </span>
       </div>
 
-      <!-- Acciones hover (solo staff) -->
+      <!-- Acciones hover — solo staff -->
       <div v-if="puedeEditar"
         class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2"
         @click.stop>
@@ -72,22 +70,27 @@ const disponibilidadVariant = (libro: Libro) => {
 
     <!-- Info -->
     <div class="p-3">
-      <p class="text-xs text-indigo-600 font-medium mb-0.5 truncate">{{ libro.categoria?.nombre_categoria }}</p>
-      <h3 class="text-sm font-semibold text-slate-900 line-clamp-2 leading-tight mb-1">{{ libro.titulo }}</h3>
-      <p class="text-xs text-slate-500 truncate">{{ libro.editorial }} · {{ libro.anoPublicacion }}</p>
-      <p class="text-xs text-slate-400 mt-1">{{ libro.ejemplaresTotal }} ejemplar{{ libro.ejemplaresTotal !== 1 ? 'es' :
-        '' }}</p>
+      <p class="text-xs text-indigo-600 font-medium mb-0.5 truncate">
+        {{ libro.categoria?.nombreCategoria }}
+      </p>
+      <h3 class="text-sm font-semibold text-slate-900 line-clamp-2 leading-tight mb-1">
+        {{ libro.titulo }}
+      </h3>
+      <p class="text-xs text-slate-500 truncate">{{ editorial }}</p>
+      <p class="text-xs text-slate-400 mt-1">
+        {{ numEdiciones }} edición{{ numEdiciones !== 1 ? 'es' : '' }} ·
+        {{ libro.ejemplaresTotal }} ejemplar{{ libro.ejemplaresTotal !== 1 ? 'es' : '' }}
+      </p>
     </div>
   </div>
 
-  <!-- Vista LISTA -->
+  <!-- ── Vista LISTA ── -->
   <div v-else
     class="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all duration-200 cursor-pointer"
     @click="emit('ver', libro)">
     <!-- Miniatura -->
     <div class="w-12 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-indigo-50 to-slate-100">
-      <img v-if="libro.imagen_portada" :src="libro.imagen_portada" :alt="libro.titulo"
-        class="w-full h-full object-cover" loading="lazy" />
+      <img v-if="portada" :src="portada" :alt="libro.titulo" class="w-full h-full object-cover" loading="lazy" />
       <div v-else class="w-full h-full flex items-center justify-center">
         <svg class="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -98,26 +101,26 @@ const disponibilidadVariant = (libro: Libro) => {
 
     <!-- Info -->
     <div class="flex-1 min-w-0">
-      <div class="flex items-center gap-2 mb-0.5">
-        <p class="text-xs text-indigo-600 font-medium">{{ libro.categoria?.nombre_categoria }}</p>
+      <div class="flex items-center gap-2 mb-0.5 flex-wrap">
+        <p class="text-xs text-indigo-600 font-medium">{{ libro.categoria?.nombreCategoria }}</p>
         <span class="text-slate-200">·</span>
-        <p class="text-xs text-slate-400 font-mono">ISBN: {{ libro.isbn }}</p>
+        <p class="text-xs text-slate-400 font-mono">ISBN: {{ isbn }}</p>
       </div>
       <h3 class="text-sm font-semibold text-slate-900 truncate">{{ libro.titulo }}</h3>
-      <p class="text-xs text-slate-500">{{ libro.editorial }} · {{ libro.anoPublicacion }} · {{ libro.edicion }}</p>
+      <p class="text-xs text-slate-500">{{ editorial }} · {{ libro.idioma }}</p>
     </div>
 
     <!-- Disponibilidad -->
     <div class="hidden sm:flex flex-col items-end gap-1 flex-shrink-0">
-      <span :class="[
-        'text-xs font-medium px-2 py-0.5 rounded-full',
+      <span :class="['text-xs font-medium px-2 py-0.5 rounded-full',
         libro.ejemplaresDisponibles === 0 ? 'bg-red-100 text-red-700' :
           libro.ejemplaresDisponibles <= 1 ? 'bg-amber-100 text-amber-700' :
-            'bg-emerald-100 text-emerald-700'
-      ]">
+            'bg-emerald-100 text-emerald-700']">
         {{ libro.ejemplaresDisponibles }} / {{ libro.ejemplaresTotal }} disponibles
       </span>
-      <p class="text-xs text-slate-400">{{ libro.idioma }}</p>
+      <p class="text-xs text-slate-400">
+        {{ numEdiciones }} edición{{ numEdiciones !== 1 ? 'es' : '' }}
+      </p>
     </div>
 
     <!-- Acciones -->

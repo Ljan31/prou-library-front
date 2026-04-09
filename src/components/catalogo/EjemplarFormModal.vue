@@ -1,37 +1,22 @@
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import BaseModal from './BaseModal.vue'
-import api from '@/services/axios'
-import type { Ejemplar } from '@/types/catalogo'
+import { crearEjemplar, actualizarEjemplar } from '@/services/ejemplares.service'
+import type { Ejemplar, Edicion } from '@/types/catalogo'
 
 const props = defineProps<{
   ejemplar: Ejemplar | null
-  libroId?: number
+  // Ediciones disponibles del libro para elegir a cuál asociar
+  ediciones?: Edicion[]
+  // Si se pasa una edicion pre-seleccionada (desde el detalle de una edición)
+  edicionIdInicial?: number
 }>()
 
-const emit = defineEmits<{
-  close: []
-  saved: []
-}>()
+const emit = defineEmits<{ close: []; saved: [] }>()
 
 const guardando = ref(false)
 const errorGeneral = ref('')
-
 const errores = reactive<Record<string, string>>({})
-
-const form = reactive({
-  libroId: props.libroId ?? null as number | null,
-  bibliotecaId: null as number | null,
-  codigo_ejemplar: '',
-  codigo_topografico: '',
-  ubicacion_fisica: '',
-  estadoEjemplar: 'DISPONIBLE',
-  fechaAdquisicion: new Date().toISOString().split('T')[0],
-  precio_compra: null as number | null,
-  observaciones: '',
-  pdf: '',
-  pdfPreview: '',
-})
 
 const opcionesEstado = [
   { value: 'DISPONIBLE', label: '🟢 Disponible' },
@@ -39,62 +24,83 @@ const opcionesEstado = [
   { value: 'DAÑADO', label: '🟡 Dañado' },
 ]
 
+const form = reactive({
+  edicionId: props.edicionIdInicial ?? null as number | null,
+  bibliotecaId: null as number | null,
+  codigoEjemplar: '',
+  codigoTopografico: '',
+  ubicacionFisica: '',
+  estadoEjemplar: 'DISPONIBLE',
+  fechaAdquisicion: new Date().toISOString().split('T')[0],
+  precioCompra: null as number | null,
+  observaciones: '',
+})
+
 watch(() => props.ejemplar, (e) => {
-  limpiarErrores()
-  errorGeneral.value = ''
+  limpiarErrores(); errorGeneral.value = ''
   if (e) {
-    form.libroId = e.libroId ?? props.libroId ?? null
-    form.bibliotecaId = e.bibliotecaId ?? null
-    form.codigo_ejemplar = e.codigo_ejemplar ?? ''
-    form.codigo_topografico = e.codigo_topografico ?? ''
-    form.ubicacion_fisica = e.ubicacion_fisica ?? ''
+    form.edicionId = e.edicion?.idEdicion ?? props.edicionIdInicial ?? null
+    form.bibliotecaId = e.biblioteca?.idBiblioteca ?? null
+    form.codigoEjemplar = e.codigoEjemplar ?? ''
+    form.codigoTopografico = e.codigoTopografico ?? ''
+    form.ubicacionFisica = e.ubicacionFisica ?? ''
     form.estadoEjemplar = e.estadoEjemplar ?? 'DISPONIBLE'
     form.fechaAdquisicion = e.fechaAdquisicion ?? new Date().toISOString().split('T')[0]
-    form.precio_compra = e.precio_compra ?? null
+    form.precioCompra = e.precioCompra ?? null
     form.observaciones = e.observaciones ?? ''
-    form.pdf = e.pdf ?? ''
-    form.pdfPreview = e.pdfPreview ?? ''
   } else {
-    form.libroId = props.libroId ?? null
+    form.edicionId = props.edicionIdInicial ?? null
     form.bibliotecaId = null
-    form.codigo_ejemplar = ''
-    form.codigo_topografico = ''
-    form.ubicacion_fisica = ''
+    form.codigoEjemplar = ''
+    form.codigoTopografico = ''
+    form.ubicacionFisica = ''
     form.estadoEjemplar = 'DISPONIBLE'
     form.fechaAdquisicion = new Date().toISOString().split('T')[0]
-    form.precio_compra = null
+    form.precioCompra = null
     form.observaciones = ''
-    form.pdf = ''
-    form.pdfPreview = ''
   }
 }, { immediate: true })
 
-function limpiarErrores() {
-  Object.keys(errores).forEach(k => delete errores[k])
-}
+function limpiarErrores() { Object.keys(errores).forEach(k => delete errores[k]) }
 
 function validar(): boolean {
   limpiarErrores()
-  if (!form.codigo_ejemplar.trim()) errores.codigo_ejemplar = 'El código del ejemplar es requerido'
-  if (!form.ubicacion_fisica.trim()) errores.ubicacion_fisica = 'La ubicación es requerida'
-  if (!form.libroId) errores.libroId = 'Se requiere un libro asociado'
+  if (!form.codigoEjemplar.trim()) errores.codigoEjemplar = 'El código es requerido'
+  if (!form.ubicacionFisica.trim()) errores.ubicacionFisica = 'La ubicación es requerida'
+  if (!form.edicionId) errores.edicionId = 'Debe seleccionar una edición'
   return Object.keys(errores).length === 0
 }
 
 async function guardar() {
   if (!validar()) return
-  guardando.value = true
-  errorGeneral.value = ''
+  guardando.value = true; errorGeneral.value = ''
   try {
-    const payload = { ...form }
     if (props.ejemplar) {
-      await api.put(`/ejemplares/${props.ejemplar.id_ejemplar}`, payload)
+      await actualizarEjemplar(props.ejemplar.idEjemplar, {
+        codigoEjemplar: form.codigoEjemplar,
+        codigoTopografico: form.codigoTopografico || undefined,
+        ubicacionFisica: form.ubicacionFisica || undefined,
+        edicionId: form.edicionId!,
+        bibliotecaId: form.bibliotecaId!,
+        precioCompra: form.precioCompra,
+        observaciones: form.observaciones || undefined,
+      })
     } else {
-      await api.post('/ejemplares', payload)
+      await crearEjemplar({
+        codigoEjemplar: form.codigoEjemplar,
+        codigoTopografico: form.codigoTopografico || undefined,
+        ubicacionFisica: form.ubicacionFisica || undefined,
+        edicionId: form.edicionId!,
+        bibliotecaId: form.bibliotecaId!,
+        estadoEjemplar: form.estadoEjemplar as any,
+        fechaAdquisicion: form.fechaAdquisicion || undefined,
+        precioCompra: form.precioCompra,
+        observaciones: form.observaciones || undefined,
+      })
     }
     emit('saved')
-  } catch (err: unknown) {
-    errorGeneral.value = err instanceof Error ? err.message : 'Error al guardar el ejemplar'
+  } catch (e: unknown) {
+    errorGeneral.value = e instanceof Error ? e.message : 'Error al guardar'
   } finally {
     guardando.value = false
   }
@@ -104,34 +110,49 @@ async function guardar() {
 <template>
   <BaseModal :title="ejemplar ? 'Editar ejemplar' : 'Nuevo ejemplar'" size="md" @close="emit('close')">
     <div class="space-y-4">
-      <!-- Código ejemplar + topográfico -->
+
+      <!-- Selección de edición (si se pasan varias) -->
+      <div v-if="ediciones && ediciones.length > 1">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Edición *</label>
+        <select v-model="form.edicionId"
+          class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          :class="errores.edicionId ? 'border-red-400' : 'border-slate-200'">
+          <option :value="null" disabled>Seleccionar edición</option>
+          <option v-for="ed in ediciones" :key="ed.idEdicion" :value="ed.idEdicion">
+            {{ ed.isbn }} — {{ ed.editorial }} ({{ ed.anoPublicacion }})
+          </option>
+        </select>
+        <p v-if="errores.edicionId" class="text-xs text-red-500 mt-1">{{ errores.edicionId }}</p>
+      </div>
+
+      <!-- Código + Topográfico -->
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Código ejemplar *</label>
-          <input v-model="form.codigo_ejemplar" type="text" placeholder="JAVA-011"
-            class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            :class="errores.codigo_ejemplar ? 'border-red-400' : 'border-slate-200'" />
-          <p v-if="errores.codigo_ejemplar" class="text-xs text-red-500 mt-1">{{ errores.codigo_ejemplar }}</p>
-          <p class="text-xs text-slate-400 mt-1">Debe ser único</p>
+          <input v-model="form.codigoEjemplar" type="text" placeholder="EJ-2024-010"
+            class="w-full text-sm rounded-lg border px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            :class="errores.codigoEjemplar ? 'border-red-400' : 'border-slate-200'" />
+          <p v-if="errores.codigoEjemplar" class="text-xs text-red-500 mt-1">{{ errores.codigoEjemplar }}</p>
+          <p class="text-xs text-slate-400 mt-0.5">Debe ser único</p>
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Código topográfico</label>
-          <input v-model="form.codigo_topografico" type="text" placeholder="004-JAV-2020"
-            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input v-model="form.codigoTopografico" type="text" placeholder="004.1 C676"
+            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
       </div>
 
       <!-- Ubicación -->
       <div>
         <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación física *</label>
-        <input v-model="form.ubicacion_fisica" type="text" placeholder="Estante A11"
+        <input v-model="form.ubicacionFisica" type="text" placeholder="Estante B-2, Fila 1"
           class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          :class="errores.ubicacion_fisica ? 'border-red-400' : 'border-slate-200'" />
-        <p v-if="errores.ubicacion_fisica" class="text-xs text-red-500 mt-1">{{ errores.ubicacion_fisica }}</p>
+          :class="errores.ubicacionFisica ? 'border-red-400' : 'border-slate-200'" />
+        <p v-if="errores.ubicacionFisica" class="text-xs text-red-500 mt-1">{{ errores.ubicacionFisica }}</p>
       </div>
 
-      <!-- Estado -->
-      <div>
+      <!-- Estado (solo al crear) -->
+      <div v-if="!ejemplar">
         <label class="block text-xs font-medium text-slate-600 mb-1">Estado inicial</label>
         <select v-model="form.estadoEjemplar"
           class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
@@ -139,7 +160,7 @@ async function guardar() {
         </select>
       </div>
 
-      <!-- Fecha y precio -->
+      <!-- Fecha + Precio -->
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Fecha adquisición</label>
@@ -148,42 +169,30 @@ async function guardar() {
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Precio compra (Bs.)</label>
-          <input v-model.number="form.precio_compra" type="number" step="0.01" placeholder="45.50"
+          <input v-model.number="form.precioCompra" type="number" step="0.01" placeholder="85.00"
             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
-      </div>
-
-      <!-- Links PDF -->
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">URL del PDF completo</label>
-        <input v-model="form.pdf" type="text" placeholder="https://..."
-          class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">URL de previsualización (imagen)</label>
-        <input v-model="form.pdfPreview" type="text" placeholder="https://..."
-          class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       </div>
 
       <!-- Observaciones -->
       <div>
         <label class="block text-xs font-medium text-slate-600 mb-1">Observaciones</label>
-        <textarea v-model="form.observaciones" rows="2" placeholder="Notas adicionales..."
+        <textarea v-model="form.observaciones" rows="2" placeholder="Donación FHCE 2024..."
           class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
       </div>
 
-      <!-- Errores -->
-      <p v-if="errores.libroId" class="text-sm text-red-500">{{ errores.libroId }}</p>
+      <p v-if="errores.edicionId && !(ediciones && ediciones.length > 1)" class="text-sm text-red-500">{{
+        errores.edicionId }}</p>
       <p v-if="errorGeneral" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{{ errorGeneral }}</p>
     </div>
 
     <template #footer>
       <button @click="emit('close')"
-        class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
+        class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
         Cancelar
       </button>
       <button @click="guardar" :disabled="guardando"
-        class="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+        class="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2">
         <svg v-if="guardando" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

@@ -1,4 +1,3 @@
-// ─── utils/catalogo.ts ────────────────────────────────────────────────────
 import type { EstadoEjemplar } from "@/types/catalogo";
 
 export const estadoEjemplarConfig: Record<
@@ -19,6 +18,11 @@ export const estadoEjemplarConfig: Record<
     dot: "bg-red-500",
     clases: "bg-red-100 text-red-700",
   },
+  RESERVADO: {
+    label: "Reservado",
+    dot: "bg-blue-400",
+    clases: "bg-blue-100 text-blue-700",
+  },
   EN_REPARACION: {
     label: "En reparación",
     dot: "bg-amber-400",
@@ -32,11 +36,32 @@ export const estadoEjemplarConfig: Record<
   BAJA: {
     label: "Baja",
     dot: "bg-slate-400",
-    clases: "bg-slate-100 text-slate-600",
+    clases: "bg-slate-100 text-slate-500",
   },
   PERDIDO: {
     label: "Perdido",
-    dot: "bg-slate-500",
+    dot: "bg-slate-600",
     clases: "bg-slate-200 text-slate-700",
   },
 };
+
+/** Primer ISBN de las ediciones de un libro */
+export function primerIsbn(ediciones: { isbn?: string }[] | undefined): string {
+  return ediciones?.find((e) => e.isbn)?.isbn ?? "—";
+}
+
+/** Primera imagen de portada de las ediciones */
+export function primeraPortada(
+  ediciones: { imagenPortada?: string }[] | undefined,
+): string {
+  return ediciones?.find((e) => e.imagenPortada)?.imagenPortada ?? "";
+}
+
+/** Editorial + año de la primera edición */
+export function primeraEditorial(
+  ediciones: { editorial?: string; anoPublicacion?: number }[] | undefined,
+): string {
+  const ed = ediciones?.[0];
+  if (!ed) return "—";
+  return [ed.editorial, ed.anoPublicacion].filter(Boolean).join(" · ");
+}
