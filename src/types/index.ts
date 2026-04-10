@@ -30,7 +30,7 @@ export interface LoginResponseData {
   username: string;
   roles: RoleKey[]; // array of strings from login
   persona: Persona;
-  biblioteca: Biblioteca | null;
+  bibliotecas: Biblioteca[] | null;
 }
 
 /** Shape returned by GET /api/auth/me */
@@ -48,7 +48,7 @@ export interface AuthUser {
   username: string;
   roles: RoleKey[]; // always normalized to string array
   persona: Persona;
-  biblioteca: Biblioteca | null;
+  biblioteca: Biblioteca[] | null;
 }
 
 // ─── API Response wrapper ──────────────────────────────────────────────────

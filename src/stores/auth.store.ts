@@ -2,29 +2,59 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { authService, type LoginCredentials } from "@/services/auth.service";
 import type { AuthUser, RoleKey, MeResponseData } from "@/types";
+import type { Biblioteca } from "@/services/bibliotecas.service";
 
 // ─── Role normalizer ──────────────────────────────────────────────────────
 function normalizeRoles(raw: unknown): RoleKey[] {
   if (!Array.isArray(raw)) return [];
 
-  return raw
-    .map((r) => {
-      if (typeof r === "string") return r as RoleKey;
-      if (typeof r === "object" && r !== null && "name" in r)
-        return (r as { name: RoleKey }).name;
-      return null;
-    })
-    .filter(Boolean) as RoleKey[];
+  return (
+    raw
+      .map((r) => {
+        if (typeof r === "string") return r as RoleKey;
+        if (typeof r === "object" && r !== null && "name" in r)
+          return (r as { name: RoleKey }).name;
+        return null;
+      })
+      // .filter(Boolean) as RoleKey[];
+      .filter((r): r is RoleKey => Boolean(r))
+  );
 }
-
+// Nueva función para normalizar bibliotecas
+function normalizeBibliotecas(raw: unknown): Biblioteca[] {
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+  if (raw && typeof raw === "object") {
+    return [raw as Biblioteca]; // por si /me devuelve objeto singular
+  }
+  return [];
+}
 function mapMeToAuthUser(me: MeResponseData): AuthUser {
   return {
     id: me.id_usuario,
     username: me.username,
     roles: normalizeRoles(me.roles),
     persona: me.persona,
-    biblioteca: me.biblioteca ?? null,
+    biblioteca: normalizeBibliotecas(me.biblioteca ?? me.biblioteca),
   };
+}
+// Nueva función auxiliar para extraer la biblioteca (singular)
+function extractBiblioteca(loginData: any): any {
+  // Si ya viene como objeto (caso del /me)
+  if (loginData.biblioteca) {
+    return loginData.biblioteca;
+  }
+
+  // Si viene como array (caso del login)
+  if (
+    Array.isArray(loginData.bibliotecas) &&
+    loginData.bibliotecas.length > 0
+  ) {
+    return loginData.bibliotecas[0]; // tomamos la primera (normalmente solo tiene una)
+  }
+
+  return null;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────
@@ -45,7 +75,7 @@ export const useAuthStore = defineStore("auth", () => {
     roles.value.includes("ROLE_BIBLIOTECARIO"),
   );
   const isEstudiante = computed(() => roles.value.includes("ROLE_ESTUDIANTE"));
-
+  // const isAuxiliar = computed(() => roles.value.includes("ROLE_AUXILIAR"));
   const primaryRole = computed<RoleKey | null>(() => {
     if (isAdmin.value) return "ROLE_ADMIN";
     if (isBibliotecario.value) return "ROLE_BIBLIOTECARIO";
@@ -57,10 +87,19 @@ export const useAuthStore = defineStore("auth", () => {
     () => user.value?.persona.nombreCompleto ?? user.value?.username ?? "",
   );
 
-  const bibliotecaNombre = computed(
-    () => user.value?.biblioteca?.nombre ?? null,
+  const bibliotecas = computed(() => user.value?.biblioteca ?? []);
+  // const bibliotecaNombre = computed(
+  //   () => user.value?.biblioteca?.nombre ?? null,
+  // );
+  // Nombres de todas las bibliotecas (como array de strings)
+  const bibliotecaNombre = computed<string[]>(() =>
+    bibliotecas.value.map((b) => b.nombre).filter(Boolean),
   );
 
+  // Nombres unidos en un solo string (útil para mostrar en UI)
+  const bibliotecasNombresTexto = computed(
+    () => bibliotecaNombre.value.join(", ") || "Sin biblioteca asignada",
+  );
   function hasRole(role: RoleKey): boolean {
     return roles.value.includes(role);
   }
@@ -87,7 +126,7 @@ export const useAuthStore = defineStore("auth", () => {
     error.value = null;
     try {
       const loginData = await authService.login(credentials);
-
+      console.log("loginData", loginData);
       // Save token first (interceptor will attach it to the /me call)
       setToken(loginData.token);
 
@@ -97,9 +136,11 @@ export const useAuthStore = defineStore("auth", () => {
         username: loginData.username,
         roles: normalizeRoles(loginData.roles),
         persona: loginData.persona,
-        biblioteca: loginData.biblioteca ?? null,
+        biblioteca: normalizeBibliotecas(
+          loginData.bibliotecas ?? loginData.bibliotecas,
+        ),
       };
-
+      console.log("user", user);
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error de autenticación";
@@ -159,6 +200,7 @@ export const useAuthStore = defineStore("auth", () => {
     primaryRole,
     displayName,
     bibliotecaNombre,
+    bibliotecasNombresTexto,
     // Methods
     hasRole,
     hasAnyRole,
