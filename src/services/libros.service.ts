@@ -7,6 +7,7 @@ export interface BusquedaLibrosParams {
   titulo?: string;
   categoriaId?: number;
   isbn?: string; // busca dentro de las ediciones
+  bibliotecaId?: number;
   pagina?: number;
   size?: number;
   sort?: string;
@@ -31,22 +32,53 @@ function normalizar(data: unknown): Libro[] {
 }
 
 // ─── Caché en memoria ─────────────────────────────────────────────────────
-
-let _cache: Libro[] | null = null;
-let _cacheTs = 0;
+const _cache = new Map<string, { libros: Libro[]; ts: number }>();
 const TTL = 30_000;
 
-async function getTodos(): Promise<Libro[]> {
-  if (_cache && Date.now() - _cacheTs < TTL) return _cache;
-  const res = await api.get("/api/libros");
-  _cache = normalizar(res.data);
-  _cacheTs = Date.now();
-  return _cache;
+function cacheKey(bibliotecaId?: number) {
+  return bibliotecaId ? `bib:${bibliotecaId}` : "all";
+}
+async function getTodos(bibliotecaId?: number): Promise<Libro[]> {
+  const key = cacheKey(bibliotecaId);
+  const entry = _cache.get(key);
+  if (entry && Date.now() - entry.ts < TTL) return entry.libros;
+
+  let libros: Libro[];
+
+  if (bibliotecaId) {
+    // Traer los ejemplares de esta biblioteca y extraer los libros únicos
+    // El endpoint más directo es obtener ejemplares por biblioteca y agrupar
+    try {
+      const res = await api.get(`/ejemplares/biblioteca/${bibliotecaId}`);
+      const ejemplares = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.content ?? []);
+      // Extraer libros únicos por idLibro a través de las ediciones
+      const idsLibros = new Set<number>();
+      for (const ej of ejemplares) {
+        const libroId = ej.edicion?.idLibro;
+        if (libroId) idsLibros.add(libroId);
+      }
+      // Buscar cada libro (o usar el listado completo y filtrar)
+      const resTodos = await api.get("/libros");
+      const todos = normalizar(resTodos.data);
+      libros = todos.filter((l) => idsLibros.has(l.idLibro));
+    } catch {
+      // fallback: traer todos si falla el endpoint de biblioteca
+      const res = await api.get("/libros");
+      libros = normalizar(res.data);
+    }
+  } else {
+    const res = await api.get("/libros");
+    libros = normalizar(res.data);
+  }
+
+  _cache.set(key, { libros, ts: Date.now() });
+  return libros;
 }
 
 export function invalidarCacheLibros() {
-  _cache = null;
-  _cacheTs = 0;
+  _cache.clear();
 }
 
 // Filtrado local (fallback cuando la búsqueda avanzada falla)

@@ -77,7 +77,17 @@ async function guardar() {
     }
     emit('saved')
   } catch (e: unknown) {
-    errorGeneral.value = e instanceof Error ? e.message : 'Error al guardar la edición'
+    let msg = 'No se pudo completar el registro'
+
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const err = e as any
+      msg = err.response?.data?.message || msg
+      // console.log("BACKEND 👉", err.response?.data)
+    } else if (e instanceof Error) {
+      msg = e.message
+    }
+    errorGeneral.value = e instanceof Error ? msg : 'Error al guardar la edición'
+
   } finally {
     guardando.value = false
   }

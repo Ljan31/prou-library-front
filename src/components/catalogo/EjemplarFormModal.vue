@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import BaseModal from './BaseModal.vue'
 import { crearEjemplar, actualizarEjemplar } from '@/services/ejemplares.service'
+import { bibliotecasService } from '@/services/bibliotecas.service'
+import { useAuthStore } from '@/stores/auth.store'
+import { usePermissions } from '@/composables/usePermissions'
 import type { Ejemplar, Edicion } from '@/types/catalogo'
 
 const props = defineProps<{
@@ -14,6 +17,67 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: []; saved: [] }>()
 
+const auth = useAuthStore()
+const { isAdmin, isBibliotecario } = usePermissions()
+// ─── Bibliotecas disponibles ──────────────────────────────────────────────
+interface BibliotecaOpcion {
+  id: number
+  nombre: string
+}
+
+const bibliotecas = ref<BibliotecaOpcion[]>([])
+const cargandoBibs = ref(false)
+
+// La biblioteca del bibliotecario logueado (viene del auth store)
+// El campo en auth.user.biblioteca depende de cómo lo devuelve el backend.
+// Soportamos tanto { id_biblioteca, nombre } como { idBiblioteca, nombre }
+const bibliotecaPropia = computed<BibliotecaOpcion | null>(() => {
+
+  // const bib = auth.user?.biblioteca as Record<string, unknown> | null | undefined
+  // console.log(auth.user)
+  // console.log({ bib })
+  // if (!bib) return null
+  // const id = (bib.id_biblioteca ?? bib.idBiblioteca ?? bib.id) as number | undefined
+  // const nombre = (bib.nombre ?? bib.name) as string | undefined
+  // if (!id || !nombre) return null
+  // return { id, nombre }
+
+  if (!auth.user?.biblioteca || auth.user.biblioteca.length === 0) return []
+
+  return auth.user.biblioteca.map((bib: any) => ({
+    id: (bib.id_biblioteca ?? bib.idBiblioteca ?? bib.id) as number,
+    nombre: (bib.nombre ?? bib.name) as string,
+  })).filter(b => b.id && b.nombre)
+
+})
+
+onMounted(async () => {
+  // Admin: cargar todas las bibliotecas para poder elegir
+  if (isAdmin.value) {
+    cargandoBibs.value = true
+    try {
+      const res = await bibliotecasService.getAll()
+      const raw = res.data as unknown
+      const lista = Array.isArray(raw) ? raw : ((raw as Record<string, unknown>)?.data ?? []) as unknown[]
+      bibliotecas.value = (lista as Record<string, unknown>[])
+        .filter(b => b.estado === 'ACTIVA' || !b.estado)
+        .map(b => ({
+          id: (b.id_biblioteca ?? b.idBiblioteca ?? b.id) as number,
+          nombre: (b.nombre ?? b.name) as string,
+        }))
+    } catch {
+      bibliotecas.value = []
+    } finally {
+      cargandoBibs.value = false
+    }
+    console.log('admin', bibliotecas.value)
+  } else if (bibliotecaPropia.value) {
+    // Bibliotecario: solo ve su propia biblioteca
+    bibliotecas.value = bibliotecaPropia.value
+    console.log("bibliotecario", bibliotecas.value)
+  }
+})
+// ─── Formulario 
 const guardando = ref(false)
 const errorGeneral = ref('')
 const errores = reactive<Record<string, string>>({})
@@ -35,6 +99,16 @@ const form = reactive({
   precioCompra: null as number | null,
   observaciones: '',
 })
+// Pre-seleccionar biblioteca al montar / cambiar
+watch(bibliotecaPropia, (bib) => {
+  // if (bib && !form.bibliotecaId) {
+  //   form.bibliotecaId = bib.id
+  // }
+  console.log(bib)
+  if (bib.length > 0 && !form.bibliotecaId) {
+    form.bibliotecaId = bib[0].id   // selecciona la primera por defecto
+  }
+}, { immediate: true })
 
 watch(() => props.ejemplar, (e) => {
   limpiarErrores(); errorGeneral.value = ''
@@ -68,6 +142,7 @@ function validar(): boolean {
   if (!form.codigoEjemplar.trim()) errores.codigoEjemplar = 'El código es requerido'
   if (!form.ubicacionFisica.trim()) errores.ubicacionFisica = 'La ubicación es requerida'
   if (!form.edicionId) errores.edicionId = 'Debe seleccionar una edición'
+  if (!form.bibliotecaId) errores.bibliotecaId = 'Debe seleccionar una biblioteca'
   return Object.keys(errores).length === 0
 }
 
@@ -123,6 +198,71 @@ async function guardar() {
           </option>
         </select>
         <p v-if="errores.edicionId" class="text-xs text-red-500 mt-1">{{ errores.edicionId }}</p>
+      </div>
+
+      <!-- ─── Biblioteca ─────────────────────────────────────────────── -->
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">
+          Biblioteca *
+          <span v-if="isBibliotecario && !isAdmin" class="text-slate-400 font-normal">(tu biblioteca)</span>
+          <!-- <span v-if="isBibliotecario && !isAdmin" class="text-slate-400 font-normal">
+            (puedes elegir entre las que tienes asignadas)
+          </span> -->
+        </label>
+
+        <!-- Admin: selector completo -->
+        <div v-if="isAdmin">
+          <div v-if="cargandoBibs" class="flex items-center gap-2 h-9 text-xs text-slate-400">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Cargando bibliotecas…
+          </div>
+          <select v-else v-model="form.bibliotecaId"
+            class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            :class="errores.bibliotecaId ? 'border-red-400' : 'border-slate-200'">
+            <option :value="null" disabled>Seleccionar biblioteca</option>
+            <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">
+              {{ bib.nombre }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Bibliotecario: fijo, solo lectura -->
+        <div v-else class="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+          </svg>
+          <span class="text-sm font-medium text-indigo-700">
+            {{ bibliotecaPropia[0]?.nombre ?? 'Sin biblioteca asignada' }}
+          </span>
+          <!-- opcion si se le asigna mas de una biblioteca -->
+          <!-- <select v-model="form.bibliotecaId"
+            class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            :class="errores.bibliotecaId ? 'border-red-400' : 'border-slate-200'">
+            <option :value="null" disabled>Seleccionar biblioteca</option>
+            <option v-for="bib in bibliotecaPropia" :key="bib.id" :value="bib.id">
+              {{ bib.nombre }}
+            </option>
+          </select> -->
+        </div>
+
+        <p v-if="errores.bibliotecaId" class="text-xs text-red-500 mt-1">{{ errores.bibliotecaId }}</p>
+
+        <!-- Aviso si el bibliotecario no tiene biblioteca asignada -->
+        <div v-if="isBibliotecario && !isAdmin && !bibliotecaPropia"
+          class="flex items-start gap-2 mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+          <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.962-.833-2.732 0L3.07 16.5c-.77.833.193 2.5 1.732 2.5z" />
+          </svg>
+          <p class="text-xs text-amber-700">
+            Tu cuenta no tiene una biblioteca asignada. Contacta al administrador.
+          </p>
+        </div>
       </div>
 
       <!-- Código + Topográfico -->
