@@ -79,6 +79,7 @@ function abrirNuevoEjemplar(edicionId?: number) {
 }
 
 function abrirEditarEjemplar(e: Ejemplar) {
+  console.log('e', e)
   ejemplarEditando.value = e
   subModal.value = 'ejemplar-form'
 }
@@ -107,7 +108,7 @@ function onEjemplarGuardado() {
       <button v-for="tab in [
         { key: 'info', label: 'Información' },
         { key: 'ediciones', label: `Ediciones (${libro.ediciones?.length ?? 0})` },
-        { key: 'ejemplares', label: `Ejemplares (${libro.ejemplaresTotal})` },
+        { key: 'ejemplares', label: `Ejemplares (${ejemplares.length})` },
       ]" :key="tab.key" @click="tabActiva = tab.key as any" :class="['px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
         tabActiva === tab.key
           ? 'border-indigo-600 text-indigo-600'
@@ -136,7 +137,7 @@ function onEjemplarGuardado() {
                 libro.ejemplaresDisponibles <= 1 ? 'text-amber-600' : 'text-emerald-600']">
               {{ libro.ejemplaresDisponibles }}
             </span>
-            <span class="text-xs text-slate-500"> / {{ libro.ejemplaresTotal }} disp.</span>
+            <span class="text-xs text-slate-500"> / {{ ejemplares.length }} disp.</span>
           </div>
         </div>
 
@@ -157,7 +158,7 @@ function onEjemplarGuardado() {
             </div>
             <div>
               <dt class="text-xs text-slate-500">Ejemplares totales</dt>
-              <dd class="text-slate-800 mt-0.5">{{ libro.ejemplaresTotal }}</dd>
+              <dd class="text-slate-800 mt-0.5">{{ ejemplares.length }}</dd>
             </div>
             <div>
               <dt class="text-xs text-slate-500">Disponibles</dt>

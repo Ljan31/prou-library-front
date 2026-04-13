@@ -104,7 +104,7 @@ watch(bibliotecaPropia, (bib) => {
   // if (bib && !form.bibliotecaId) {
   //   form.bibliotecaId = bib.id
   // }
-  console.log(bib)
+  console.log('bib', bib)
   if (bib.length > 0 && !form.bibliotecaId) {
     form.bibliotecaId = bib[0].id   // selecciona la primera por defecto
   }
@@ -112,9 +112,10 @@ watch(bibliotecaPropia, (bib) => {
 
 watch(() => props.ejemplar, (e) => {
   limpiarErrores(); errorGeneral.value = ''
+  console.log('watch', props.ejemplar)
   if (e) {
     form.edicionId = e.edicion?.idEdicion ?? props.edicionIdInicial ?? null
-    form.bibliotecaId = e.biblioteca?.idBiblioteca ?? null
+    form.bibliotecaId = e.biblioteca?.id_biblioteca ?? null
     form.codigoEjemplar = e.codigoEjemplar ?? ''
     form.codigoTopografico = e.codigoTopografico ?? ''
     form.ubicacionFisica = e.ubicacionFisica ?? ''
@@ -124,7 +125,13 @@ watch(() => props.ejemplar, (e) => {
     form.observaciones = e.observaciones ?? ''
   } else {
     form.edicionId = props.edicionIdInicial ?? null
-    form.bibliotecaId = null
+    // form.bibliotecaId = null
+    if (bibliotecaPropia.value?.length > 0) {
+      form.bibliotecaId = bibliotecaPropia.value[0].id
+    } else {
+      form.bibliotecaId = null
+    }
+
     form.codigoEjemplar = ''
     form.codigoTopografico = ''
     form.ubicacionFisica = ''
@@ -151,7 +158,9 @@ async function guardar() {
   guardando.value = true; errorGeneral.value = ''
   try {
     if (props.ejemplar) {
-      await actualizarEjemplar(props.ejemplar.idEjemplar, {
+      console.log('update')
+      console.log(props.ejemplar)
+      await actualizarEjemplar(props.ejemplar.id_ejemplar, {
         codigoEjemplar: form.codigoEjemplar,
         codigoTopografico: form.codigoTopografico || undefined,
         ubicacionFisica: form.ubicacionFisica || undefined,
@@ -175,7 +184,15 @@ async function guardar() {
     }
     emit('saved')
   } catch (e: unknown) {
-    errorGeneral.value = e instanceof Error ? e.message : 'Error al guardar'
+    let msg = 'No se pudo completar el registro'
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const err = e as any
+      msg = err.response?.data?.message || msg
+      // console.log("BACKEND 👉", err.response?.data)
+    } else if (e instanceof Error) {
+      msg = e.message
+    }
+    errorGeneral.value = e instanceof Error ? msg : 'Error al guardar'
   } finally {
     guardando.value = false
   }
