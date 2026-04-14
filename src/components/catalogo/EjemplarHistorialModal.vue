@@ -15,7 +15,7 @@ const error = ref('')
 onMounted(async () => {
   cargando.value = true
   try {
-    historial.value = await obtenerHistorial(props.ejemplar.idEjemplar)
+    historial.value = await obtenerHistorial(props.ejemplar.id_ejemplar)
   } catch {
     error.value = 'No se pudo cargar el historial'
   } finally {

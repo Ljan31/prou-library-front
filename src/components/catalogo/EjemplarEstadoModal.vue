@@ -40,8 +40,9 @@ async function guardar() {
   if (!form.esAccionEspecial && !form.nuevoEstado) { error.value = 'Selecciona un estado'; return }
 
   guardando.value = true
+  console.log(props.ejemplar)
   try {
-    const id = props.ejemplar.idEjemplar   // ← idEjemplar (nuevo campo)
+    const id = props.ejemplar.id_ejemplar   // ← idEjemplar (nuevo campo)
     if (form.esAccionEspecial === 'perdido') {
       await marcarPerdido(id, form.motivo)
     } else if (form.esAccionEspecial === 'baja') {

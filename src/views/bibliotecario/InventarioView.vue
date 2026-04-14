@@ -10,6 +10,7 @@ import SSelect from '@/components/ui/SSelect.vue'
 import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import EjemplarFormModal from '@/components/catalogo/EjemplarFormModal.vue'
+import EjemplarFormModalInventario from '@/components/catalogo/EjemplarFormModalInventario.vue'
 import EjemplarEstadoModal from '@/components/catalogo/EjemplarEstadoModal.vue'
 import EjemplarHistorialModal from '@/components/catalogo/EjemplarHistorialModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
@@ -472,7 +473,7 @@ function exportarCSV() {
     ════════════════════════════════════════════════════════════════ -->
 
     <!-- Crear / Editar ejemplar -->
-    <EjemplarFormModal v-if="modalActivo === 'form'" :ejemplar="ejemplarEditando" @close="cerrarModal"
+    <EjemplarFormModalInventario v-if="modalActivo === 'form'" :ejemplar="ejemplarEditando" @close="cerrarModal"
       @saved="onGuardado" />
 
     <!-- Cambiar estado -->
