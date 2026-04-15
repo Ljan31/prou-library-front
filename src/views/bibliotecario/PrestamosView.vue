@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import api from '@/services/axios'
+import defaultBookImage from '../../assets/book-default.jpeg'
 
 // ─── Breadcrumbs ────────────────────────────────────────────────────────────
 const ui = useUiStore()
@@ -39,6 +40,18 @@ interface Ejemplar {
   id_ejemplar: number
   codigo_ejemplar: string
   estadoEjemplar: string
+  ubicacionFisica?: string
+  edicion?: { titulo?: string; editorial?: string; edicion?: string; anoPublicacion?: number; isbn?: string; imagenPortada?: string }
+}
+
+const CONDICIONES = ['EXCELENTE', 'BUENO', 'REGULAR', 'DAÑADO'] as const
+type Condicion = typeof CONDICIONES[number]
+
+const condicionColors: Record<Condicion, string> = {
+  EXCELENTE: 'border-emerald-500 bg-emerald-50 text-emerald-700',
+  BUENO: 'border-blue-500 bg-blue-50 text-blue-700',
+  REGULAR: 'border-amber-500 bg-amber-50 text-amber-700',
+  DAÑADO: 'border-red-500 bg-red-50 text-red-700',
 }
 
 interface Prestamo {
@@ -136,8 +149,32 @@ watch(bookQuery, (val) => {
 async function searchBooks(q: string) {
   bookLoading.value = true
   try {
-    const { data } = await api.get('/libros/search', { params: { q } })
+
+    const user = auth.user
+
+    // ✅ Validar roles (opcional aquí, dependiendo de tu lógica)
+    const roles = user?.roles || []
+    const autorizado =
+      roles.includes('ROLE_BIBLIOTECARIO') ||
+      roles.includes('ROLE_AUXILIAR')
+
+    // 👇 Puedes decidir si bloquear o no la búsqueda
+    // (yo recomiendo NO bloquearla, solo filtrar si aplica)
+
+    // ✅ Obtener biblioteca (si existe)
+    const bibliotecaId = user?.biblioteca?.[0]?.id_biblioteca
+
+    // ✅ Construir params dinámicamente
+    const params: any = { q }
+
+    if (autorizado && bibliotecaId) {
+      params.bibliotecaId = bibliotecaId
+    }
+    const { data } = await api.get('/libros/search', { params })
     bookResults.value = data.data ?? []
+    console.log('searchLibros')
+    console.log(data)
+    console.log('-->', bookResults.value)
     bookDropdownOpen.value = true
   } catch {
     bookResults.value = []
@@ -147,10 +184,11 @@ async function searchBooks(q: string) {
 }
 
 function selectBook(b: LibroResult) {
+  console.log('selectedbook', b)
   selectedBook.value = b
   bookQuery.value = b.titulo
   bookDropdownOpen.value = false
-  fetchEjemplares(b.id_libro)
+  fetchEjemplares(b.idLibro)
 }
 
 function resetBook() {
@@ -171,8 +209,38 @@ async function fetchEjemplares(libroId: number) {
   ejemplaresLoading.value = true
   step.value = 3
   try {
-    const { data } = await api.get(`/ejemplares/libro/${libroId}/disponibles`)
+    const roles = auth.user?.roles || []
+    const autorizado =
+      roles.includes('ROLE_BIBLIOTECARIO') ||
+      roles.includes('ROLE_AUXILIAR')
+    if (!autorizado) {
+      console.warn('Usuario no autorizado para préstamos')
+      ejemplares.value = []
+      return
+    }
+
+    // ✅ Obtener biblioteca del usuario
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
+    if (!bibliotecaId) {
+      console.warn('Usuario sin biblioteca asignada')
+      ejemplares.value = []
+      return
+    }
+    // const { data } = await api.get(`/ejemplares/libro/${libroId}/disponibles`)
+    const { data } = await api.get(
+      `/ejemplares/libro/${libroId}/biblioteca`,
+      {
+        params: {
+          bibliotecaId: bibliotecaId,
+          estado: 'DISPONIBLE'
+        }
+      }
+    )
+
+    console.log('disponibles', data)
+    console.log(auth.user)
     ejemplares.value = data.data ?? []
+    console.log(ejemplares.value)
   } catch {
     ejemplares.value = []
   } finally {
@@ -182,10 +250,13 @@ async function fetchEjemplares(libroId: number) {
 
 // ─── PASO 4: Confirmación ─────────────────────────────────────────────────────
 const fechaDevolucion = ref(defaultDevolucion())
+const condicionEntrega = ref<Condicion>('BUENO')
+const tipoDocumento = ref<'CI' | 'MATRICULA'>('CI')
 const observaciones = ref('')
 const confirmLoading = ref(false)
 const confirmError = ref<string | null>(null)
 const confirmSuccess = ref(false)
+const prestamoCreado = ref<{ id_prestamo: number } | null>(null)
 
 function defaultDevolucion() {
   const d = new Date()
@@ -194,7 +265,7 @@ function defaultDevolucion() {
 }
 
 const canConfirm = computed(() =>
-  selectedUser.value && selectedEjemplar.value && fechaDevolucion.value
+  selectedUser.value && selectedEjemplar.value && fechaDevolucion.value && condicionEntrega.value
 )
 
 async function confirmarPrestamo() {
@@ -204,14 +275,17 @@ async function confirmarPrestamo() {
   confirmSuccess.value = false
 
   try {
-    const bibliotecaId = auth.user?.biblioteca?.id_biblioteca ?? 1
-    await api.post('/prestamos', {
+    const bibliotecaId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca
+    const { data } = await api.post('/prestamos', {
       ejemplarId: selectedEjemplar.value!.id_ejemplar,
       usuarioId: selectedUser.value!.id_usuario,
       bibliotecaId,
+      tipoDocumentoGarantia: tipoDocumento.value,
+      condicionEntrega: condicionEntrega.value,
       fechaDevolucionEstimada: fechaDevolucion.value,
       observaciones: observaciones.value || `Préstamo registrado`,
     })
+    prestamoCreado.value = data.data
     confirmSuccess.value = true
     ui.toast.success('Préstamo registrado', 'El préstamo fue creado exitosamente')
     setTimeout(() => resetForm(), 2000)
@@ -228,9 +302,11 @@ function resetForm() {
   resetUser()
   step.value = 1
   fechaDevolucion.value = defaultDevolucion()
+  condicionEntrega.value = 'BUENO'; tipoDocumento.value = 'CI'
   observaciones.value = ''
   confirmSuccess.value = false
   confirmError.value = null
+  prestamoCreado.value = null
   fetchPrestamos()
 }
 
@@ -505,13 +581,17 @@ function formatDate(s?: string) {
                 </div>
                 <div class="min-w-0 flex-1">
                   <p class="font-semibold text-slate-800 text-sm">{{ selectedBook.titulo }}</p>
-                  <p class="text-xs text-slate-500">ISBN: {{ selectedBook.isbn }} · {{ selectedBook.editorial }}</p>
+                  <!-- <p class="text-xs text-slate-500">ISBN: {{ selectedBook.isbn }} · {{ selectedBook.editorial }}</p> -->
+                  <p class="text-xs text-slate-500">Idioma: {{ selectedBook.idioma }} · {{ selectedBook.descripcion }}
+                  </p>
                 </div>
                 <span :class="[
                   'text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
                   selectedBook.ejemplaresDisponibles > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
                 ]">
-                  {{ selectedBook.ejemplaresDisponibles > 0 ? `${selectedBook.ejemplaresDisponibles} disp.` : 'No disp.'
+                  {{
+                    // selectedBook.ejemplaresDisponibles > 0 ? `${selectedBook.ejemplaresDisponibles} disp.` : 'No disp.'
+                    selectedBook.ejemplaresDisponibles > 0 ? `${ejemplares.length} disp.` : 'No disp.'
                   }}
                 </span>
               </div>
@@ -594,26 +674,61 @@ function formatDate(s?: string) {
               </div>
 
               <!-- Lista de ejemplares -->
-              <div v-else-if="ejemplares.length" class="space-y-2">
+              <div v-else-if="ejemplares.length" class="space-y-3">
                 <button v-for="ej in ejemplares" :key="ej.id_ejemplar" @click="selectedEjemplar = ej; step = 4" :class="[
-                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left',
+                  'w-full flex gap-4 px-4 py-3 rounded-xl border-2 transition-all text-left',
                   selectedEjemplar?.id_ejemplar === ej.id_ejemplar
                     ? 'border-indigo-500 bg-indigo-50'
                     : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
                 ]">
-                  <div :class="[
-                    'w-2 h-2 rounded-full flex-shrink-0',
-                    ej.estadoEjemplar === 'DISPONIBLE' ? 'bg-emerald-500' : 'bg-slate-300'
-                  ]" />
+                  <!-- 📘 Imagen -->
+                  <img :src="ej.edicion?.imagenPortada || defaultBookImage" alt="portada"
+                    class="w-14 h-20 object-cover rounded-lg border" />
+
+                  <!-- 📄 Info -->
                   <div class="flex-1">
-                    <p class="text-sm font-semibold text-slate-800">{{ ej.codigo_ejemplar }}</p>
-                    <p class="text-xs text-slate-400">{{ ej.estadoEjemplar }}</p>
+                    <!-- Título -->
+                    <p class="text-sm font-semibold text-slate-800">
+                      {{ ej.edicion?.titulo }}
+                    </p>
+
+                    <!-- Código -->
+                    <p class="text-xs text-slate-400">
+                      Código: {{ ej.codigoEjemplar }}
+                    </p>
+
+                    <!-- Detalles edición -->
+                    <p class="text-xs text-slate-500">
+                      {{ ej.edicion?.editorial }} · {{ ej.edicion?.edicion }} · {{ ej.edicion?.anoPublicacion }}
+                    </p>
+
+                    <!-- ISBN -->
+                    <p class="text-xs text-slate-400">
+                      ISBN: {{ ej.edicion?.isbn }}
+                    </p>
+
+                    <!-- Ubicación -->
+                    <p class="text-xs text-indigo-500 font-medium">
+                      📍 {{ ej.ubicacionFisica }}
+                    </p>
                   </div>
-                  <div v-if="selectedEjemplar?.id_ejemplar === ej.id_ejemplar"
-                    class="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
+
+                  <!-- Estado -->
+                  <div class="flex flex-col items-end justify-between">
+                    <div :class="[
+                      'w-2 h-2 rounded-full',
+                      ej.estadoEjemplar === 'DISPONIBLE'
+                        ? 'bg-emerald-500'
+                        : 'bg-slate-300'
+                    ]" />
+
+                    <!-- Check -->
+                    <div v-if="selectedEjemplar?.id_ejemplar === ej.id_ejemplar"
+                      class="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center">
+                      <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
                   </div>
                 </button>
               </div>
@@ -668,7 +783,40 @@ function formatDate(s?: string) {
                   </div>
                   <div class="flex justify-between">
                     <span class="text-slate-500">Ejemplar</span>
-                    <span class="font-medium text-slate-800">{{ selectedEjemplar.codigo_ejemplar }}</span>
+                    <span class="font-medium text-slate-800">{{ selectedEjemplar.codigoEjemplar }}</span>
+                  </div>
+                </div>
+
+                <!-- Condición de entrega -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-2">Condición física al entregar <span
+                      class="text-red-400">*</span></label>
+                  <div class="grid grid-cols-4 gap-1.5">
+                    <button v-for="c in CONDICIONES" :key="c" @click="condicionEntrega = c"
+                      :class="['py-2 px-1 rounded-lg border-2 text-xs font-semibold transition-all',
+                        condicionEntrega === c ? condicionColors[c] : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white']">
+                      {{ c }}
+                    </button>
+                  </div>
+                </div>
+
+
+                <!-- Tipo documento -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-2">
+                    Documento de garantía <span class="text-red-400">*</span>
+                  </label>
+
+                  <div class="grid grid-cols-2 gap-2">
+                    <button v-for="t in ['CI', 'MATRICULA']" :key="t" @click="tipoDocumento = t as 'CI' | 'MATRICULA'"
+                      :class="[
+                        'py-2 rounded-lg border-2 text-xs font-semibold transition-all',
+                        tipoDocumento === t
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white'
+                      ]">
+                      {{ t === 'CI' ? '🪪 Carnet de Identidad' : '🎓 Matrícula' }}
+                    </button>
                   </div>
                 </div>
 
