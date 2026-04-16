@@ -43,6 +43,11 @@ export const estadoEjemplarConfig: Record<
     dot: "bg-slate-600",
     clases: "bg-slate-200 text-slate-700",
   },
+  DETERIORADO: {
+    label: "Deteriorado",
+    dot: "bg-orange-400",
+    clases: "bg-orange-100 text-orange-700",
+  },
 };
 
 /** Primer ISBN de las ediciones de un libro */

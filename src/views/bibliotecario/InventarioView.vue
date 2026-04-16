@@ -90,7 +90,8 @@ const opcionesEstado = [
   { value: 'DISPONIBLE', label: '🟢 Disponible' },
   { value: 'PRESTADO', label: '🔴 Prestado' },
   { value: 'RESERVADO', label: '🔵 Reservado' },
-  { value: 'EN_REPARACION', label: '🟡 En reparación' },
+  { value: 'DETERIORADO', label: '🟠 Deteriorado' },
+  { value: 'EN_REPARACION', label: '🟣 En reparación' },
   { value: 'DAÑADO', label: '🟡 Dañado' },
   { value: 'BAJA', label: '⬛ Baja' },
   { value: 'PERDIDO', label: '⬛ Perdido' },
@@ -121,6 +122,7 @@ const stats = computed(() => {
     total: l.length,
     disponibles: l.filter(e => e.estadoEjemplar === 'DISPONIBLE').length,
     prestados: l.filter(e => e.estadoEjemplar === 'PRESTADO').length,
+    deteriorados: l.filter(e => e.estadoEjemplar === 'DETERIORADO').length,
     reparacion: l.filter(e => ['EN_REPARACION', 'DAÑADO'].includes(e.estadoEjemplar)).length,
     inactivos: l.filter(e => ['BAJA', 'PERDIDO'].includes(e.estadoEjemplar)).length,
   }
@@ -306,7 +308,7 @@ function exportarCSV() {
     </div>
 
     <!-- ── Stats ── -->
-    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 mb-6">
       <SCard padding="md">
         <p class="text-xs text-slate-500 mb-1">Total</p>
         <p class="text-2xl font-semibold text-slate-900">{{ stats.total }}</p>
@@ -321,7 +323,11 @@ function exportarCSV() {
       </SCard>
       <SCard padding="md">
         <p class="text-xs text-slate-500 mb-1">En reparación</p>
-        <p class="text-2xl font-semibold text-amber-600">{{ stats.reparacion }}</p>
+        <p class="text-2xl font-semibold text-purple-600">{{ stats.reparacion }}</p>
+      </SCard>
+      <SCard padding="md">
+        <p class="text-xs text-slate-500 mb-1">Deteriorados</p>
+        <p class="text-2xl font-semibold text-orange-600">{{ stats.deteriorados }}</p>
       </SCard>
       <SCard padding="md">
         <p class="text-xs text-slate-500 mb-1">Baja / Perdido</p>

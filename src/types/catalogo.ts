@@ -38,7 +38,8 @@ export type EstadoEjemplar =
   | "EN_REPARACION"
   | "DAÑADO"
   | "BAJA"
-  | "PERDIDO";
+  | "PERDIDO"
+  | "DETERIORADO";
 
 export interface Ejemplar {
   idEjemplar: number;

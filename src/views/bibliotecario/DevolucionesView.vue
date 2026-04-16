@@ -85,7 +85,7 @@ async function fetchPendientes() {
     const responses = await Promise.all(urls.map(url => api.get(url)))
 
     const listas = responses.map(r => r.data?.data ?? r.data ?? [])
-
+    console.log('devoluciones', listas)
     pendientes.value = listas
       .flat()
       .sort((a, b) => {
@@ -94,7 +94,7 @@ async function fetchPendientes() {
         if (!a.vencido && b.vencido) return 1
         return a.id_prestamo - b.id_prestamo
       })
-
+    console.log('pendientes', pendientes.value)
   } catch {
     pendientes.value = []
   } finally {
@@ -108,8 +108,9 @@ const pendientesFiltrados = computed(() => {
     const titulo = p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? ''
     const nombre = p.usuario?.persona?.nombreCompleto ?? p.usuario?.username ?? ''
     const codigo = p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? ''
+    const ci = p.usuario?.ci?.toString() ?? ''
     const id = String(p.id_prestamo)
-    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q) || id.includes(q)
+    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q) || id.includes(q) || ci.includes(q)
   })
 })
 
@@ -319,6 +320,8 @@ function diasVencido(fecha?: string): number {
               :class="['w-full px-5 py-3.5 text-left transition-all hover:bg-slate-50',
                 prestamoSeleccionado?.id_prestamo === p.id_prestamo ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : '']">
               <div class="flex items-start gap-3">
+                <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="p.ejemplar.edicion.imagenPortada" alt="portada"
+                  class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm flex-shrink-0" />
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-0.5">
                     <span class="text-xs font-bold text-slate-400">#{{ p.id_prestamo }}</span>
@@ -331,8 +334,9 @@ function diasVencido(fecha?: string): number {
                   <p class="text-sm font-semibold text-slate-800 truncate leading-tight">
                     {{ p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? 'Sin título' }}
                   </p>
-                  <p class="text-xs text-slate-500 capitalize">
-                    {{ p.usuario?.persona?.nombreCompleto ?? p.usuario?.username ?? '—' }}
+                  <p class="text-xs text-slate-600 truncate">
+                    {{ p.usuario?.nombreCompleto ?? p.usuario?.username }}
+                    <span class="text-slate-400">CI: {{ p.usuario?.ci }}</span>
                   </p>
                   <p class="text-xs text-slate-400">Vence: {{ formatDate(p.fechaDevolucionEstimada) }}</p>
                 </div>
@@ -488,7 +492,7 @@ function diasVencido(fecha?: string): number {
                   {{ prestamoSeleccionado.ejemplar?.edicion?.titulo ?? prestamoSeleccionado.ejemplar?.libro?.titulo }}
                 </p>
                 <div class="flex flex-wrap gap-x-3 text-xs text-slate-500 mt-0.5">
-                  <span class="capitalize">{{ prestamoSeleccionado.usuario?.persona?.nombreCompleto ??
+                  <span class="capitalize">{{ prestamoSeleccionado.usuario?.nombreCompleto ??
                     prestamoSeleccionado.usuario?.username }}</span>
                   <span>·</span>
                   <span>{{ prestamoSeleccionado.ejemplar?.codigoEjemplar ??
