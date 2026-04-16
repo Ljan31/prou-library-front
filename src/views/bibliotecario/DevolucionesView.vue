@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
 import api from '@/services/axios'
 
 const ui = useUiStore()
-
+const auth = useAuthStore()
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -54,26 +55,52 @@ const searchLocal = ref('')
 async function fetchPendientes() {
   pendientesLoading.value = true
   try {
-    const [activos, renovados] = await Promise.all([
-      api.get('/prestamos/estado/ACTIVO'),
-      api.get('/prestamos/estado/RENOVADO'),
-    ])
-    const listaActivos: Prestamo[] = activos.data?.data ?? activos.data ?? []
-    const listaRenovados: Prestamo[] = renovados.data?.data ?? renovados.data ?? []
-    pendientes.value = [...listaActivos, ...listaRenovados]
+    const roles = auth.user?.roles ?? []
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
+
+    const esAdmin = roles.includes('ROLE_ADMIN')
+    const esBiblio = roles.includes('ROLE_BIBLIOTECARIO') || roles.includes('ROLE_AUXILIAR')
+
+    let urls: string[] = []
+
+    if (esAdmin) {
+      // 🔹 ADMIN
+      urls = [
+        '/prestamos/estado/ACTIVO',
+        '/prestamos/estado/RENOVADO'
+      ]
+    } else if (esBiblio) {
+      // 🔹 BIBLIOTECARIO / AUXILIAR
+      if (!bibliotecaId) {
+        pendientes.value = []
+        return
+      }
+
+      urls = [
+        `/prestamos/biblioteca/${bibliotecaId}?estado=ACTIVO`,
+        `/prestamos/biblioteca/${bibliotecaId}?estado=RENOVADO`
+      ]
+    }
+
+    const responses = await Promise.all(urls.map(url => api.get(url)))
+
+    const listas = responses.map(r => r.data?.data ?? r.data ?? [])
+
+    pendientes.value = listas
+      .flat()
       .sort((a, b) => {
         // Vencidos primero
         if (a.vencido && !b.vencido) return -1
         if (!a.vencido && b.vencido) return 1
         return a.id_prestamo - b.id_prestamo
       })
+
   } catch {
     pendientes.value = []
   } finally {
     pendientesLoading.value = false
   }
 }
-
 const pendientesFiltrados = computed(() => {
   const q = searchLocal.value.toLowerCase()
   if (!q) return pendientes.value
