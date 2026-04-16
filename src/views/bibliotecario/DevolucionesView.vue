@@ -85,7 +85,6 @@ async function fetchPendientes() {
     const responses = await Promise.all(urls.map(url => api.get(url)))
 
     const listas = responses.map(r => r.data?.data ?? r.data ?? [])
-    console.log('devoluciones', listas)
     pendientes.value = listas
       .flat()
       .sort((a, b) => {
@@ -94,7 +93,6 @@ async function fetchPendientes() {
         if (!a.vencido && b.vencido) return 1
         return a.id_prestamo - b.id_prestamo
       })
-    console.log('pendientes', pendientes.value)
   } catch {
     pendientes.value = []
   } finally {

@@ -61,7 +61,6 @@ onMounted(async () => {
 async function cargarCategorias() {
   try {
     categorias.value = await obtenerCategorias()
-    console.log(categorias.value)
   }
   catch { categorias.value = [] }
 }
@@ -106,14 +105,8 @@ function abrirDetalle(libro: Libro) {
 }
 
 function abrirCrear() {
-  console.log('🔵 Botón Nuevo libro clickeado - Permisos:', {
-    isAdmin: isAdmin.value,
-    isBibliotecario: isBibliotecario.value
-  })
-  console.log('✅ Botón Nuevo libro clickeado')
   libroParaEditar.value = null
   mostrarFormModal.value = true
-  console.log('mostrarFormModal seteado a true')
 }
 
 function abrirEditar(libro: Libro) {

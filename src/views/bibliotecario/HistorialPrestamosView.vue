@@ -108,7 +108,6 @@ const prestamosFiltrados = () => {
 }
 
 function verDetalles(p: Prestamo) {
-  console.log('prestamo', p)
   prestamoSeleccionado.value = p
   modalDetalleOpen.value = true
 }

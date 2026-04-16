@@ -40,7 +40,6 @@ const bibliotecaPropia = computed<BibliotecaOpcion | null>(() => {
 
   return id && nombre ? { id, nombre } : null
 })
-console.log('invatario', bibliotecaPropia.value)
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Dashboard', to: '/dashboard' },
@@ -74,7 +73,6 @@ async function cargarEjemplares() {
       // Admin: todos los ejemplares
       todos.value = await obtenerEjemplares()
     }
-    console.log(todos.value)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Error al cargar ejemplares'
   } finally {

@@ -94,10 +94,8 @@ async function searchUsers(q: string) {
   userLoading.value = true
   try {
     const { data } = await api.get('/users/search', { params: { q } })
-    console.log(data)
     userResults.value = data?.data ?? []
     // userDropdownOpen.value = true
-    console.log(userResults.value.length)
     // userDropdownOpen.value = userResults.value.length > 0
     userDropdownOpen.value = true
   } catch {
@@ -108,7 +106,6 @@ async function searchUsers(q: string) {
 }
 
 function selectUser(u: UsuarioResult) {
-  console.log(u)
   selectedUser.value = u
   userQuery.value = u.persona.nombreCompleto
   userDropdownOpen.value = false
@@ -172,9 +169,6 @@ async function searchBooks(q: string) {
     }
     const { data } = await api.get('/libros/search', { params })
     bookResults.value = data.data ?? []
-    console.log('searchLibros')
-    console.log(data)
-    console.log('-->', bookResults.value)
     bookDropdownOpen.value = true
   } catch {
     bookResults.value = []
@@ -184,7 +178,6 @@ async function searchBooks(q: string) {
 }
 
 function selectBook(b: LibroResult) {
-  console.log('selectedbook', b)
   selectedBook.value = b
   bookQuery.value = b.titulo
   bookDropdownOpen.value = false
@@ -237,10 +230,7 @@ async function fetchEjemplares(libroId: number) {
       }
     )
 
-    console.log('disponibles', data)
-    console.log(auth.user)
     ejemplares.value = data.data ?? []
-    console.log(ejemplares.value)
   } catch {
     ejemplares.value = []
   } finally {
