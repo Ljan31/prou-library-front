@@ -74,6 +74,7 @@ async function cargarEjemplares() {
       // Admin: todos los ejemplares
       todos.value = await obtenerEjemplares()
     }
+    console.log(todos.value)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Error al cargar ejemplares'
   } finally {
@@ -370,17 +371,28 @@ function exportarCSV() {
       <div v-for="ej in ejemplaresFiltrados" :key="ej.idEjemplar"
         class="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-4 py-3 hover:border-indigo-200 hover:shadow-sm transition-all">
         <!-- Estado dot + badge -->
+
         <div class="flex-shrink-0">
-          <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
-            estadoEjemplarConfig[ej.estadoEjemplar]?.clases ?? 'bg-slate-100 text-slate-600']">
-            <span :class="['w-1.5 h-1.5 rounded-full',
-              estadoEjemplarConfig[ej.estadoEjemplar]?.dot ?? 'bg-slate-400']" />
-            {{ estadoEjemplarConfig[ej.estadoEjemplar]?.label ?? ej.estadoEjemplar }}
-          </span>
+          <img v-if="ej.edicion?.imagenPortada" :src="ej.edicion.imagenPortada" alt="Portada"
+            class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm" />
+          <div v-else
+            class="w-12 h-16 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-400">
+            —
+          </div>
         </div>
 
         <!-- Info principal -->
         <div class="flex-1 min-w-0">
+          <div class="mb-1">
+            <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+              estadoEjemplarConfig[ej.estadoEjemplar]?.clases ?? 'bg-slate-100 text-slate-600']">
+
+              <span :class="['w-1.5 h-1.5 rounded-full',
+                estadoEjemplarConfig[ej.estadoEjemplar]?.dot ?? 'bg-slate-400']" />
+
+              {{ estadoEjemplarConfig[ej.estadoEjemplar]?.label ?? ej.estadoEjemplar }}
+            </span>
+          </div>
           <!-- Fila 1: código + ISBN -->
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-mono text-sm font-semibold text-slate-900">{{ ej.codigoEjemplar }}</span>
