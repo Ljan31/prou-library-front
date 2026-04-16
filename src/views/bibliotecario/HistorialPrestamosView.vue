@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
 import defaultBookImage from '../../assets/book-default.jpeg'
 import api from '@/services/axios'
 
 const ui = useUiStore()
-
+const auth = useAuthStore()
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -52,9 +53,33 @@ const prestamoSeleccionado = ref<Prestamo | null>(null)
 async function fetchPrestamos() {
   loading.value = true
   try {
-    let url = '/prestamos'
-    if (filtroEstado.value !== 'TODOS' && filtroEstado.value !== 'VENCIDO') {
-      url = `/prestamos/estado/${filtroEstado.value}`
+    const roles = auth.user?.roles ?? []
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
+    let url = ''
+
+    const esAdmin = roles.includes('ROLE_ADMIN')
+    const esBiblio = roles.includes('ROLE_BIBLIOTECARIO') || roles.includes('ROLE_AUXILIAR')
+
+    if (esAdmin) {
+      // 🔹 ADMIN
+      url = '/prestamos'
+
+      if (filtroEstado.value !== 'TODOS' && filtroEstado.value !== 'VENCIDO') {
+        url = `/prestamos/estado/${filtroEstado.value}`
+      }
+
+    } else if (esBiblio) {
+      // 🔹 BIBLIOTECARIO / AUXILIAR
+      if (!bibliotecaId) {
+        prestamos.value = []
+        return
+      }
+
+      url = `/prestamos/biblioteca/${bibliotecaId}`
+
+      if (filtroEstado.value !== 'TODOS') {
+        url += `?estado=${filtroEstado.value}`
+      }
     }
     const { data } = await api.get(url)
     let list: Prestamo[] = data.data ?? data ?? []
@@ -77,7 +102,8 @@ const prestamosFiltrados = () => {
     const titulo = p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? ''
     const nombre = p.usuario?.persona?.nombreCompleto ?? p.usuario?.username ?? ''
     const codigo = p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? ''
-    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q)
+    const ci = p.usuario?.ci?.toString() ?? ''
+    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q) || ci.includes(q)
   })
 }
 
@@ -363,10 +389,26 @@ function condicionColor(c?: string) {
                 <p class="font-semibold text-slate-800 leading-tight line-clamp-2">
                   {{ prestamoSeleccionado.ejemplar?.edicion?.titulo ?? prestamoSeleccionado.ejemplar?.libro?.titulo }}
                 </p>
+                <p class="text-xs text-indigo-500 mt-0.5">
+                  Edicion: {{ prestamoSeleccionado.ejemplar?.edicion?.edicion }} •
+                  {{ prestamoSeleccionado.ejemplar?.edicion?.anoPublicacion }}
+                </p>
                 <p class="text-xs text-slate-500 mt-1">
                   Código: {{ prestamoSeleccionado.ejemplar?.codigoEjemplar ??
                     prestamoSeleccionado.ejemplar?.codigo_ejemplar }}
                 </p>
+                <span :class="[
+                  'px-2.5 py-0.5 rounded-full text-xs font-semibold',
+                  prestamoSeleccionado.ejemplar?.estadoEjemplar === 'PRESTADO'
+                    ? 'bg-blue-100 text-blue-700'
+                    : prestamoSeleccionado.ejemplar?.estadoEjemplar === 'DISPONIBLE'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : prestamoSeleccionado.ejemplar?.estadoEjemplar === 'DANADO'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-slate-100 text-slate-600'
+                ]">
+                  {{ prestamoSeleccionado.ejemplar?.estadoEjemplar }}
+                </span>
               </div>
             </div>
 
@@ -378,6 +420,10 @@ function condicionColor(c?: string) {
                 <span class="font-medium text-right max-w-[60%] truncate">
                   {{ prestamoSeleccionado.usuario?.persona?.nombreCompleto ??
                     prestamoSeleccionado.usuario?.username }}
+                </span>
+                <span class="text-slate-500">CI</span>
+                <span class="px-2 py-0.5 bg-slate-200 rounded text-xs font-mono">
+                  {{ prestamoSeleccionado.usuario?.ci }}
                 </span>
               </div>
 
@@ -406,7 +452,32 @@ function condicionColor(c?: string) {
               </div>
 
             </div>
+            <div class="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
 
+              <div class="flex justify-between">
+                <span class="text-slate-500">Atendido por</span>
+                <span class="font-medium text-right max-w-[60%] truncate">
+                  {{ prestamoSeleccionado.bibliotecarioPrestamo?.nombreCompleto ?? '—' }}
+                </span>
+                <span class="text-slate-500">CI</span>
+                <span class="font-medium">
+                  {{ prestamoSeleccionado.bibliotecarioPrestamo?.ci ?? '—' }}
+                </span>
+              </div>
+
+              <!-- 🆕 devolución -->
+              <div v-if="prestamoSeleccionado.bibliotecarioDevolucion" class="flex justify-between">
+                <span class="text-slate-500">Recibido por</span>
+                <span class="font-medium text-right max-w-[60%] truncate">
+                  {{ prestamoSeleccionado.bibliotecarioDevolucion?.nombreCompleto }}
+                </span>
+                <span class="text-slate-500">CI</span>
+                <span class="font-medium">
+                  {{ prestamoSeleccionado.bibliotecarioDevolucion?.ci ?? '—' }}
+                </span>
+              </div>
+
+            </div>
             <!-- Condición -->
             <div v-if="prestamoSeleccionado.condicionEntrega" class="space-y-2 text-sm">
               <p class="text-xs text-slate-500">Condición</p>
@@ -427,6 +498,7 @@ function condicionColor(c?: string) {
             </div>
 
           </div>
+
 
           <!-- Footer -->
           <div class="p-4 border-t border-slate-100 flex justify-end">
