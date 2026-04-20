@@ -226,6 +226,8 @@ async function guardarNuevaEdicion() {
 
   creandoEdicion.value = true
   try {
+    console.log('crear edicion')
+    console.log(nuevaEdicion)
     const res = await api.post('/ediciones', {
       isbn: nuevaEdicion.isbn.trim(),
       editorial: nuevaEdicion.editorial.trim(),
