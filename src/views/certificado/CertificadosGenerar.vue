@@ -4,6 +4,8 @@ import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
 import api from '@/services/axios'
+import CertificadosModal from './CertificadosModal.vue'
+import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -187,6 +189,15 @@ function highlight(text: string, query: string): string {
 // ─── Modal "Ver certificados" ─────────────────────────────────────────────────
 const showCertsModal = ref(false)
 
+// ─── PDF Viewer ───────────────────────────────────────────────────────────────
+const pdfViewerShow = ref(false)
+const pdfViewerCertId = ref<number | null>(null)
+
+function abrirVisor(id: number) {
+  pdfViewerCertId.value = id
+  pdfViewerShow.value = true
+}
+
 // ─── Generación de certificado ────────────────────────────────────────────────
 const diasValidez = ref(2)
 const generandoCert = ref(false)
@@ -317,30 +328,16 @@ function estadoCertClasses(estado: string) {
   return m[estado] ?? 'bg-slate-100 text-slate-600'
 }
 
-async function downloadCertificado(id: number) {
-  try {
-    const res = await api.get(`/certificados/${id}/download`, {
-      responseType: 'blob',           // importante para PDF
-    })
+const downloadUrl = computed(() => {
+  if (!certGenerado.value?.urlDescarga) return null
+  const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8098/api'
+  const url = certGenerado.value.urlDescarga
+  return url.startsWith('http') ? url : `${base.replace('/api', '')}${url}`
+})
 
-    const blob = new Blob([res.data], { type: 'application/pdf' })
-    const url = window.URL.createObjectURL(blob)
-
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `certificado-${id}.pdf`   // nombre bonito
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    window.URL.revokeObjectURL(url)   // limpiar memoria
-
-    ui.toast.success('Descargando', 'El certificado se descargó correctamente')
-  } catch (error: any) {
-    console.error('Error al descargar certificado:', error)
-    const msg = error?.response?.data?.message || 'No se pudo descargar el PDF'
-    ui.toast.error('Error en descarga', msg)
-  }
+function buildDownloadUrl(urlDescarga: string) {
+  const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8098/api'
+  return urlDescarga.startsWith('http') ? urlDescarga : `${base.replace('/api', '')}${urlDescarga}`
 }
 
 const certNombreUsuario = computed(() =>
@@ -357,6 +354,14 @@ const certUserCI = computed(() =>
 
 <template>
   <div class="space-y-6">
+
+    <!-- Subcomponentes globales -->
+    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
+
+    <CertificadosModal :show="showCertsModal" :certificados="certificadosUsuario"
+      :titulo="isEstudiante ? 'Mis certificados' : `Certificados de ${selectedUser?.persona.nombreCompleto ?? 'este usuario'}`"
+      :can-anular="isAdmin || isBibliotecario" :anulando-id="anulandoId" @close="showCertsModal = false"
+      @anular="anularCertificado" />
 
     <!-- ══ ADMIN ══ -->
     <template v-if="isAdmin">
@@ -689,9 +694,7 @@ const certUserCI = computed(() =>
             {{
               generandoCert
                 ? 'Generando...'
-                : !selectedUser
-                  ? 'Selecciona un estudiante primero'
-                  : 'Generar Certificado'
+                : !selectedUser ? 'Selecciona un estudiante primero' : 'Generar Certificado'
             }}
           </button>
         </div>
@@ -735,10 +738,8 @@ const certUserCI = computed(() =>
               {{ c.estadoCertificado }}
             </span>
             <div class="flex gap-1.5 flex-shrink-0">
-              <button @click="downloadCertificado(c.id_certificado)"
-                class="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg font-medium transition-colors">
-                PDF
-              </button>
+              <button @click="abrirVisor(c.id_certificado)"
+                class="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg font-medium transition-colors">PDF</button>
               <button v-if="c.estadoCertificado === 'VIGENTE'" @click="anularCertificado(c.id_certificado)"
                 :disabled="anulandoId === c.id_certificado"
                 class="text-xs px-2.5 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-medium transition-colors disabled:opacity-50">
@@ -833,8 +834,7 @@ const certUserCI = computed(() =>
                 <p class="font-semibold text-slate-800 text-sm truncate">
                   {{
                     p.ejemplar?.libro?.titulo ?? 'Libro desconocido'
-                  }}
-                </p>
+                  }}</p>
                 <p class="text-xs text-slate-500 mt-0.5">Ejemplar: {{ p.ejemplar?.codigo_ejemplar ?? '—' }}<span
                     v-if="p.fechaDevolucionEstimada"> · Vence: {{ formatDate(p.fechaDevolucionEstimada) }}</span></p>
               </div>
@@ -886,10 +886,8 @@ const certUserCI = computed(() =>
                 :class="['text-xs font-bold px-2.5 py-0.5 rounded-full flex-shrink-0', estadoCertClasses(certificadosUsuario[0].estadoCertificado)]">
                 {{ certificadosUsuario[0].estadoCertificado }}
               </span>
-              <button @click="downloadCertificado(certificadosUsuario[0].id_certificado)"
-                class="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg font-medium transition-colors flex-shrink-0">
-                PDF
-              </button>
+              <a :href="buildDownloadUrl(certificadosUsuario[0].urlDescarga)" target="_blank"
+                class="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg font-medium transition-colors flex-shrink-0">PDF</a>
             </div>
             <p v-if="certificadosUsuario.length > 1" class="text-xs text-slate-400 mt-2 text-center">
               y {{ certificadosUsuario.length - 1 }} más...
@@ -1057,24 +1055,16 @@ const certUserCI = computed(() =>
               </div>
             </div>
           </div>
+
           <div class="px-5 pb-5 flex flex-col sm:flex-row gap-3">
-            <!-- Botón de Descargar PDF con token -->
-            <button @click="downloadCertificado(certGenerado.id_certificado)" :disabled="descargando"
-              class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 active:scale-[0.98]">
-
-              <svg v-if="descargando" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-
-              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <a v-if="downloadUrl" :href="downloadUrl" target="_blank" rel="noopener noreferrer"
+              class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 active:scale-[0.98]">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-
-              {{ descargando ? 'Descargando...' : 'Descargar PDF' }}
-            </button>
-
+              Descargar PDF
+            </a>
             <button @click="resetCertificado"
               class="flex-1 sm:flex-none flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1088,107 +1078,6 @@ const certUserCI = computed(() =>
       </div>
     </Transition>
 
-    <!-- ══ MODAL: Ver certificados del usuario ══ -->
-    <Transition name="fade">
-      <div v-if="showCertsModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-        @click.self="showCertsModal = false">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
-
-          <!-- Header modal -->
-          <div class="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
-            <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-              <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-slate-900 text-sm">
-                Certificados de {{ isEstudiante ? 'tu cuenta' : (selectedUser?.persona.nombreCompleto ?? 'este usuario')
-                }}
-              </h3>
-              <p class="text-xs text-slate-400 mt-0.5">{{ certificadosUsuario.length }} certificado(s) encontrado(s)</p>
-            </div>
-            <button @click="showCertsModal = false"
-              class="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Lista de certificados -->
-          <div class="overflow-y-auto flex-1 p-4 space-y-3">
-            <div v-for="c in certificadosUsuario" :key="c.id_certificado" class="rounded-xl border p-4 transition-all"
-              :class="c.estadoCertificado === 'VIGENTE' ? 'border-emerald-200 bg-emerald-50/50' : c.estadoCertificado === 'VENCIDO' ? 'border-amber-100 bg-amber-50/30' : 'border-slate-200 bg-slate-50/50'">
-
-              <!-- Estado + fecha -->
-              <div class="flex items-center justify-between mb-3">
-                <span :class="['text-xs font-bold px-2.5 py-1 rounded-full', estadoCertClasses(c.estadoCertificado)]">
-                  {{ c.estadoCertificado }}
-                </span>
-                <span class="text-xs text-slate-400">{{ c.bibliotecaNombre ?? '—' }}</span>
-              </div>
-
-              <!-- Código -->
-              <p class="text-xs font-mono text-indigo-700 bg-indigo-50 rounded-lg px-3 py-1.5 mb-3 break-all">
-                {{ c.codigo_verificacion }}
-              </p>
-
-              <!-- Fechas -->
-              <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 mb-3">
-                <div>
-                  <p class="text-slate-400 mb-0.5">Emitido</p>
-                  <p class="font-medium text-slate-700">{{ formatDateTime(c.fechaEmision) }}</p>
-                </div>
-                <div>
-                  <p class="text-slate-400 mb-0.5">Vence</p>
-                  <p class="font-medium"
-                    :class="c.estadoCertificado === 'VIGENTE' ? 'text-emerald-700' : 'text-slate-700'">
-                    {{ formatDateTime(c.fechaVencimiento) }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Acciones -->
-              <div class="flex gap-2">
-                <button @click="downloadCertificado(c.id_certificado)"
-                  class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 active:scale-[0.98]">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Descargar PDFss
-                </button>
-                <button v-if="(isAdmin || isBibliotecario) && c.estadoCertificado === 'VIGENTE'"
-                  @click="anularCertificado(c.id_certificado)" :disabled="anulandoId === c.id_certificado"
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
-                  <svg v-if="anulandoId === c.id_certificado" class="w-3.5 h-3.5 animate-spin" fill="none"
-                    viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                  {{ anulandoId === c.id_certificado ? 'Anulando...' : 'Anular' }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Footer modal -->
-          <div class="px-6 py-4 border-t border-slate-100 flex-shrink-0">
-            <button @click="showCertsModal = false"
-              class="w-full py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors font-medium">
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
 
   </div>
 </template>
