@@ -8,6 +8,7 @@ import EjemplarHistorialModal from './EjemplarHistorialModal.vue'
 import { obtenerEjemplaresPorLibro } from '@/services/ejemplares.service'
 import { eliminarEdicion } from '@/services/ediciones.service'
 import { usePermissions } from '@/composables/usePermissions'
+import { useMedia } from '@/composables/useMedia'
 import { useUiStore } from '@/stores/ui.store'
 import { estadoEjemplarConfig, primeraPortada } from '@/utils/catalogo'
 import type { Libro, Edicion, Ejemplar } from '@/types/catalogo'
@@ -17,7 +18,7 @@ const emit = defineEmits<{ close: []; editar: [libro: Libro] }>()
 
 const { isAdmin, isBibliotecario, isEstudiante } = usePermissions()
 const ui = useUiStore()
-
+const { getUrl } = useMedia()
 // ─── Tabs ─────────────────────────────────────────────────────────────────
 const tabActiva = ref<'info' | 'ediciones' | 'ejemplares'>('info')
 
@@ -122,8 +123,8 @@ function onEjemplarGuardado() {
         <div class="flex-shrink-0 w-28">
           <div
             class="aspect-[2/3] rounded-xl overflow-hidden bg-gradient-to-br from-indigo-50 to-slate-100 border border-slate-200">
-            <img v-if="primeraPortada(libro.ediciones)" :src="primeraPortada(libro.ediciones)" :alt="libro.titulo"
-              class="w-full h-full object-cover" />
+            <img v-if="getUrl(primeraPortada(libro.ediciones))" :src="getUrl(primeraPortada(libro.ediciones))"
+              :alt="libro.titulo" class="w-full h-full object-cover" />
             <div v-else class="w-full h-full flex items-center justify-center">
               <svg class="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -195,7 +196,8 @@ function onEjemplarGuardado() {
           <div class="flex items-center gap-4 px-4 py-3 bg-slate-50">
             <!-- Portada mini -->
             <div class="w-10 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200">
-              <img v-if="ed.imagenPortada" :src="ed.imagenPortada" :alt="ed.isbn" class="w-full h-full object-cover" />
+              <img v-if="ed.imagenPortada" :src="getUrl(ed.imagenPortada)" :alt="ed.isbn"
+                class="w-full h-full object-cover" />
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-xs font-mono font-semibold text-slate-900">{{ ed.isbn }}</p>

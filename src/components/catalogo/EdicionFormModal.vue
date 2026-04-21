@@ -2,6 +2,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import BaseModal from './BaseModal.vue'
 import { crearEdicion, actualizarEdicion } from '@/services/ediciones.service'
+import { useMedia } from '@/composables/useMedia'
 import type { Edicion } from '@/types/catalogo'
 
 const props = defineProps<{
@@ -10,7 +11,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ close: []; saved: [] }>()
-
+const { getUrl } = useMedia()
 const guardando = ref(false)
 const errorGeneral = ref('')
 const errores = reactive<Record<string, string>>({})
@@ -23,7 +24,10 @@ const portadaPreview = ref('')   // preview local del archivo elegido
 const portadaUrlInput = ref('')   // URL externa escrita por el usuario
 
 // Preview actual (del ejemplar ya guardado)
-const portadaActual = computed(() => props.edicion?.imagenPortada ?? '')
+// const portadaActual = computed(() => props.edicion?.imagenPortada ?? '')
+const portadaActual = computed(() =>
+  getUrl(props.edicion?.imagenPortada)
+)
 
 function onArchivoChange(ev: Event) {
   const file = (ev.target as HTMLInputElement).files?.[0]
@@ -133,7 +137,7 @@ async function guardar() {
 </script>
 
 <template>
-  <BaseModal :title="edicion ? 'Editar edición' : 'Nueva edición'" size="md" @close="emit('close')">
+  <BaseModal :title="edicion ? 'Editar ediciónss' : 'Nueva edición'" size="md" @close="emit('close')">
     <div class="space-y-4">
 
       <!-- ── Portada ───────────────────────────────────────────────────── -->

@@ -44,7 +44,12 @@ function buildFormData(
   console.log(payload, portadaFile);
   const fd = new FormData();
 
-  fd.append("datos", JSON.stringify(payload));
+  // fd.append("datos", JSON.stringify(payload));
+  fd.append(
+    "datos",
+    new Blob([JSON.stringify(payload)], { type: "application/json" }),
+  );
+
   if (portadaFile) {
     fd.append("portada", portadaFile);
   }
