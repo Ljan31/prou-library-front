@@ -3,8 +3,8 @@ import { ref, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import defaultBookImage from '../../assets/book-default.jpeg'
+import TicketPrestamo, { type PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
 import api from '@/services/axios'
-
 const ui = useUiStore()
 const auth = useAuthStore()
 onMounted(() => {
@@ -26,20 +26,30 @@ interface Prestamo {
   fechaPrestamo?: string
   fechaDevolucionEstimada?: string
   fechaDevolucionReal?: string
+  observaciones?: string
   usuario?: {
     id_usuario?: number
-    persona?: { nombreCompleto?: string }
-    username?: string
+    ci?: string | number
+    persona?: {
+      nombreCompleto?: string; domicilio?: string; celular?: string; matricula?: string
+      username?: string
+    }
+    ejemplar?: {
+      codigoEjemplar?: string
+      codigo_ejemplar?: string
+      estadoEjemplar?: string
+      ubicacionFisica?: string
+      libro?: { titulo?: string }
+      edicion?: {
+        titulo?: string; autor?: string; imagenPortada?: string
+        editorial?: string; edicion?: string; anoPublicacion?: number; isbn?: string
+      }
+    }
+    biblioteca?: { nombre?: string; id_biblioteca?: number }
+    bibliotecarioPrestamo?: { nombreCompleto?: string; ci?: string | number }
+    bibliotecarioDevolucion?: { nombreCompleto?: string; ci?: string | number }
   }
-  ejemplar?: {
-    codigoEjemplar?: string
-    codigo_ejemplar?: string
-    libro?: { titulo?: string }
-    edicion?: { titulo?: string; imagenPortada?: string }
-  }
-  biblioteca?: { nombre?: string }
 }
-
 // ─── Estado ───────────────────────────────────────────────────────────────────
 const prestamos = ref<Prestamo[]>([])
 const loading = ref(false)
@@ -103,13 +113,48 @@ const prestamosFiltrados = () => {
     const nombre = p.usuario?.persona?.nombreCompleto ?? p.usuario?.username ?? ''
     const codigo = p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? ''
     const ci = p.usuario?.ci?.toString() ?? ''
-    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q) || ci.includes(q)
+    const id = String(p.id_prestamo)
+    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q) || ci.includes(q) || id.includes(q)
   })
 }
 
 function verDetalles(p: Prestamo) {
   prestamoSeleccionado.value = p
   modalDetalleOpen.value = true
+}
+
+// ─── Ticket (reimprimir desde historial) ──────────────────────────────────────
+const showTicket = ref(false)
+const ticketPrestamos = ref<PrestamoTicket[]>([])
+const ticketUsuario = ref<UsuarioTicket | null>(null)
+const ticketTipo = ref<'DOMICILIO' | 'SALA'>('DOMICILIO')
+const ticketFechaDevolucion = ref('')
+
+function abrirTicket(p: Prestamo) {
+  // console.log('abrir', p)
+  ticketPrestamos.value = [{
+    id_prestamo: p.id_prestamo,
+    ejemplar: p.ejemplar as PrestamoTicket['ejemplar'],
+    libro: undefined,
+    bibliotecarioPrestamo: p.bibliotecarioPrestamo,
+    tipoDocumentoGarantia: p.tipoDocumentoGarantia,
+  }]
+  const usr = p.usuario
+  if (usr) {
+    ticketUsuario.value = {
+      id_usuario: usr.id_usuario ?? 0,
+      persona: {
+        nombreCompleto: usr.persona?.nombreCompleto ?? usr.username ?? '',
+        ci: usr.ci ?? '',
+        matricula: usr.persona?.matricula ?? null,
+        domicilio: usr.persona?.domicilio,
+        celular: usr.persona?.celular,
+      },
+    }
+  }
+  ticketTipo.value = p.tipoPrestamo ?? 'DOMICILIO'
+  ticketFechaDevolucion.value = p.fechaDevolucionEstimada ?? ''
+  showTicket.value = true
 }
 
 // ─── Renovar ─────────────────────────────────────────────────────────────────
@@ -329,6 +374,17 @@ function condicionColor(c?: string) {
               class="px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-colors flex items-center gap-2">
               Ver detalles
             </button>
+
+            <!-- Reimprimir ticket (solo préstamos no de sala con fecha) -->
+            <button v-if="p.estadoPrestamo !== 'DEVUELTO' || p.tipoPrestamo === 'DOMICILIO'" @click="abrirTicket(p)"
+              class="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Ticket
+            </button>
+
             <button v-if="p.estadoPrestamo !== 'DEVUELTO' && !p.vencido" @click="abrirRenovar(p)"
               class="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -495,17 +551,32 @@ function condicionColor(c?: string) {
                 </span>
               </div>
             </div>
-
+            <!-- Observaciones -->
+            <div v-if="prestamoSeleccionado.observaciones"
+              class="bg-amber-50 rounded-xl p-4 text-sm border border-amber-100">
+              <p class="text-xs font-semibold text-amber-600 mb-1">Observaciones</p>
+              <p class="text-slate-700 text-xs leading-relaxed">{{ prestamoSeleccionado.observaciones }}</p>
+            </div>
           </div>
+          <div class="p-4 border-t border-slate-100 flex gap-2 flex-shrink-0">
 
 
-          <!-- Footer -->
-          <div class="p-4 border-t border-slate-100 flex justify-end">
+            <button @click="abrirTicket(prestamoSeleccionado!); modalDetalleOpen = false"
+              class="px-4 py-2 text-sm font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Ticket
+            </button>
+            <!-- Footer -->
+            <!-- <div class="p-4 border-t border-slate-100 flex justify-end"> -->
             <button @click="modalDetalleOpen = false"
-              class="px-5 py-2 text-sm font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+              class="flex-1 px-5 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-colors">
               Cerrar
             </button>
           </div>
+          <!-- </div> -->
 
         </div>
       </div>
@@ -580,6 +651,10 @@ function condicionColor(c?: string) {
         </div>
       </div>
     </Teleport>
+
+    <!-- ─── TICKET (componente reutilizable) ────────────────────────────────── -->
+    <TicketPrestamo v-model="showTicket" :prestamos="ticketPrestamos" :usuario="ticketUsuario" :tipo="ticketTipo"
+      :fecha-devolucion="ticketFechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" />
 
   </div>
 </template>

@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
+import TicketPrestamo, { type PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
 import api from '@/services/axios'
 import defaultBookImage from '../../assets/book-default.jpeg'
 
@@ -355,7 +356,6 @@ const confirmLoading = ref(false)
 const confirmError = ref<string | null>(null)
 const confirmSuccess = ref(false)
 // const prestamoCreado = ref<{ id_prestamo: number } | null>(null)
-const prestamosCreados = ref<{ id_prestamo: number; ejemplar?: Ejemplar; libro?: LibroResult }[]>([])
 
 const canConfirm = computed(() =>
   !!selectedUser.value && loteCompleto.value && !!fechaDevolucion.value && !usuarioBloqueado.value &&
@@ -366,7 +366,7 @@ async function confirmarPrestamo() {
   confirmLoading.value = true
   confirmError.value = null
   confirmSuccess.value = false
-  prestamosCreados.value = []
+  prestamosParaTicket.value = []
   const biblId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca ?? 1
 
   try {
@@ -388,7 +388,19 @@ async function confirmarPrestamo() {
         }))
       )
     )
-    prestamosCreados.value = resultados
+
+    prestamosParaTicket.value = resultados.map((p: any) => ({
+      ...p,
+      tipoDocumentoGarantia: tipoDocumento.value,
+      bibliotecarioPrestamo: {
+        id_usuario: auth.user.id,
+        username: auth.user.username,
+        nombreCompleto: auth.user.persona.nombreCompleto,
+        ci: auth.user.persona.ci,
+        email: auth.user.persona.email ?? null
+      }
+    }))
+    usuarioParaTicket.value = selectedUser.value as UsuarioTicket
     confirmSuccess.value = true
     ui.toast.success('¡Préstamos registrados!', `Se registraron ${resultados.length} préstamo(s) correctamente`)
     // setTimeout(() => resetForm(), 2000)
@@ -411,11 +423,14 @@ function resetForm() {
   observaciones.value = ''
   confirmSuccess.value = false
   confirmError.value = null
-  prestamosCreados.value = []
+  prestamosParaTicket.value = []; usuarioParaTicket.value = null
   // fetchPrestamos()
 }
 // ─── TICKET DE IMPRESIÓN ──────────────────────────────────────────────────────
 const showTicket = ref(false)
+const prestamosParaTicket = ref<PrestamoTicket[]>([])
+const usuarioParaTicket = ref<UsuarioTicket | null>(null)
+// const prestamosCreados = ref<{ id_prestamo: number; ejemplar?: Ejemplar; libro?: LibroResult }[]>([])
 
 function abrirTicket() { showTicket.value = true }
 function cerrarTicket() { showTicket.value = false }
@@ -843,7 +858,7 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
             </svg>
           </div>
           <div>
-            <p class="text-lg font-bold text-slate-800">¡{{ prestamosCreados.length }} préstamo(s) registrado(s)!</p>
+            <p class="text-lg font-bold text-slate-800">¡{{ prestamosParaTicket.length }} préstamo(s) registrado(s)!</p>
             <p class="text-sm text-slate-500 mt-1">{{ selectedUser?.persona.nombreCompleto }}</p>
           </div>
           <div class="flex gap-3 justify-center">
@@ -1013,136 +1028,10 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
         </template>
       </div>
 
+      <!-- ═══ TICKET MODAL (componente reutilizable) ═══ -->
+      <TicketPrestamo v-model="showTicket" :prestamos="prestamosParaTicket" :usuario="usuarioParaTicket"
+        :tipo="tipoPrestamo" :fecha-devolucion="fechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" />
 
-      <!-- ═══ MODAL TICKET ═══ -->
-      <Teleport to="body">
-        <div v-if="showTicket"
-          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          @click.self="cerrarTicket">
-          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[90vh]">
-
-            <!-- Header modal -->
-            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                </div>
-                <span class="font-semibold text-slate-800">Vista previa del ticket</span>
-              </div>
-              <button @click="cerrarTicket" class="text-slate-400 hover:text-slate-600 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Ticket preview -->
-            <div class="overflow-y-auto flex-1 p-5">
-              <div id="ticket-print-area"
-                class="font-mono text-xs bg-white border border-dashed border-slate-300 rounded-xl p-5 space-y-3 w-full max-w-[300px] mx-auto">
-
-                <!-- Logo / Header -->
-                <div class="text-center border-b border-dashed border-slate-400 pb-3">
-                  <p class="text-base font-black tracking-widest">SIGEB</p>
-                  <p class="text-[9px] text-slate-500 leading-tight mt-0.5">Sistema de Gestión Bibliográfica</p>
-                  <p class="text-[9px] text-slate-500">FHCE — UMSA</p>
-                </div>
-
-                <!-- Un ticket por préstamo/libro -->
-                <div v-for="(p, idx) in prestamosCreados" :key="p.id_prestamo"
-                  :class="['space-y-2', idx > 0 ? 'border-t border-dashed border-slate-300 pt-3 mt-3' : '']">
-
-                  <p class="text-[9px] text-center text-slate-400">Préstamo #{{ p.id_prestamo }}</p>
-
-                  <!-- Datos del libro -->
-                  <table class="w-full text-[9px]">
-                    <tr>
-                      <td class="font-bold pr-2 w-20 text-slate-600">TÍTULO:</td>
-                      <td class="text-slate-800">{{ p.ejemplar?.edicion?.titulo ?? p.libro?.titulo }}</td>
-                    </tr>
-                    <tr>
-                      <td class="font-bold pr-2 text-slate-600">AUTOR:</td>
-                      <td class="text-slate-800">{{ p.ejemplar?.edicion?.autor ?? p.libro?.autor ?? '—' }}</td>
-                    </tr>
-                    <tr>
-                      <td class="font-bold pr-2 text-slate-600">AÑO:</td>
-                      <td class="text-slate-800">{{ p.ejemplar?.edicion?.anoPublicacion ?? p.libro?.anio ??
-                        p.libro?.anoPublicacion ?? '—' }}</td>
-                    </tr>
-                    <tr>
-                      <td class="font-bold pr-2 text-slate-600">CÓDIGO:</td>
-                      <td class="text-slate-800 font-bold">{{ p.ejemplar?.codigoEjemplar }}</td>
-                    </tr>
-                    <tr>
-                      <td class="font-bold pr-2 text-slate-600">ISBN:</td>
-                      <td class="text-slate-800">{{ p.ejemplar?.edicion?.isbn ?? p.libro?.isbn ?? '—' }}</td>
-                    </tr>
-                  </table>
-                </div>
-
-                <div class="border-t border-dashed border-slate-400 pt-3 space-y-1.5">
-                  <!-- Datos del usuario -->
-                  <table class="w-full text-[9px]">
-                    <tr>
-                      <td class="font-bold pr-2 w-24 text-slate-600 align-top">NOMBRE:</td>
-                      <td class="text-slate-800 uppercase">{{ selectedUser?.persona.nombreCompleto }}</td>
-                    </tr>
-                    <tr v-if="selectedUser?.persona.domicilio">
-                      <td class="font-bold pr-2 text-slate-600 align-top">DOMICILIO:</td>
-                      <td class="text-slate-800">{{ selectedUser.persona.domicilio }}</td>
-                    </tr>
-                    <tr v-if="selectedUser?.persona.celular">
-                      <td class="font-bold pr-2 text-slate-600">CELULAR:</td>
-                      <td class="text-slate-800">{{ selectedUser.persona.celular }}</td>
-                    </tr>
-                    <tr>
-                      <td class="font-bold pr-2 text-slate-600">FECHA:</td>
-                      <td class="text-slate-800">{{ now }}</td>
-                    </tr>
-                    <tr v-if="tipoPrestamo === 'DOMICILIO' && fechaDevolucion">
-                      <td class="font-bold pr-2 text-slate-600 align-top">DEVOLUCIÓN:</td>
-                      <td class="text-slate-800 font-bold">{{ formatDateTicket(fechaDevolucion) }}</td>
-                    </tr>
-                    <tr>
-                      <td class="font-bold pr-2 text-slate-600">TIPO:</td>
-                      <td class="text-slate-800">{{ tipoPrestamo }}</td>
-                    </tr>
-                  </table>
-                </div>
-
-                <!-- Firma -->
-                <div class="border-t border-dashed border-slate-400 pt-4 text-center">
-                  <div class="h-8 mb-1" />
-                  <div class="border-t border-slate-800 w-28 mx-auto mb-1" />
-                  <p class="text-[9px] text-slate-500">FIRMA RESPONSABLE</p>
-                  <p class="text-[9px] text-slate-600 font-semibold mt-1">{{ auth.displayName }}</p>
-                  <p class="text-[8px] text-slate-400 mt-2">Este documento acredita el préstamo del/los<br>ejemplar(es)
-                    indicados. SIGEB — FHCE UMSA</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Acciones -->
-            <div class="flex gap-2 p-4 border-t border-slate-100 flex-shrink-0">
-              <button @click="cerrarTicket"
-                class="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                Cerrar
-              </button>
-              <button @click="imprimirTicket"
-                class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                Imprimir
-              </button>
-            </div>
-          </div>
-        </div>
-      </Teleport>
 
     </div>
   </div>
