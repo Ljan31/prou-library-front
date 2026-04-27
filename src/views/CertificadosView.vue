@@ -3,12 +3,14 @@ import { ref, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { usePermissions } from '@/composables/usePermissions'
 
+import CertificadosEstudiante from './certificado/CertificadosEstudiante.vue'
+import CertificadosBibliotecario from './certificado/CertificadosBibliotecario.vue'
 import CertificadosGenerar from './certificado/CertificadosGenerar.vue'
 import CertificadosValidar from './certificado/CertificadosValidar.vue'
 import CertificadosHistorial from './certificado/CertificadosHistorial.vue'
 
 const ui = useUiStore()
-const { isAdmin, isBibliotecario } = usePermissions()
+const { isAdmin, isBibliotecario, isEstudiante } = usePermissions()
 
 type Tab = 'generar' | 'validar' | 'historial'
 const activeTab = ref<Tab>('generar')
@@ -36,7 +38,7 @@ onMounted(() => {
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
         <button @click="activeTab = 'generar'" :class="['px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
           activeTab === 'generar' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900']">
-          Generar
+          {{ isEstudiante ? 'Solicitar' : 'Generar' }}
         </button>
         <button @click="activeTab = 'validar'" :class="['px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
           activeTab === 'validar' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900']">
@@ -51,7 +53,11 @@ onMounted(() => {
     </div>
 
     <!-- ── Contenido por tab ── -->
-    <CertificadosGenerar v-if="activeTab === 'generar'" :key="'generar'" />
+    <!-- <CertificadosGenerar v-if="activeTab === 'generar'" :key="'generar'" /> -->
+    <template v-if="activeTab === 'generar'">
+      <CertificadosEstudiante v-if="isEstudiante" key="estudiante" />
+      <CertificadosBibliotecario v-else-if="isAdmin || isBibliotecario" key="bibliotecario" />
+    </template>
     <CertificadosValidar v-if="activeTab === 'validar'" :key="'validar'" />
     <CertificadosHistorial v-if="activeTab === 'historial'" :key="'historial'" />
 
