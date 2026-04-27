@@ -18,7 +18,7 @@ import { usePermissions } from '@/composables/usePermissions'
 import api from '@/services/axios'
 import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
-import CertificadoPreview from './CertificadoPreview.vue'
+// import CertificadoPreview from './CertificadoPreview.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -322,9 +322,9 @@ function estadoCertClasses(estado: string) {
     <!-- Subcomponentes globales -->
     <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
 
-    <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert"
+    <!-- <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert"
       :nombre-usuario="printCert.usuario?.nombreCompleto ?? selectedUser?.persona.nombreCompleto ?? ''"
-      :ci-usuario="String(printCert.usuario?.ci ?? selectedUser?.persona.ci ?? '')" @close="showPrintPreview = false" />
+      :ci-usuario="String(printCert.usuario?.ci ?? selectedUser?.persona.ci ?? '')" @close="showPrintPreview = false" /> -->
 
     <CertificadosModal :show="showCertsModal" :certificados="certificadosUsuario"
       :titulo="`Certificados de ${selectedUser?.persona.nombreCompleto ?? 'este usuario'}`" :can-anular="true"
@@ -509,7 +509,7 @@ function estadoCertClasses(estado: string) {
               <span class="flex-1 text-xs">
                 <strong>{{ certificadosUsuario.length }}</strong> certificado(s)
                 <span v-if="estudianteTieneVigente"> — <strong>{{certificadosUsuario.filter(c => c.estadoCertificado
-                  === 'VIGENTE').length }} VIGENTE(s)</strong>, no se puede generar otro</span>
+                  === 'VIGENTE').length}} VIGENTE(s)</strong>, no se puede generar otro</span>
                 <span v-else> — ninguno vigente, puede generar uno nuevo</span>.
               </span>
               <button @click="showCertsModal = true"
@@ -656,7 +656,7 @@ function estadoCertClasses(estado: string) {
                     <p class="text-slate-400 mb-0.5">Código de Verificación</p>
                     <p class="font-mono font-semibold text-indigo-700 text-xs break-all">{{
                       certGenerado.codigo_verificacion
-                      }}</p>
+                    }}</p>
                   </div>
                 </div>
                 <div

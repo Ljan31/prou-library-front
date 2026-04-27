@@ -18,7 +18,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import api from '@/services/axios'
 import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
-import CertificadoPreview from './CertificadoPreview.vue'
+// import CertificadoPreview from './CertificadoPreview.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -62,14 +62,14 @@ onMounted(async () => {
   await Promise.all([fetchBibliotecas(), fetchDatosUsuario()])
 })
 
+// ─── Bibliotecas ──────────────────────────────────────────────────────────────
+const bibliotecas = ref<Biblioteca[]>([])
+const selectedBibliotecaId = ref<number | null>(null)
 // Cuando cambia la biblioteca, refrescar certificados con ese filtro
 watch(selectedBibliotecaId, (id) => {
   if (id && auth.user?.id) fetchCertificados(auth.user.id, id)
 })
 
-// ─── Bibliotecas ──────────────────────────────────────────────────────────────
-const bibliotecas = ref<Biblioteca[]>([])
-const selectedBibliotecaId = ref<number | null>(null)
 
 async function fetchBibliotecas() {
   try {
@@ -248,8 +248,8 @@ const qrUrl = computed(() => {
     <!-- Subcomponentes globales -->
     <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
 
-    <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert" :nombre-usuario="auth.displayName"
-      :ci-usuario="String(auth.user?.persona?.ci ?? '')" @close="showPrintPreview = false" />
+    <!-- <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert" :nombre-usuario="auth.displayName"
+      :ci-usuario="String(auth.user?.persona?.ci ?? '')" @close="showPrintPreview = false" /> -->
 
     <CertificadosModal :show="showModal" :certificados="certificados" titulo="Mis certificados" :can-anular="false"
       @close="showModal = false" @ver-pdf="abrirVisor" @imprimir="abrirImprimir" />
