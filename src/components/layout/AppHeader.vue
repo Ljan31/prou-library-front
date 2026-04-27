@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import AppBreadcrumbs from '@/components/layout/AppBreadcrumbs.vue'
+import NotificacionBadge from '@/components/notificaciones/NotificacionBadge.vue'
+import NotificacionDropdown from '@/components/notificaciones/NotificacionDropdown.vue'
 
 const auth = useAuthStore()
 const ui = useUiStore()
 const router = useRouter()
 
 const userMenuOpen = ref(false)
+const userMenuRef = ref<HTMLElement | null>(null)
 
 async function handleLogout() {
   userMenuOpen.value = false
@@ -20,12 +23,28 @@ async function handleLogout() {
 function closeUserMenu() {
   userMenuOpen.value = false
 }
+
+function handleClickOutside(event: PointerEvent) {
+  if (!userMenuRef.value) return
+
+  if (!userMenuRef.value.contains(event.target as Node)) {
+    userMenuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleClickOutside)
+})
+
 </script>
 
 <template>
   <header
     class="h-16 bg-white border-b border-slate-100 flex items-center px-4 sm:px-6 gap-3 shrink-0 z-20 sticky top-0">
-
     <!-- Mobile menu button -->
     <button
       class="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
@@ -41,24 +60,23 @@ function closeUserMenu() {
     <AppBreadcrumbs class="flex-1 min-w-0" />
 
     <!-- Right side actions -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1">
 
-      <!-- Notification bell -->
-      <RouterLink to="/notificaciones"
-        class="relative w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
-        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-        </svg>
-        <!-- Unread badge (placeholder – Equipo 3 conectará al backend) -->
-        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse-dot" />
-      </RouterLink>
-
-      <!-- User menu trigger -->
+      <!-- 🔔 Notificaciones: badge + dropdown integrado -->
       <div class="relative">
+        <NotificacionBadge />
+        <NotificacionDropdown />
+      </div>
+
+      <!-- Divider -->
+      <div class="w-px h-5 bg-slate-200 mx-1" />
+
+      <!-- User menu -->
+      <div class="relative" ref="userMenuRef">
         <button class="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-          @click="userMenuOpen = !userMenuOpen">
+          @click.stop="userMenuOpen = !userMenuOpen">
           <div
-            class="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-xs shrink-0">
+            class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs shrink-0">
             {{ auth.displayName.charAt(0).toUpperCase() }}
           </div>
           <span class="hidden sm:block text-sm font-medium text-slate-700 max-w-30 truncate">
@@ -70,11 +88,10 @@ function closeUserMenu() {
           </svg>
         </button>
 
-        <!-- Dropdown -->
+        <!-- Dropdown user -->
         <Transition name="slide-up">
-          <div v-if="userMenuOpen" v-click-outside="closeUserMenu"
+          <div v-if="userMenuOpen"
             class="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl border border-slate-100 shadow-lg py-1.5 z-50">
-            <!-- User info -->
             <div class="px-3 py-2 border-b border-slate-100 mb-1">
               <p class="text-sm font-semibold text-slate-800 truncate">{{ auth.displayName }}</p>
               <p class="text-xs text-slate-400 truncate">{{ auth.user?.persona.email }}</p>
