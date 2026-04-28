@@ -152,6 +152,29 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Notificaciones",
         },
       },
+      // ── Sanciones (Admin / Bibliotecario) ─────────────────────────────────────────
+      {
+        path: "sanciones",
+        name: "sanciones",
+        component: () => import("@/views/sanciones/SancionesView.vue"),
+        meta: {
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          title: "Sanciones",
+          breadcrumb: "Sanciones",
+        },
+      },
+
+      // ── Mis Sanciones (Estudiante) ─────────────────────────────────────────────────
+      {
+        path: "mis-sanciones",
+        name: "mis-sanciones",
+        component: () => import("@/views/sanciones/MisSancionesView.vue"),
+        meta: {
+          roles: ["ROLE_ESTUDIANTE"],
+          title: "Mis Sanciones",
+          breadcrumb: "Mis Sanciones",
+        },
+      },
       {
         path: "perfil",
         name: "perfil",
