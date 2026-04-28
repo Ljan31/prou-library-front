@@ -18,7 +18,7 @@ import { usePermissions } from '@/composables/usePermissions'
 import api from '@/services/axios'
 import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
-// import CertificadoPreview from './CertificadoPreview.vue'
+import CertificadoPreview from './CertificadoPreview.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -322,9 +322,9 @@ function estadoCertClasses(estado: string) {
     <!-- Subcomponentes globales -->
     <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
 
-    <!-- <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert"
+    <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert"
       :nombre-usuario="printCert.usuario?.nombreCompleto ?? selectedUser?.persona.nombreCompleto ?? ''"
-      :ci-usuario="String(printCert.usuario?.ci ?? selectedUser?.persona.ci ?? '')" @close="showPrintPreview = false" /> -->
+      :ci-usuario="String(printCert.usuario?.ci ?? selectedUser?.persona.ci ?? '')" @close="showPrintPreview = false" />
 
     <CertificadosModal :show="showCertsModal" :certificados="certificadosUsuario"
       :titulo="`Certificados de ${selectedUser?.persona.nombreCompleto ?? 'este usuario'}`" :can-anular="true"

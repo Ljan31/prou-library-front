@@ -1,8 +1,14 @@
 <script setup lang="ts">
+/**
+ * CertificadosModal.vue
+ *
+ * Modal reutilizable que muestra la lista de certificados de un usuario.
+ * Soporta: ver PDF (backend), imprimir (frontend), anular (staff).
+ * Se usa tanto en CertificadosEstudiante como en CertificadosBibliotecario.
+ */
 import { ref } from 'vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface Certificado {
   id_certificado: number
   fechaEmision: string
@@ -11,15 +17,14 @@ interface Certificado {
   estadoCertificado: 'VIGENTE' | 'VENCIDO' | 'ANULADO'
   urlDescarga: string
   bibliotecaNombre?: string
-  usuario?: { nombreCompleto?: string }
+  usuario?: { nombreCompleto?: string; ci?: string | number }
+  bibliotecario?: { nombreCompleto?: string }
 }
 
-// ─── Props & Emits ────────────────────────────────────────────────────────────
 const props = defineProps<{
   show: boolean
   certificados: Certificado[]
   titulo?: string
-  // Quién puede anular (staff)
   canAnular?: boolean
   anulandoId?: number | null
 }>()
@@ -27,9 +32,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   anular: [id: number]
+  'ver-pdf': [id: number]
+  imprimir: [cert: Certificado]
 }>()
 
-// ─── PDF Viewer ───────────────────────────────────────────────────────────────
+// PDF Viewer interno del modal
 const pdfViewerShow = ref(false)
 const pdfViewerCertId = ref<number | null>(null)
 
@@ -38,11 +45,11 @@ function abrirVisor(id: number) {
   pdfViewerShow.value = true
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helpers
 function formatDateTime(s?: string) {
   if (!s) return '—'
   return new Date(s).toLocaleString('es-BO', {
-    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
 }
 
@@ -63,7 +70,7 @@ function cardBorderClass(estado: string) {
 </script>
 
 <template>
-  <!-- PDF Viewer (z mayor para quedar por encima del modal) -->
+  <!-- PDF Viewer anidado (z mayor para quedar sobre el modal) -->
   <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
 
   <Transition name="fade">
@@ -71,7 +78,6 @@ function cardBorderClass(estado: string) {
       @click.self="emit('close')">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
         style="max-height: 85vh">
-
         <!-- Header -->
         <div class="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
@@ -81,12 +87,11 @@ function cardBorderClass(estado: string) {
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <h3 class="font-semibold text-slate-900 text-sm">
-              {{ titulo ?? 'Certificados' }}
-            </h3>
+            <h3 class="font-semibold text-slate-900 text-sm truncate">{{ titulo ?? 'Certificados' }}</h3>
             <p class="text-xs text-slate-400 mt-0.5">{{ certificados.length }} certificado(s) encontrado(s)</p>
           </div>
-          <button @click="emit('close')" class="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0">
+          <button @click="emit('close')"
+            class="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0 p-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -97,28 +102,28 @@ function cardBorderClass(estado: string) {
         <div class="overflow-y-auto flex-1 p-4 space-y-3">
 
           <!-- Empty -->
-          <div v-if="!certificados.length" class="py-10 text-center">
+          <div v-if="!certificados.length" class="py-12 text-center">
             <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
               <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <p class="text-sm text-slate-400">No hay certificados para mostrar</p>
+            <p class="text-sm text-slate-400 font-medium">No hay certificados para mostrar</p>
           </div>
 
-          <!-- Cards de certificados -->
+          <!-- Card por certificado -->
           <div v-for="c in certificados" :key="c.id_certificado" class="rounded-xl border p-4 transition-all"
             :class="cardBorderClass(c.estadoCertificado)">
-            <!-- Header card: estado + biblioteca -->
+            <!-- Estado + biblioteca -->
             <div class="flex items-center justify-between mb-3">
               <span :class="['text-xs font-bold px-2.5 py-1 rounded-full', estadoCertClasses(c.estadoCertificado)]">
                 {{ c.estadoCertificado }}
               </span>
-              <span class="text-xs text-slate-400 truncate ml-2">{{ c.bibliotecaNombre ?? '—' }}</span>
+              <span class="text-xs text-slate-400 truncate ml-2 max-w-[150px]">{{ c.bibliotecaNombre ?? '—' }}</span>
             </div>
 
-            <!-- Código de verificación -->
+            <!-- Código UUID seleccionable -->
             <p
               class="text-xs font-mono text-indigo-700 bg-indigo-50 rounded-lg px-3 py-1.5 mb-3 break-all select-all cursor-text">
               {{ c.codigo_verificacion }}
@@ -127,11 +132,11 @@ function cardBorderClass(estado: string) {
             <!-- Fechas -->
             <div class="grid grid-cols-2 gap-2 text-xs mb-3">
               <div>
-                <p class="text-slate-400 mb-0.5">Emitido</p>
+                <p class="text-slate-400 mb-0.5 text-[10px] uppercase font-semibold tracking-wider">Emitido</p>
                 <p class="font-medium text-slate-700">{{ formatDateTime(c.fechaEmision) }}</p>
               </div>
               <div>
-                <p class="text-slate-400 mb-0.5">Vence</p>
+                <p class="text-slate-400 mb-0.5 text-[10px] uppercase font-semibold tracking-wider">Vence</p>
                 <p class="font-medium"
                   :class="c.estadoCertificado === 'VIGENTE' ? 'text-emerald-700' : 'text-slate-500'">
                   {{ formatDateTime(c.fechaVencimiento) }}
@@ -141,32 +146,33 @@ function cardBorderClass(estado: string) {
 
             <!-- Acciones -->
             <div class="flex gap-2">
-              <!-- Ver PDF -->
+              <!-- Ver PDF del backend -->
               <button @click="abrirVisor(c.id_certificado)"
-                class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                Ver PDF
-              </button>
-
-              <!-- Descargar (también abre el visor que tiene el botón descargar) -->
-              <button @click="abrirVisor(c.id_certificado)"
-                class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                title="Descargar PDF generado por el servidor">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Descargar PDF
+                PDF oficial
+              </button>
+
+              <!-- Imprimir desde el frontend -->
+              <button @click="emit('imprimir', c)"
+                class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
+                title="Imprimir/guardar usando la vista del sistema">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Imprimir
               </button>
 
               <!-- Anular (solo staff, solo VIGENTE) -->
               <button v-if="canAnular && c.estadoCertificado === 'VIGENTE'" @click="emit('anular', c.id_certificado)"
                 :disabled="anulandoId === c.id_certificado"
-                class="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 flex-shrink-0">
+                class="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
+                title="Anular este certificado">
                 <svg v-if="anulandoId === c.id_certificado" class="w-3.5 h-3.5 animate-spin" fill="none"
                   viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
