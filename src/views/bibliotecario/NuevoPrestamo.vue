@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useMedia } from '@/composables/useMedia'
 import { useAuthStore } from '@/stores/auth.store'
 import TicketPrestamo, { type PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
 import api from '@/services/axios'
@@ -9,7 +10,7 @@ import defaultBookImage from '../../assets/book-default.jpeg'
 // ─── Breadcrumbs ────────────────────────────────────────────────────────────
 const ui = useUiStore()
 const auth = useAuthStore()
-
+const { getUrl } = useMedia()
 onMounted(async () => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -733,7 +734,7 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
               <div v-if="item.ejemplar" @click="item.ejemplar = null"
                 class="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition">
 
-                <img :src="item.ejemplar.edicion?.imagenPortada || defaultBookImage"
+                <img :src="getUrl(item.ejemplar.edicion?.imagenPortada) || defaultBookImage"
                   class="w-10 h-14 object-cover rounded-lg border border-slate-100" />
 
                 <div class="flex-1 min-w-0">
@@ -802,7 +803,7 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
                     item.ejemplar?.id_ejemplar === ej.id_ejemplar
                       ? 'border-indigo-500 bg-indigo-50'
                       : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50']">
-                    <img :src="ej.edicion?.imagenPortada || defaultBookImage" alt=""
+                    <img :src="getUrl(ej.edicion?.imagenPortada) || defaultBookImage" alt=""
                       class="w-10 h-14 object-cover rounded-lg border border-slate-100 flex-shrink-0" />
                     <div class="flex-1 min-w-0">
                       <p class="text-xs font-semibold text-slate-800 leading-tight">{{ ej.codigoEjemplar }}</p>
@@ -904,7 +905,7 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
                     {{ i + 1 }}
                   </span>
 
-                  <img :src="item.ejemplar.edicion?.imagenPortada || defaultBookImage"
+                  <img :src="getUrl(item.ejemplar?.edicion?.imagenPortada) || defaultBookImage" alt="Portada"
                     class="w-10 h-14 object-cover rounded-lg border border-slate-100" />
 
                   <div class="flex-1 min-w-0">

@@ -92,12 +92,35 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "inventario",
+        // children: [
+        //   {
+        //     path: "", // /inventario
+        //     name: "inventario",
+        //     component: () => import("@/views/bibliotecario/InventarioView.vue"),
+        //     meta: {
+        //       roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+        //       title: "Inventario",
+        //       breadcrumb: "Inventario",
+        //     },
+        //   },
+
+        // ],
         name: "inventario",
         component: () => import("@/views/bibliotecario/InventarioView.vue"),
         meta: {
           roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
           title: "Inventario",
           breadcrumb: "Inventario",
+        },
+      },
+      {
+        path: "nuevo-ejemplar", // /inventario/nuevo-ejemplar
+        name: "inventario-nuevo-ejemplar",
+        component: () => import("@/views/bibliotecario/NuevoEjemplarView.vue"),
+        meta: {
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          title: "Nuevo ejemplar",
+          breadcrumb: "Nuevo ejemplar",
         },
       },
       {

@@ -52,6 +52,8 @@ async function guardar() {
     }
     emit('saved')
   } catch (e: unknown) {
+    console.log('estadosss')
+    console.log(e)
     error.value = e instanceof Error ? e.message : 'Error al cambiar estado'
   } finally {
     guardando.value = false

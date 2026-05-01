@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useMedia } from '@/composables/useMedia'
 import { useAuthStore } from '@/stores/auth.store'
 import api from '@/services/axios'
 
 const ui = useUiStore()
 const auth = useAuthStore()
+const { getUrl } = useMedia()
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -318,7 +320,8 @@ function diasVencido(fecha?: string): number {
               :class="['w-full px-5 py-3.5 text-left transition-all hover:bg-slate-50',
                 prestamoSeleccionado?.id_prestamo === p.id_prestamo ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : '']">
               <div class="flex items-start gap-3">
-                <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="p.ejemplar.edicion.imagenPortada" alt="portada"
+                <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="getUrl(p.ejemplar.edicion.imagenPortada)"
+                  alt="portada"
                   class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm flex-shrink-0" />
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-0.5">
@@ -473,7 +476,7 @@ function diasVencido(fecha?: string): number {
           <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
             <div class="flex items-start gap-4">
               <img v-if="prestamoSeleccionado.ejemplar?.edicion?.imagenPortada"
-                :src="prestamoSeleccionado.ejemplar.edicion.imagenPortada" alt="portada"
+                :src="getUrl(prestamoSeleccionado.ejemplar.edicion.imagenPortada)" alt="portada"
                 class="w-12 h-16 object-cover rounded-lg border border-slate-200 flex-shrink-0" />
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1 flex-wrap">

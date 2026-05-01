@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useMedia } from '@/composables/useMedia'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
@@ -14,6 +16,8 @@ import EjemplarFormModalInventario from '@/components/catalogo/EjemplarFormModal
 import EjemplarEstadoModal from '@/components/catalogo/EjemplarEstadoModal.vue'
 import EjemplarHistorialModal from '@/components/catalogo/EjemplarHistorialModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import LibroLoteFormModal from '@/components/catalogo/LibroLoteFormModal.vue'
+import Libroeditarmodal from '@/components/catalogo/Libroeditarmodal.vue'
 
 import {
   obtenerEjemplares,
@@ -23,11 +27,13 @@ import {
 import api from '@/services/axios'
 import { estadoEjemplarConfig } from '@/utils/catalogo'
 import type { Ejemplar } from '@/types/catalogo'
+import { bibliotecasService } from '@/services/bibliotecas.service'
 
 const ui = useUiStore()
 const auth = useAuthStore()
 const { isAdmin, isBibliotecario } = usePermissions()
-
+const router = useRouter()
+const { getUrl } = useMedia()
 // ─── Biblioteca del usuario logueado ──────────────────────────────────────
 const bibliotecaPropia = computed<BibliotecaOpcion | null>(() => {
   const lista = auth.user?.biblioteca
@@ -69,6 +75,7 @@ async function cargarEjemplares() {
     if (isBibliotecario.value && !isAdmin.value && bibliotecaPropia.value) {
       // Bibliotecario: solo ve su biblioteca
       todos.value = await obtenerEjemplaresPorBiblioteca(bibliotecaPropia.value.id)
+      console.log('ejemplares', todos.value)
     } else {
       // Admin: todos los ejemplares
       todos.value = await obtenerEjemplares()
@@ -140,7 +147,7 @@ const nuevaBibliotecaId = ref<number | null>(null)
 const motivoTransferir = ref('')
 const transfiriendo = ref(false)
 const errorTransferir = ref('')
-
+const libroId = ref<number | null>(null)
 function cerrarModal() {
   modalActivo.value = null
   ejemplarSeleccionado.value = null
@@ -150,14 +157,20 @@ function cerrarModal() {
   errorTransferir.value = ''
 }
 
+function irANuevoEjemplar() {
+  router.push('/nuevo-ejemplar')
+}
+
 function abrirCrear() {
   ejemplarEditando.value = null
-  modalActivo.value = 'form'
+  modalActivo.value = 'crear'
 }
 
 function abrirEditar(e: Ejemplar) {
+  console.log('editar', e)
+  libroId.value = e.edicion?.idLibro
   ejemplarEditando.value = e
-  modalActivo.value = 'form'
+  modalActivo.value = 'editar'
 }
 
 function abrirEstado(e: Ejemplar) {
@@ -178,6 +191,9 @@ function abrirConfirmarEliminar(e: Ejemplar) {
 function abrirTransferir(e: Ejemplar) {
   ejemplarSeleccionado.value = e
   modalActivo.value = 'transferir'
+}
+function verPdf(url: string) {
+  window.open(getUrl(url), '_blank')
 }
 
 // ─── Acciones ─────────────────────────────────────────────────────────────
@@ -283,6 +299,7 @@ function exportarCSV() {
 
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
         <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="abrirCrear" variant="primary">
+          <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
           <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
@@ -371,7 +388,9 @@ function exportarCSV() {
         <!-- Estado dot + badge -->
 
         <div class="flex-shrink-0">
-          <img v-if="ej.edicion?.imagenPortada" :src="ej.edicion.imagenPortada" alt="Portada"
+          <!-- <img v-if="ej.edicion?.imagenPortada" :src="ej.edicion.imagenPortada" alt="Portada"
+            class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm" /> -->
+          <img v-if="ej.edicion?.imagenPortada" :src="getUrl(ej.edicion.imagenPortada)" alt="Portada"
             class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm" />
           <div v-else
             class="w-12 h-16 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-400">
@@ -469,7 +488,10 @@ function exportarCSV() {
                 d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
           </button>
-
+          <button v-if="ej.edicion?.pdfUrl" @click="verPdf(ej.edicion.pdfUrl)"
+            class="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Ver PDF">
+            📄
+          </button>
           <!-- Eliminar (solo admin, y si no está prestado) -->
           <button v-if="isAdmin" @click="abrirConfirmarEliminar(ej)"
             :disabled="!!ej.prestamoActivo || ej.estadoEjemplar === 'PRESTADO'"
@@ -488,10 +510,22 @@ function exportarCSV() {
          MODALES
     ════════════════════════════════════════════════════════════════ -->
 
-    <!-- Crear / Editar ejemplar -->
-    <EjemplarFormModalInventario v-if="modalActivo === 'form'" :ejemplar="ejemplarEditando" @close="cerrarModal"
-      @saved="onGuardado" />
+    <div v-if="pdfActivo" class="fixed inset-0 bg-black/50 flex items-center justify-center">
+      <div class="bg-white w-[80%] h-[80%] rounded-lg overflow-hidden">
+        <iframe :src="getUrl(pdfActivo)" class="w-full h-full"></iframe>
 
+        <button @click="pdfActivo = null">Cerrar</button>
+      </div>
+    </div>
+    <LibroLoteFormModal v-if="modalActivo === 'crear'" @close="cerrarModal" @saved="onGuardado" />
+    <Libroeditarmodal v-if="modalActivo === 'editar'" @close="cerrarModal" @saved="onGuardado" :libroId="libroId" />
+
+    <!-- Crear / Editar ejemplar -->
+    <!-- <EjemplarFormModalInventario v-if="modalActivo === 'form'" :ejemplar="ejemplarEditando" @close="cerrarModal"
+      @saved="onGuardado" /> -->
+
+    <!-- <LibroFormModal v-if="mostrarFormModal" :key="mostrarFormModal ? 'open' : 'closed'" :libro="libroParaEditar"
+      :categorias="categorias" @close="cerrarFormModal" @saved="onLibroGuardado" /> -->
     <!-- Cambiar estado -->
     <EjemplarEstadoModal v-if="modalActivo === 'estado' && ejemplarSeleccionado" :ejemplar="ejemplarSeleccionado"
       @close="cerrarModal" @saved="onEstadoCambiado" />

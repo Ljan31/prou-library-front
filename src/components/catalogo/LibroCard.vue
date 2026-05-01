@@ -14,7 +14,6 @@ const emit = defineEmits<{
   editar: [libro: Libro]
   eliminar: [libro: Libro]
 }>()
-
 const portada = computed(() => primeraPortada(props.libro.ediciones))
 const editorial = computed(() => primeraEditorial(props.libro.ediciones))
 const isbn = computed(() => primerIsbn(props.libro.ediciones))

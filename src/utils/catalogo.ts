@@ -1,5 +1,5 @@
 import type { EstadoEjemplar } from "@/types/catalogo";
-
+import { useMedia } from "@/composables/useMedia";
 export const estadoEjemplarConfig: Record<
   EstadoEjemplar,
   {
@@ -49,7 +49,7 @@ export const estadoEjemplarConfig: Record<
     clases: "bg-orange-100 text-orange-700",
   },
 };
-
+const { getUrl } = useMedia();
 /** Primer ISBN de las ediciones de un libro */
 export function primerIsbn(ediciones: { isbn?: string }[] | undefined): string {
   return ediciones?.find((e) => e.isbn)?.isbn ?? "—";
@@ -59,7 +59,9 @@ export function primerIsbn(ediciones: { isbn?: string }[] | undefined): string {
 export function primeraPortada(
   ediciones: { imagenPortada?: string }[] | undefined,
 ): string {
-  return ediciones?.find((e) => e.imagenPortada)?.imagenPortada ?? "";
+  const edicion = ediciones?.find((e) => e.imagenPortada);
+  return edicion ? getUrl(edicion.imagenPortada) : "";
+  // return ediciones?.find((e) => e.imagenPortada)?.imagenPortada ?? "";
 }
 
 /** Editorial + año de la primera edición */

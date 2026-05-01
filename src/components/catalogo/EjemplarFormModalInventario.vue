@@ -15,6 +15,8 @@ import api from '@/services/axios'
 import { crearEjemplar, actualizarEjemplar } from '@/services/ejemplares.service'
 import { obtenerCategorias, crearCategoria } from '@/services/categorias.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
+import { crearEdicion, actualizarEdicion } from '@/services/ediciones.service'
+import { useMedia } from '@/composables/useMedia'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
 import type { Ejemplar, Edicion, Categoria, Libro } from '@/types/catalogo'
@@ -30,6 +32,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const auth = useAuthStore()
 const { isAdmin, isBibliotecario } = usePermissions()
+const { getUrl } = useMedia()
 
 // ── Paso activo ───────────────────────────────────────────────────────────
 // Si edita ó viene con edicionIdInicial → paso 3
@@ -209,14 +212,15 @@ const erroresEdicion = reactive<Record<string, string>>({})
 const creandoEdicion = ref(false)
 
 // Preview portada
+const portadaFile = ref<File | null>(null)
 function onPortadaChange(ev: Event) {
   const file = (ev.target as HTMLInputElement).files?.[0]
   if (!file) return
+  portadaFile.value = file
   const r = new FileReader()
   r.onload = (e) => { nuevaEdicion.imagenPortada = e.target?.result as string }
   r.readAsDataURL(file)
 }
-
 async function guardarNuevaEdicion() {
   Object.keys(erroresEdicion).forEach(k => delete erroresEdicion[k])
   if (!nuevaEdicion.isbn.trim()) erroresEdicion.isbn = 'El ISBN es requerido'
@@ -228,16 +232,35 @@ async function guardarNuevaEdicion() {
   try {
     console.log('crear edicion')
     console.log(nuevaEdicion)
-    const res = await api.post('/ediciones', {
+    const payload = {
       isbn: nuevaEdicion.isbn.trim(),
       editorial: nuevaEdicion.editorial.trim(),
       anoPublicacion: nuevaEdicion.anoPublicacion,
       edicion: nuevaEdicion.edicion.trim() || undefined,
       numeroPaginas: nuevaEdicion.numeroPaginas || undefined,
-      imagenPortada: nuevaEdicion.imagenPortada || undefined,
       libroId: libroSeleccionado.value!.idLibro,
-    })
-    const ed: Edicion = res.data?.data ?? res.data
+      // 👇 IMPORTANTE: solo si es URL (Caso B)
+      imagenPortada: nuevaEdicion.imagenPortada?.startsWith('http')
+        ? nuevaEdicion.imagenPortada
+        : undefined,
+    }
+
+    // 👇 Si estás usando base64 preview, NO es archivo real
+    // necesitas guardar el File real desde el input
+    const archivo = portadaFile.value // o tu ref<File>
+    // const res = await api.post('/ediciones', {
+    //   isbn: nuevaEdicion.isbn.trim(),
+    //   editorial: nuevaEdicion.editorial.trim(),
+    //   anoPublicacion: nuevaEdicion.anoPublicacion,
+    //   edicion: nuevaEdicion.edicion.trim() || undefined,
+    //   numeroPaginas: nuevaEdicion.numeroPaginas || undefined,
+    //   imagenPortada: nuevaEdicion.imagenPortada || undefined,
+    //   libroId: libroSeleccionado.value!.idLibro,
+    // })
+    const res = await crearEdicion(payload, archivo)
+    console.log('resss', res)
+    const ed: Edicion = res?.data ?? res
+    console.log('resppp', ed)
     edicionElegida.value = ed
     formEjemplar.edicionId = ed.idEdicion
     paso.value = 3
@@ -650,7 +673,8 @@ const resumenContexto = computed(() => {
             class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-left transition-colors">
             <!-- Portada -->
             <div class="w-10 h-13 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
-              <img v-if="ed.imagenPortada" :src="ed.imagenPortada" alt="" class="w-full h-full object-cover" />
+              <!-- <img v-if="ed.imagenPortada" :src="ed.imagenPortada" alt="" class="w-full h-full object-cover" /> -->
+              <img v-if="ed.imagenPortada" :src="getUrl(ed.imagenPortada)" alt="" class="w-full h-full object-cover" />
               <div v-else class="w-full h-full flex items-center justify-center">
                 <svg class="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
