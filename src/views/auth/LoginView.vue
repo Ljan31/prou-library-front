@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import SButton from '@/components/ui/SButton.vue'
 import SInput from '@/components/ui/SInput.vue'
+import logoFHCE from '@/assets/logoumsa.png'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -47,16 +48,19 @@ async function handleLogin() {
         class="absolute bottom-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full translate-x-1/3 translate-y-1/3 blur-3xl pointer-events-none" />
 
       <!-- Logo -->
-      <div class="flex items-center gap-3 relative z-10">
-        <div class="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center shadow-lg">
-          <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-          </svg>
-        </div>
-        <div>
-          <p class="font-display text-white font-bold text-xl leading-tight">SIGEB</p>
-          <p class="text-primary-300 text-xs leading-tight">Sistema de Gestión Bibliográfica</p>
+      <div class="flex flex-col items-start relative z-10">
+        <img :src="logoFHCE" alt="FHCE UMSA" class="h-25 w-auto opacity-80" />
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center shadow-lg">
+            <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+            </svg>
+          </div>
+          <div>
+            <p class="font-display text-white font-bold text-xl leading-tight">SIGEB</p>
+            <p class="text-primary-300 text-xs leading-tight">Sistema de Gestión Bibliográfica</p>
+          </div>
         </div>
       </div>
 
@@ -169,6 +173,10 @@ async function handleLogin() {
             Regístrate como estudiante
           </button>
         </p>
+        <button class="w-full h-10 mt-3 rounded-lg border border-white/20 text-white/80
+         hover:bg-white/10 transition-all text-sm" @click="router.push('/catalogo-reservas')">
+          Ver catálogo público
+        </button>
         <p class="text-center text-xs text-slate-600 mt-5">
           SIGEB v1.0 · UMSA Facultad de Humanidades
         </p>

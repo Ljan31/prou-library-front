@@ -1,23 +1,30 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
+import { useReservasStore } from '@/stores/reservas.store'
 import SButton from '@/components/ui/SButton.vue'
 import SInput from '@/components/ui/SInput.vue'
 import SSelect from '@/components/ui/SSelect.vue'
 import SCard from '@/components/ui/SCard.vue'
 import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
+import LibroReservaCard from '@/components/reservas/LibroReservaCard.vue'
+import ReservaModalConfirm from '@/components/reservas/ReservaModalConfirm.vue'
 import LibroCard from '@/components/catalogo/LibroCard.vue'
 import LibroFormModal from '@/components/catalogo/LibroFormModal.vue'
 import LibroDetalleModal from '@/components/catalogo/LibroDetalleModal.vue'
 import type { Libro, Categoria } from '@/types/catalogo'
 import { buscarLibros, eliminarLibro as eliminarLibroService, obtenerLibro } from '@/services/libros.service'
 import { obtenerCategorias } from '@/services/categorias.service'
+import type { LibroPublico, BibliotecaPublica } from '@/types/reservas'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
 const ui = useUiStore()
+const auth = useAuthStore()
 const { isAdmin, isBibliotecario } = usePermissions()
+const reservasStore = useReservasStore()
 
 // ─── Estado UI ────────────────────────────────────────────────────────────
 const mostrarFormModal = ref(false)
@@ -38,6 +45,11 @@ const porPagina = 12
 
 // ─── Categorías ───────────────────────────────────────────────────────────
 const categorias = ref<Categoria[]>([])
+const biblioteca = ref<BibliotecaPublica>()
+
+// Modal de confirmación de reserva
+const mostrarModal = ref(false)
+const libroSeleccionadoReserva = ref<LibroPublico | null>(null)
 
 const opcionesCategorias = computed(() => [
   { value: '', label: 'Todas las categorías' },
@@ -57,8 +69,31 @@ const totalLibros = ref(0)
 onMounted(async () => {
   ui.setBreadcrumbs([{ label: 'Catálogo', to: '/catalogo' }])
   await Promise.all([cargarCategorias(), ejecutarBusqueda()])
-})
 
+  console.log(auth.isAuthenticated)
+  console.log(reservasStore.tienePendiente)
+  if (auth.isAuthenticated && reservasStore.tienePendiente) {
+    const pending = reservasStore.reservaPendiente!
+    console.log('pending', pending)
+    libroSeleccionadoReserva.value = {
+      idLibro: pending.libroId,
+      titulo: pending.libroTitulo,
+      autor: pending.libroAutor,
+      isbn: '',
+      portadaUrl: pending.portadaUrl,
+    }
+    mostrarModal.value = true
+  }
+})
+watch(
+  () => auth.isAuthenticated,
+  async (isAuth) => {
+    if (isAuth) {
+      await reservasStore.cargarMisReservas()
+    }
+  },
+  { immediate: true }
+)
 async function cargarCategorias() {
   try {
     categorias.value = await obtenerCategorias()
@@ -185,6 +220,42 @@ function resetFiltros() {
   pagina.value = 1
   ejecutarBusqueda()
 }
+
+// reserva
+function iniciarReserva(libro: LibroPublico) {
+  libroSeleccionado.value = libro
+  if (!auth.isAuthenticated) {
+    // Guardar intención en el store
+    reservasStore.guardarReservaPendiente({
+      libroId: libro.idLibro,
+      libroTitulo: libro.titulo,
+      libroAutor: libro.autor,
+      portadaUrl: libro.portadaUrl,
+      // La biblioteca se selecciona en el modal, pero guardamos placeholder
+      bibliotecaId: libro.idBiblioteca,
+      bibliotecaNombre: libro.nombreBiblioteca,
+    })
+    // Redirigir a login con retorno al catálogo
+    router.push({ name: 'login', query: { redirect: '/catalogo-reservas' } })
+    return
+  }
+
+  mostrarModal.value = true
+}
+function onModalClose() {
+  mostrarModal.value = false
+  libroSeleccionado.value = null
+}
+
+async function onReservaConfirmada() {
+  mostrarModal.value = false
+  libroSeleccionado.value = null
+  // Recargar para actualizar disponibilidad si aplica
+  await cargarCatalogo()
+}
+const libroIdsReservados = computed(() =>
+  auth.isAuthenticated ? reservasStore.libroIdsConReservaActiva : new Set<number>()
+)
 </script>
 
 <template>
@@ -200,31 +271,88 @@ function resetFiltros() {
       </div>
       <div class="flex items-center gap-3">
         <!-- Toggle vista -->
-        <div class="flex rounded-lg border border-slate-200 overflow-hidden">
-          <button @click="vistaActual = 'grid'" :class="['px-3 py-1.5 text-sm transition-colors',
-            vistaActual === 'grid' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50']">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z
+
+        <div class="flex flex-col items-start gap-2">
+
+          <!-- Fila 1: botones de vista -->
+          <div class="flex rounded-lg border border-slate-200 overflow-hidden">
+            <button @click="vistaActual = 'grid'" :class="[
+              'px-3 py-1.5 text-sm transition-colors',
+              vistaActual === 'grid'
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-600 hover:bg-slate-50'
+            ]">
+              <!-- icono -->
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z
                    M14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z
                    M4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z
                    M14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-          </button>
-          <button @click="vistaActual = 'lista'" :class="['px-3 py-1.5 text-sm transition-colors',
-            vistaActual === 'lista' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50']">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-            </svg>
-          </button>
+              </svg>
+            </button>
+
+            <button @click="vistaActual = 'lista'" :class="[
+              'px-3 py-1.5 text-sm transition-colors',
+              vistaActual === 'lista'
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-600 hover:bg-slate-50'
+            ]">
+              <!-- icono -->
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Fila 2: link -->
+          <div v-if="auth.isAuthenticated">
+            <button class="text-xs text-slate-500 hover:text-indigo-600 underline"
+              @click="router.push('/mis-reservas')">
+              Ver mis reservas →
+            </button>
+          </div>
+
         </div>
-        <SButton v-if="isAdmin || isBibliotecario" @click="abrirCrear" variant="primary">
+
+        <!-- <SButton v-if="isAdmin || isBibliotecario" @click="abrirCrear" variant="primary">
           <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           Nuevo libro
-        </SButton>
+        </SButton> -->
+
       </div>
+    </div>
+    <!-- Banner reserva pendiente post-login -->
+    <div v-if="auth.isAuthenticated && reservasStore.tienePendiente"
+      class="mt-6 bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 flex items-start gap-3">
+      <!-- Icono -->
+      <svg class="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+
+      <!-- Texto -->
+      <div class="flex-1">
+        <p class="text-indigo-900 font-medium text-sm">
+          Tienes una reserva pendiente
+        </p>
+        <p class="text-indigo-700 text-xs mt-0.5">
+          "{{ reservasStore.reservaPendiente?.libroTitulo }}" — Selecciona la biblioteca y confirma.
+        </p>
+      </div>
+
+      <!-- Acción -->
+      <button class="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-800 transition" @click="mostrarModal = true; libroSeleccionado = {
+        idLibro: reservasStore.reservaPendiente!.libroId,
+        titulo: reservasStore.reservaPendiente!.libroTitulo,
+        autor: reservasStore.reservaPendiente!.libroAutor,
+        isbn: '',
+        portadaUrl: reservasStore.reservaPendiente?.portadaUrl
+      }">
+        Confirmar →
+      </button>
     </div>
 
     <!-- Filtros -->
@@ -278,9 +406,12 @@ function resetFiltros() {
       <div :class="vistaActual === 'grid'
         ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'
         : 'flex flex-col gap-3'">
-        <LibroCard v-for="libro in libros" :key="libro.idLibro" :libro="libro" :vista="vistaActual"
+        <!-- <LibroCard v-for="libro in libros" :key="libro.idLibro" :libro="libro" :vista="vistaActual"
           :puede-editar="isAdmin || isBibliotecario" @ver="abrirDetalle" @editar="abrirEditar"
-          @eliminar="abrirConfirmEliminar" />
+          @eliminar="abrirConfirmEliminar" /> -->
+        <LibroReservaCard v-for="libro in libros" :key="libro.idLibro" :libro="libro" :vista="vistaActual"
+          :ya-reservado="libroIdsReservados.has(libro.idLibro)" @reservar="iniciarReserva" @ver="abrirDetalle" />
+
       </div>
 
       <!-- Paginación -->
@@ -313,5 +444,9 @@ function resetFiltros() {
         Esta acción no se puede deshacer.
       </span>
     </ConfirmModal>
+
+    <!-- ─── Modal de confirmación ────────────────────────────────────────── -->
+    <ReservaModalConfirm v-if="mostrarModal && libroSeleccionado" :libro="libroSeleccionado" @close="onModalClose"
+      @confirmada="onReservaConfirmada" />
   </div>
 </template>
