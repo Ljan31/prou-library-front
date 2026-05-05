@@ -69,12 +69,19 @@ async function confirmarCancelacion() {
   if (ok) await reservasStore.cargarMisReservas()
 }
 
-function formatFecha(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-BO', {
-    day: '2-digit', month: 'long', year: 'numeric',
+function formatFecha(fecha: string | null) {
+  if (!fecha) return '—'
+
+  const [y, m, d] = fecha.split('T')[0].split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+
+  return date.toLocaleDateString('es-BO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
   })
 }
+
 </script>
 
 <template>
