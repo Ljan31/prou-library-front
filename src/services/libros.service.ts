@@ -8,6 +8,8 @@ export interface BusquedaLibrosParams {
   categoriaId?: number;
   isbn?: string; // busca dentro de las ediciones
   bibliotecaId?: number;
+  autor?: string;
+  anoPublicacion?: number;
   pagina?: number;
   size?: number;
   sort?: string;
@@ -126,16 +128,21 @@ export async function buscarLibros(
   // ── Intento 1: búsqueda avanzada ──
   try {
     const body: Record<string, unknown> = {};
+    console.log("params", body);
     if (filtros.titulo?.trim()) body.titulo = filtros.titulo.trim();
     if (filtros.categoriaId) body.categoriaId = filtros.categoriaId;
     if (filtros.isbn?.trim()) body.isbn = filtros.isbn.trim();
-
+    if (filtros.autor?.trim()) body.autor = filtros.autor.trim();
+    if (filtros.anoPublicacion) body.anoPublicacion = filtros.anoPublicacion;
+    console.log("body", body);
     const res = await api.post(
       `/libros/busqueda-avanzada?page=${pageBackend}&size=${size}&sort=${sort}`,
       body,
       { timeout: 8000 },
     );
     const d = res.data.data;
+    console.log("busqueda avanzada");
+    console.log(d);
     return {
       libros: normalizar(d),
       totalLibros: d?.totalElements ?? normalizar(d).length,
@@ -146,16 +153,17 @@ export async function buscarLibros(
       "[libros.service] busqueda-avanzada falló → fallback local",
       e,
     );
+    throw new Error("No se pudo cargar el catálogo. Verifica tu conexión.");
   }
 
   // ── Fallback: GET /api/libros + filtrado en cliente ──
-  try {
-    const todos = await getTodos();
-    return filtrarLocal(todos, { ...filtros, pagina, size });
-  } catch (e) {
-    console.error("[libros.service] GET /api/libros también falló", e);
-    throw new Error("No se pudo cargar el catálogo. Verifica tu conexión.");
-  }
+  // try {
+  //   const todos = await getTodos();
+  //   return filtrarLocal(todos, { ...filtros, pagina, size });
+  // } catch (e) {
+  //   console.error("[libros.service] GET /api/libros también falló", e);
+  //   throw new Error("No se pudo cargar el catálogo. Verifica tu conexión.");
+  // }
 }
 
 // GET simple por query param ?q= (endpoint L3)
