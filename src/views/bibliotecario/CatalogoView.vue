@@ -32,6 +32,7 @@ const vistaActual = ref<'grid' | 'lista'>('grid')
 // ─── Filtros ──────────────────────────────────────────────────────────────
 const busqueda = ref('')
 const categoriaFiltro = ref('')
+const anioFiltro = ref<number | null>(null)
 const pagina = ref(1)
 const porPagina = 12
 
@@ -72,6 +73,8 @@ async function ejecutarBusqueda() {
     const resultado = await buscarLibros({
       titulo: busqueda.value,
       categoriaId: categoriaFiltro.value ? Number(categoriaFiltro.value) : undefined,
+      autor: busqueda.value || undefined,
+      anoPublicacion: anioFiltro.value ?? undefined,
       pagina: pagina.value,
       size: porPagina,
     })
@@ -87,7 +90,7 @@ async function ejecutarBusqueda() {
 }
 
 let debounceTimer: ReturnType<typeof setTimeout>
-watch([busqueda, categoriaFiltro], () => {
+watch([busqueda, categoriaFiltro, anioFiltro], () => {
   pagina.value = 1
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(ejecutarBusqueda, 400)
@@ -175,6 +178,13 @@ async function onDetalleEditar(libro: Libro) {
   libroParaEditar.value = libro
   mostrarFormModal.value = true
 }
+function resetFiltros() {
+  busqueda.value = ''
+  categoriaFiltro.value = ''
+  anioFiltro.value = null
+  pagina.value = 1
+  ejecutarBusqueda()
+}
 </script>
 
 <template>
@@ -220,9 +230,20 @@ async function onDetalleEditar(libro: Libro) {
     <!-- Filtros -->
     <SCard class="mb-6" padding="md">
       <div class="flex flex-col sm:flex-row gap-3">
-        <SInput v-model="busqueda" placeholder="Buscar por título, ISBN..." icon-left="search" clearable
+        <!-- <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"> -->
+        <SInput v-model="busqueda" placeholder="Buscar por Título, Autor..." icon-left="search" clearable
           class="flex-1" />
+        <!-- Año -->
+        <SInput v-model="anioFiltro" type="number" placeholder="Año" />
+        <!-- Autor -->
+        <!-- <SInput v-model="autorFiltro" placeholder="Autor" clearable /> -->
         <SSelect v-model="categoriaFiltro" :options="opcionesCategorias" class="sm:w-64" />
+        <!-- Botón reset -->
+        <SButton variant="secondary" @click="resetFiltros" title="Restablecer filtros">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-3-6.7M21 3v6h-6" />
+          </svg>
+        </SButton>
       </div>
     </SCard>
 
