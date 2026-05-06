@@ -9,6 +9,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   yaReservado: false,
+  vista: 'grid'
 })
 
 const emit = defineEmits<{
@@ -27,8 +28,6 @@ const numEdiciones = computed(() => props.libro.ediciones?.length ?? 0)
 const textoBoton = computed(() => {
   if (props.yaReservado) return 'Ya reservado'
   if (!hayDisponibles.value) return 'Reservar (en cola)'
-  console.log('datos')
-  console.log(props.libro)
   return 'Reservar'
 })
 
@@ -108,7 +107,7 @@ import { computed } from 'vue'
     </div>
   </div>
 
-  <div v-else
+  <div v-if="vista === 'lista'"
     class="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all duration-200 cursor-pointer"
     @click="emit('ver', libro)">
     <!-- Miniatura -->

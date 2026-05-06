@@ -49,7 +49,6 @@ const biblioteca = ref<BibliotecaPublica>()
 
 // Modal de confirmación de reserva
 const mostrarModal = ref(false)
-const libroSeleccionadoReserva = ref<LibroPublico | null>(null)
 
 const opcionesCategorias = computed(() => [
   { value: '', label: 'Todas las categorías' },
@@ -70,12 +69,9 @@ onMounted(async () => {
   ui.setBreadcrumbs([{ label: 'Catálogo', to: '/catalogo' }])
   await Promise.all([cargarCategorias(), ejecutarBusqueda()])
 
-  console.log(auth.isAuthenticated)
-  console.log(reservasStore.tienePendiente)
   if (auth.isAuthenticated && reservasStore.tienePendiente) {
     const pending = reservasStore.reservaPendiente!
-    console.log('pending', pending)
-    libroSeleccionadoReserva.value = {
+    libroSeleccionado.value = {
       idLibro: pending.libroId,
       titulo: pending.libroTitulo,
       autor: pending.libroAutor,

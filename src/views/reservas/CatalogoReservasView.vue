@@ -59,11 +59,8 @@ onMounted(async () => {
 
   // Si el usuario acaba de iniciar sesión y tiene una reserva pendiente,
   // abrir automáticamente el modal de confirmación
-  console.log(auth.isAuthenticated)
-  console.log(reservasStore.tienePendiente)
   if (auth.isAuthenticated && reservasStore.tienePendiente) {
     const pending = reservasStore.reservaPendiente!
-    console.log('pending', pending)
     libroSeleccionado.value = {
       idLibro: pending.libroId,
       titulo: pending.libroTitulo,
@@ -87,8 +84,6 @@ async function cargarCatalogo() {
   cargando.value = true
   error.value = null
   try {
-    console.log('auth', auth.isAuthenticated)
-    console.log('cargar catalogo')
     const resultado = await buscarLibros({
       titulo: busqueda.value,
       categoriaId: categoriaFiltro.value ? Number(categoriaFiltro.value) : undefined,
@@ -97,7 +92,6 @@ async function cargarCatalogo() {
       pagina: pagina.value,
       size: POR_PAGINA,
     })
-    console.log('resultado', resultado)
     libros.value = resultado.libros
     totalPaginas.value = resultado.totalPaginas
     totalLibros.value = resultado.totalLibros
@@ -144,7 +138,8 @@ function iniciarReserva(libro: LibroPublico) {
       bibliotecaNombre: libro.nombreBiblioteca,
     })
     // Redirigir a login con retorno al catálogo
-    router.push({ name: 'login', query: { redirect: '/catalogo-reservas' } })
+    // router.push({ name: 'login', query: { redirect: '/catalogo-reservas' } })
+    router.push({ name: 'login', query: { redirect: '/catalogo' } })
     return
   }
 
