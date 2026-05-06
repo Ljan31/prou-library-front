@@ -128,21 +128,17 @@ export async function buscarLibros(
   // ── Intento 1: búsqueda avanzada ──
   try {
     const body: Record<string, unknown> = {};
-    console.log("params", body);
     if (filtros.titulo?.trim()) body.titulo = filtros.titulo.trim();
     if (filtros.categoriaId) body.categoriaId = filtros.categoriaId;
     if (filtros.isbn?.trim()) body.isbn = filtros.isbn.trim();
     if (filtros.autor?.trim()) body.autor = filtros.autor.trim();
     if (filtros.anoPublicacion) body.anoPublicacion = filtros.anoPublicacion;
-    console.log("body", body);
     const res = await api.post(
       `/libros/busqueda-avanzada?page=${pageBackend}&size=${size}&sort=${sort}`,
       body,
       { timeout: 8000 },
     );
     const d = res.data.data;
-    console.log("busqueda avanzada");
-    console.log(d);
     return {
       libros: normalizar(d),
       totalLibros: d?.totalElements ?? normalizar(d).length,
