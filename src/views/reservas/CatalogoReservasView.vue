@@ -172,17 +172,17 @@ function resetFiltros() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50">
+  <div class="min-h-screen bg-primary-50">
     <!-- ─── Hero Header ─────────────────────────────────────────────────── -->
-    <div class="bg-linear-to-br from-indigo-700 to-indigo-900 text-white">
+    <div class="bg-linear-to-br from-primary-900 to-primary-800 text-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <p class="text-indigo-300 text-sm font-medium tracking-wide uppercase mb-1">
+            <p class="text-primary-300 text-sm font-medium tracking-wide uppercase mb-1">
               Facultad de Humanidades y Ciencias de la Educación — UMSA
             </p>
             <h1 class="text-3xl sm:text-4xl font-bold">Catálogo de Reservas</h1>
-            <p class="text-indigo-200 mt-2">
+            <p class="text-primary-200 mt-2">
               Explora el fondo bibliográfico y reserva el libro que necesitas.
             </p>
           </div>
@@ -201,7 +201,7 @@ function resetFiltros() {
           <div v-else class="text-right shrink-0">
             <p class="text-indigo-200 text-sm">Bienvenido,</p>
             <p class="font-semibold">{{ auth.displayName }}</p>
-            <button class="text-xs text-indigo-300 hover:text-white mt-1 underline"
+            <button class="text-xs text-primary-300 hover:text-white mt-1 underline"
               @click="router.push('/mis-reservas')">
               Ver mis reservas →
             </button>
@@ -307,3 +307,4 @@ function resetFiltros() {
       @confirmada="onReservaConfirmada" />
   </div>
 </template>
+<style></style>
