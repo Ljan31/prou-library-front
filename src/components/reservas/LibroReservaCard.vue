@@ -4,7 +4,7 @@ import { primeraPortada, primeraEditorial, primerIsbn } from '@/utils/catalogo'
 interface Props {
   libro: LibroPublico
   yaReservado?: boolean
-  vista: 'grid' | 'lista'
+  vista?: 'grid' | 'lista'
 }
 
 const props = withDefaults(defineProps<Props>(), {
