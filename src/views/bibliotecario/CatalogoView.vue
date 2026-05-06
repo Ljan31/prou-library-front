@@ -247,7 +247,7 @@ async function onReservaConfirmada() {
   mostrarModal.value = false
   libroSeleccionado.value = null
   // Recargar para actualizar disponibilidad si aplica
-  await cargarCatalogo()
+  await ejecutarBusqueda()
 }
 const libroIdsReservados = computed(() =>
   auth.isAuthenticated ? reservasStore.libroIdsConReservaActiva : new Set<number>()
