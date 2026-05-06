@@ -12,7 +12,8 @@ import { useReservasStore } from '@/stores/reservas.store'
 import SButton from '@/components/ui/SButton.vue'
 import SSelect from '@/components/ui/SSelect.vue'
 import type { LibroPublico, BibliotecaPublica } from '@/types/reservas'
-
+import { obtenerLibro } from '@/services/libros.service'
+import { primeraPortada, primeraEditorial, primerIsbn } from '@/utils/catalogo'
 interface Props {
   libro: LibroPublico
 }
@@ -31,25 +32,41 @@ const observaciones = ref('')
 const enviando = ref(false)
 const errorMsg = ref<string | null>(null)
 
+const libroDetalle = ref<any>(null)
+const cargandoLibro = ref(true)
+
 // Si hay reserva pendiente con biblioteca ya elegida, pre-seleccionar
-onMounted(() => {
+onMounted(async () => {
   console.log('reservaStore', reservasStore.tienePendiente)
   console.log('reserva: ', reservasStore)
   const pendiente = reservasStore.reservaPendiente
-
   if (reservasStore.tienePendiente && pendiente) {
     bibliotecaId.value = String(pendiente.bibliotecaId ?? '')
     observaciones.value = pendiente.observaciones ?? ''
   } else {
     bibliotecaId.value = props.libro?.idBiblioteca ?? ''
   }
+  // 2. Cargar datos completos del libro
+  await cargarLibro()
 
+  // 3. Debug opcional (puedes quitar luego)
+  console.log('libroDetalle', libroDetalle.value)
   console.log('reservamodal', {
     bibliotecaId: bibliotecaId.value,
     enviando: enviando.value
   })
 })
 
+async function cargarLibro() {
+  try {
+    const resp = await obtenerLibro(props.libro.idLibro)
+    libroDetalle.value = resp.data
+  } catch (e) {
+    console.error('Error cargando libro', e)
+  } finally {
+    cargandoLibro.value = false
+  }
+}
 const puedeConfirmar = computed(
   () => !!bibliotecaId.value && !enviando.value
 )
@@ -93,6 +110,19 @@ async function confirmar() {
     enviando.value = false
   }
 }
+
+const autoresTexto = computed(() => {
+  return libroDetalle.value?.autores?.map((a: any) => a.nombre).join(', ') || 'Autor desconocido'
+})
+const portada = computed(() => primeraPortada(libroDetalle.value?.ediciones))
+
+const edicionPrincipal = computed(() => {
+  return libroDetalle.value?.ediciones?.[0]
+})
+
+const disponible = computed(() => {
+  return libroDetalle.value?.ejemplaresDisponibles > 0
+})
 </script>
 
 <template>
@@ -102,13 +132,46 @@ async function confirmar() {
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
       <!-- Header -->
       <div class="bg-linear-to-br from-indigo-600 to-indigo-800 px-6 py-5">
-        <div class="flex items-start justify-between">
-          <div class="flex-1 min-w-0">
-            <p class="text-indigo-200 text-xs font-medium uppercase tracking-wide">Confirmar reserva</p>
-            <h2 class="text-white font-bold text-lg mt-0.5 leading-tight">{{ libro.titulo }}</h2>
-            <p class="text-indigo-300 text-sm mt-0.5">{{ libro.autor }}</p>
+        <div class="flex items-start gap-4">
+          <!-- 📘 Portada -->
+          <div class="w-14 h-20 rounded-lg overflow-hidden bg-white/10 border border-white/10 shrink-0">
+            <img v-if="!cargandoLibro && portada" :src="portada" class="w-full h-full object-cover" />
+            <div v-else class="w-full h-full flex items-center justify-center text-white/40 text-xs">
+              <div class="animate-pulse w-full h-full bg-white/20"></div>
+            </div>
           </div>
-          <button class="text-indigo-300 hover:text-white ml-4 shrink-0" @click="emit('close')" aria-label="Cerrar">
+
+          <!-- 📄 Info -->
+          <div class="flex-1 min-w-0">
+            <p class="text-indigo-200 text-[11px] font-semibold uppercase tracking-wider">
+              Confirmar reserva
+            </p>
+
+            <h2 class="text-white font-semibold text-lg leading-snug truncate mt-0.5">
+              {{ libro.titulo }}
+            </h2>
+
+            <p class="text-indigo-300 text-sm mt-1 truncate">
+              {{ cargandoLibro ? 'Cargando autores...' : autoresTexto }}
+            </p>
+
+            <!-- 🧩 metadata rápida -->
+            <div v-if="!cargandoLibro" class="flex flex-wrap gap-2 mt-2 text-[11px] text-indigo-200/80">
+              <span class="bg-white/10 px-2 py-0.5 rounded">
+                {{ edicionPrincipal?.edicion }}
+              </span>
+              <span class="bg-white/10 px-2 py-0.5 rounded">
+                {{ edicionPrincipal?.anoPublicacion }}
+              </span>
+              <span v-if="libroDetalle?.idioma" class="bg-white/10 px-2 py-0.5 rounded">
+                {{ libroDetalle.idioma.toUpperCase() }}
+              </span>
+            </div>
+          </div>
+
+          <!-- ❌ Close -->
+          <button class="text-indigo-300 hover:text-white shrink-0 transition-colors" @click="emit('close')"
+            aria-label="Cerrar">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -119,22 +182,24 @@ async function confirmar() {
       <!-- Body -->
       <div class="px-6 py-5 space-y-4">
         <!-- Info reserva -->
-        <div class="bg-indigo-50 rounded-xl px-4 py-3 text-sm text-indigo-700">
-          <p>
-            Al confirmar, quedarás en la cola de espera para este libro.
-            Recibirás una notificación cuando esté disponible para retiro.
+        <div class="rounded-xl px-4 py-3 text-sm" :class="disponible
+          ? 'bg-green-50 text-green-700'
+          : 'bg-amber-50 text-amber-700'">
+          <p v-if="disponible">
+            Disponible ahora. Podrás retirarlo en la biblioteca seleccionada.
+          </p>
+          <p v-else>
+            Actualmente no disponible. Serás añadido a la cola de espera.
+            Recibirás una notificación cuando esté disponible el libro para retiro.
           </p>
         </div>
-
         <!-- Selector de biblioteca -->
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1.5">
-            Biblioteca de retiro <span class="text-red-500">*</span>
-          </label>
-          <div class="text-sm text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+          <p class="text-xs text-slate-500 mb-1">Lugar de retiro</p>
+          <div class="text-sm font-medium text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
             {{ reservasStore.tienePendiente
               ? reservasStore.reservaPendiente?.bibliotecaNombre
-              : libro.nombreBiblioteca }}
+              : libroDetalle?.nombreBiblioteca }}
           </div>
         </div>
 
@@ -151,6 +216,9 @@ async function confirmar() {
         <!-- Error -->
         <p v-if="errorMsg" class="text-red-500 text-sm bg-red-50 rounded-lg px-3 py-2">
           {{ errorMsg }}
+        </p>
+        <p class="text-xs text-slate-500 text-center">
+          Al continuar, se registrará tu solicitud en el sistema.
         </p>
       </div>
 
