@@ -10,10 +10,12 @@ import {
 } from "@/services/bibliotecas.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { useUiStore } from "@/stores/ui.store";
+import { useMedia } from "@/composables/useMedia";
 
 export const useBibliotecasStore = defineStore("bibliotecas", () => {
   const authStore = useAuthStore();
   const uiStore = useUiStore();
+  const { getUrl } = useMedia();
 
   // ─── State ───────────────────────────────────────────────────────────────
   const bibliotecas = ref<Biblioteca[]>([]);
@@ -28,12 +30,21 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
    * Admin sees all; bibliotecario sees only their assigned biblioteca.
    */
   const filteredBibliotecas = computed<Biblioteca[]>(() => {
-    if (authStore.isAdmin) return bibliotecas.value;
+    if (authStore.isAdmin) return bibliotecas.value.map(transformBiblioteca);
 
-    const bibId = authStore.user?.biblioteca?.id_biblioteca;
+    const bibId = authStore.user?.biblioteca?.[0]?.id_biblioteca;
     if (!bibId) return [];
-    return bibliotecas.value.filter((b) => b.id_biblioteca === bibId);
+    return bibliotecas.value
+      .filter((b) => b.id_biblioteca === bibId)
+      .map(transformBiblioteca);
   });
+
+  function transformBiblioteca(b: Biblioteca): Biblioteca {
+    return {
+      ...b,
+      logoUrl: b.logoUrl ? getUrl(b.logoUrl) : b.logoUrl,
+    };
+  }
 
   /**
    * Carreras related to the visible bibliotecas.
@@ -90,10 +101,11 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
 
   async function createBiblioteca(
     payload: CreateBibliotecaPayload,
+    logoFile?: File | null,
   ): Promise<boolean> {
     loading.value = true;
     try {
-      const res = await bibliotecasService.create(payload);
+      const res = await bibliotecasService.create(payload, logoFile);
       bibliotecas.value.unshift(res.data);
       uiStore.toast.success("Biblioteca creada", res.message);
       return true;
@@ -109,10 +121,11 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
   async function updateBiblioteca(
     id: number,
     payload: Partial<CreateBibliotecaPayload>,
+    logoFile?: File | null,
   ): Promise<boolean> {
     loading.value = true;
     try {
-      const res = await bibliotecasService.update(id, payload);
+      const res = await bibliotecasService.update(id, payload, logoFile);
       const idx = bibliotecas.value.findIndex((b) => b.id_biblioteca === id);
       if (idx !== -1) bibliotecas.value[idx] = res.data;
       uiStore.toast.success("Biblioteca actualizada", res.message);
@@ -133,10 +146,19 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
       bibliotecas.value = bibliotecas.value.filter(
         (b) => b.id_biblioteca !== id,
       );
-      uiStore.toast.success("Biblioteca eliminada", res.message);
+      uiStore.toast.success("Biblioteca eliminada", res?.message);
       return true;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al eliminar";
+      let msg = "No se pudo completar el registro";
+      console.log(e);
+      if (typeof e === "object" && e !== null && "response" in e) {
+        const err = e as any;
+        msg = err.response?.data?.message || msg;
+        // console.log("BACKEND 👉", err.response?.data)
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+      // const msg = e instanceof Error ? e.message : "Error al eliminar";
       uiStore.toast.error("Error", msg);
       return false;
     } finally {

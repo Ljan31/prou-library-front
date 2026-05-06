@@ -18,7 +18,8 @@ const uiStore = useUiStore()
 onMounted(async () => {
   uiStore.setPageTitle('Gestión de Bibliotecas')
   uiStore.setBreadcrumbs([{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bibliotecas' }])
-  await store.fetchAll()
+  const data = await store.fetchAll()
+  console.log('biblioteca', data)
 })
 
 // ─── Active tab ───────────────────────────────────────────────────────────
@@ -220,23 +221,39 @@ function estadoColor(estado: string) {
           class="bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all group">
           <!-- Card header -->
           <div class="px-5 pt-5 pb-4 border-b border-gray-100">
-            <div class="flex items-start justify-between gap-2 mb-3">
-              <span :class="['text-xs font-medium px-2 py-0.5 rounded-full', tipoColor(bib.tipoBiblioteca)]">
-                {{ tipoLabel(bib.tipoBiblioteca) }}
-              </span>
-              <span :class="['text-xs font-medium px-2 py-0.5 rounded-full', estadoColor(bib.estado)]">
-                {{ bib.estado }}
-              </span>
+            <div class="flex items-start gap-3 mb-3">
+
+              <!-- LOGO -->
+              <div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
+                <img v-if="bib.logoUrl" :src="bib.logoUrl" alt="logo" class="w-full h-full object-cover" />
+                <!-- fallback -->
+                <svg v-else class="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                </svg>
+              </div>
+
+              <!-- INFO -->
+              <div class="flex-1">
+                <div class="flex items-start justify-between gap-2 mb-1">
+                  <span :class="['text-xs font-medium px-2 py-0.5 rounded-full', tipoColor(bib.tipoBiblioteca)]">
+                    {{ tipoLabel(bib.tipoBiblioteca) }}
+                  </span>
+                  <span :class="['text-xs font-medium px-2 py-0.5 rounded-full', estadoColor(bib.estado)]">
+                    {{ bib.estado }}
+                  </span>
+                </div>
+
+                <h3 class="font-semibold text-gray-800 text-sm leading-snug">
+                  {{ bib.nombre }}
+                </h3>
+
+                <p v-if="bib.carrera" class="mt-1 text-xs text-gray-500">
+                  {{ bib.carrera.nombre_carrera }}
+                  <span class="text-gray-400">({{ bib.carrera.codigo_carrera }})</span>
+                </p>
+              </div>
             </div>
-            <h3 class="font-semibold text-gray-800 text-sm leading-snug">{{ bib.nombre }}</h3>
-            <p v-if="bib.carrera" class="mt-1 text-xs text-gray-500 flex items-center gap-1">
-              <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-              </svg>
-              {{ bib.carrera.nombre_carrera }}
-              <span class="text-gray-400">({{ bib.carrera.codigo_carrera }})</span>
-            </p>
           </div>
 
           <!-- Card body -->

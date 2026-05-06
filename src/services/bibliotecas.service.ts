@@ -1,5 +1,5 @@
 import api from "./axios";
-
+import type { AxiosResponse } from "axios";
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export interface CarreraBasic {
@@ -20,6 +20,7 @@ export interface Biblioteca {
   direccion?: string;
   telefono?: string;
   email?: string;
+  logoUrl?: string;
   horario_atencion?: string;
   estado: "ACTIVA" | "INACTIVA";
   ejemplaresTotal: number;
@@ -66,12 +67,31 @@ export interface BibliotecaResponse {
   direccion?: string;
   telefono?: string;
   email?: string;
+  logoUrl?: string;
   horario_atencion?: string;
   ejemplaresTotal?: number;
   ejemplaresDisponibles?: number;
   encargados?: EncargadoResponse[];
 }
 
+function buildFormData(
+  payload: Partial<CreateBibliotecaPayload>,
+  logoFile?: File | null,
+): FormData {
+  const fd = new FormData();
+
+  // fd.append("datos", JSON.stringify(payload));
+  fd.append(
+    "datos",
+    new Blob([JSON.stringify(payload)], { type: "application/json" }),
+  );
+
+  if (logoFile) {
+    fd.append("logo", logoFile);
+  }
+
+  return fd;
+}
 // ─── Bibliotecas ──────────────────────────────────────────────────────────
 
 export const bibliotecasService = {
@@ -83,18 +103,25 @@ export const bibliotecasService = {
     return api.get(`/bibliotecas/${id}`).then((r) => r.data);
   },
 
-  create(payload: CreateBibliotecaPayload): Promise<ApiResponse<Biblioteca>> {
-    return api.post("/bibliotecas", payload).then((r) => r.data);
+  create(
+    payload: CreateBibliotecaPayload,
+    logoFile?: File | null,
+  ): Promise<ApiResponse<Biblioteca>> {
+    const fd = buildFormData(payload, logoFile);
+    return api.post("/bibliotecas", fd).then((r) => r.data);
   },
 
   update(
     id: number,
     payload: Partial<CreateBibliotecaPayload>,
+    logoFile?: File | null,
   ): Promise<ApiResponse<Biblioteca>> {
-    return api.put(`/bibliotecas/${id}`, payload).then((r) => r.data);
+    const fd = buildFormData(payload, logoFile);
+    return api.put(`/bibliotecas/${id}`, fd).then((r) => r.data);
   },
 
-  remove(id: number): Promise<ApiResponse<null>> {
+  remove(id: number): Promise<AxiosResponse<ApiResponse<unknown>>> {
+    // remove(id: number): Promise<ApiResponse<null>> {
     return api.delete(`/bibliotecas/${id}`).then((r) => r.data);
   },
   getByCarrera(carreraId: number): Promise<ApiResponse<Biblioteca[]>> {

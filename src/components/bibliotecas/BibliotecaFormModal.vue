@@ -2,7 +2,6 @@
 import { ref, watch, computed } from 'vue'
 import type { Biblioteca, CreateBibliotecaPayload } from '@/services/bibliotecas.service'
 import { useBibliotecasStore } from '@/stores/bibliotecas.store'
-
 // ─── Props / Emits ────────────────────────────────────────────────────────
 const props = defineProps<{
   modelValue: boolean
@@ -15,7 +14,6 @@ const emit = defineEmits<{
 }>()
 
 const store = useBibliotecasStore()
-
 // ─── Form state ───────────────────────────────────────────────────────────
 const form = ref<CreateBibliotecaPayload>({
   nombre: '',
@@ -32,11 +30,14 @@ const errors = ref<Record<string, string>>({})
 
 const isEdit = computed(() => !!props.editing)
 const title = computed(() => isEdit.value ? 'Editar Biblioteca' : 'Nueva Biblioteca')
-
+const logoFile = ref<File | null>(null)
+const logoPreview = ref<string | null>(null)
 // ─── Watchers ─────────────────────────────────────────────────────────────
 watch(() => props.modelValue, open => {
   if (open) {
     errors.value = {}
+    logoFile.value = null
+    logoPreview.value = null
     if (props.editing) {
       form.value = {
         nombre: props.editing.nombre,
@@ -48,6 +49,9 @@ watch(() => props.modelValue, open => {
         horario_atencion: props.editing.horario_atencion ?? '',
         encargadoId: null,
         estado: props.editing.estado
+      }
+      if (props.editing?.logoUrl) {
+        logoPreview.value = props.editing.logoUrl
       }
     } else {
       form.value = {
@@ -71,6 +75,15 @@ function validate(): boolean {
   return Object.keys(errors.value).length === 0
 }
 
+function onLogoChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  if (!file) return
+
+  logoFile.value = file
+  logoPreview.value = URL.createObjectURL(file)
+}
 // ─── Submit ───────────────────────────────────────────────────────────────
 const submitting = ref(false)
 
@@ -79,9 +92,9 @@ async function submit() {
   submitting.value = true
   let ok = false
   if (isEdit.value && props.editing) {
-    ok = await store.updateBiblioteca(props.editing.id_biblioteca, form.value)
+    ok = await store.updateBiblioteca(props.editing.id_biblioteca, form.value, logoFile.value)
   } else {
-    ok = await store.createBiblioteca(form.value)
+    ok = await store.createBiblioteca(form.value, logoFile.value)
   }
   submitting.value = false
   if (ok) {
@@ -128,14 +141,62 @@ function close() {
           <!-- Body -->
           <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
             <!-- Nombre -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Nombre <span class="text-red-500">*</span>
-              </label>
-              <input v-model="form.nombre" type="text" placeholder="Ej: Biblioteca Central FHCE"
-                class="w-full px-3 py-2 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-                :class="errors.nombre ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-primary-400'" />
-              <p v-if="errors.nombre" class="mt-1 text-xs text-red-500">{{ errors.nombre }}</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              <!-- Nombre -->
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre <span class="text-red-500">*</span>
+                </label>
+                <input v-model="form.nombre" type="text" placeholder="Ej: Biblioteca Central FHCE"
+                  class="w-full px-3 py-2 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  :class="errors.nombre ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-primary-400'" />
+                <p v-if="errors.nombre" class="mt-1 text-xs text-red-500">
+                  {{ errors.nombre }}
+                </p>
+              </div>
+
+              <!-- LOGO -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  Logo
+                </label>
+
+                <label
+                  class="flex flex-col items-center justify-center gap-2 px-3 py-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors h-full"
+                  :class="logoFile
+                    ? 'border-emerald-300 bg-emerald-50'
+                    : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'">
+
+                  <!-- Preview -->
+                  <div v-if="logoPreview" class="w-14 h-14 rounded-lg overflow-hidden">
+                    <img :src="logoPreview" class="w-full h-full object-cover" />
+                  </div>
+
+                  <!-- Icon -->
+                  <svg v-else class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+
+                  <!-- Text -->
+                  <span class="text-[11px] text-center"
+                    :class="logoFile ? 'text-emerald-700 font-medium' : 'text-gray-500'">
+                    {{ logoFile ? logoFile.name : 'Subir logo' }}
+                  </span>
+
+                  <input type="file" accept="image/*" class="sr-only" @change="onLogoChange" />
+                  <button v-if="logoPreview" @click="logoFile = null; logoPreview = null"
+                    class="text-xs text-red-500 mt-1">
+                    Quitar logo
+                  </button>
+                </label>
+
+                <p v-if="props.editing?.logoUrl && !logoFile" class="text-[11px] text-gray-400 mt-1 text-center">
+                  Logo actual guardado
+                </p>
+              </div>
+
             </div>
 
             <!-- Tipo + Estado en row -->
