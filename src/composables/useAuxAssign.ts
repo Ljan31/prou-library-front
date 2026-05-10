@@ -159,25 +159,11 @@ export function useAuxAssign() {
 
     auxLoading.value = true;
     try {
-      await bibliotecasService.assignEncargados(Number(auxBibliotecaId.value), [
-        user.id_usuario,
-      ]);
-
-      // Upload resolution image if provided
-      if (auxResolucionFile.value) {
-        try {
-          await bibliotecasService.uploadEncargadoImagen(
-            Number(auxBibliotecaId.value),
-            user.id_usuario,
-            auxResolucionFile.value,
-          );
-        } catch {
-          ui.toast.warning(
-            "Encargado asignado",
-            "No se pudo subir la imagen de resolución",
-          );
-        }
-      }
+      await bibliotecasService.assignEncargados(
+        Number(auxBibliotecaId.value),
+        [user.id_usuario],
+        auxResolucionFile.value,
+      );
 
       const bibNombre = selectedBib()?.nombre ?? "";
       auxSuccess.value = true;

@@ -92,6 +92,24 @@ function buildFormData(
 
   return fd;
 }
+
+function buildEncargadosFormData(
+  encargadosIds: number[],
+  respaldoFile?: File | null,
+): FormData {
+  const fd = new FormData();
+
+  fd.append(
+    "encargadosIds",
+    new Blob([JSON.stringify(encargadosIds)], { type: "application/json" }),
+  );
+
+  if (respaldoFile) {
+    fd.append("respaldo", respaldoFile);
+  }
+
+  return fd;
+}
 // ─── Bibliotecas ──────────────────────────────────────────────────────────
 
 export const bibliotecasService = {
@@ -132,9 +150,11 @@ export const bibliotecasService = {
   assignEncargados(
     bibliotecaId: number,
     encargadosIds: number[],
+    respaldoFile?: File | null,
   ): Promise<ApiResponse<null>> {
+    const fd = buildEncargadosFormData(encargadosIds, respaldoFile);
     return api
-      .put(`/bibliotecas/${bibliotecaId}/encargados`, encargadosIds)
+      .put(`/bibliotecas/${bibliotecaId}/encargados`, fd)
       .then((r) => r.data);
   },
   removeEncargado(
@@ -150,14 +170,19 @@ export const bibliotecasService = {
     usuarioId: number,
     file: File,
   ): Promise<ApiResponse<{ imagenUrl: string }>> {
-    const formData = new FormData();
-    formData.append("imagen", file);
-    formData.append("usuarioId", String(usuarioId));
+    const fd = new FormData();
+
+    fd.append(
+      "usuarioId",
+      new Blob([JSON.stringify(usuarioId)], {
+        type: "application/json",
+      }),
+    );
+
+    fd.append("imagen", file);
 
     return api
-      .post(`/bibliotecas/${bibliotecaId}/encargados/imagen`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+      .post(`/bibliotecas/${bibliotecaId}/encargados/imagen`, fd)
       .then((r) => r.data);
   },
 };

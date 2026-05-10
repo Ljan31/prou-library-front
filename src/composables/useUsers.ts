@@ -68,11 +68,13 @@ export const roleLabelMap: Record<string, string> = {
   ROLE_ADMIN: "Admin",
   ROLE_BIBLIOTECARIO: "Bibliotecario",
   ROLE_ESTUDIANTE: "Estudiante",
+  ROLE_AUXILIAR: "Auxiliar",
 };
 export const roleBadgeMap: Record<string, string> = {
   ROLE_ADMIN: "bg-indigo-100 text-indigo-700 ring-indigo-200",
   ROLE_BIBLIOTECARIO: "bg-emerald-100 text-emerald-700 ring-emerald-200",
   ROLE_ESTUDIANTE: "bg-sky-100 text-sky-700 ring-sky-200",
+  ROLE_AUXILIAR: "bg-amber-100 text-amber-700 ring-amber-200",
 };
 export function roleLabel(name: string) {
   return roleLabelMap[name] ?? name;
@@ -189,7 +191,6 @@ export function useUsers() {
    * Handles any level of ApiResponse wrapping from backend.
    */
   function addUser(raw: unknown) {
-    console.log("raw", raw);
     // Try direct first
     if (isValidUser(raw)) {
       users.value.unshift(raw);

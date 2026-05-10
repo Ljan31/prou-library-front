@@ -10,7 +10,8 @@ import type { EncargadoResponse, BibliotecaResponse } from '@/services/bibliotec
 import type { UserResponse } from '@/services/user.service'
 import type { CarreraBasic } from '@/services/estudiante.service'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
-
+import RespaldoViewerModal from '@/components/bibliotecas/RespaldoViewerModal.vue'
+import EncargadoFormModal from '@/components/bibliotecas/EncargadoFormModal.vue'
 const props = defineProps<{ user: UserResponse | null }>()
 const emit = defineEmits<{ close: [] }>()
 
@@ -250,10 +251,44 @@ const mensajeDuplicado = computed(() => {
   return `Este usuario ya está asignado como ${rol} en esta biblioteca.`
 })
 
+async function onEncargadoAssigned() {
+  if (props.user) await loadEncargadoBibliotecas(props.user.id_usuario)
+}
+
+async function onEncargadoUpdated() {
+  if (props.user) await loadEncargadoBibliotecas(props.user.id_usuario)
+}
+
 // ── Rol color helpers ──────────────────────────────────────────────────────
 const rolEncargadoStyle: Record<string, string> = {
   PRINCIPAL: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
   AUXILIAR: 'bg-slate-100 text-slate-600 ring-slate-200',
+}
+
+const showRespaldoModal = ref(false)
+const respaldoActual = ref<string | null>(null)
+
+function openRespaldo(url: string) {
+  respaldoActual.value = url
+  showRespaldoModal.value = true
+}
+// ══════════════════════════════════════════════════════════════════════════
+// EncargadoFormModal — create & edit modes
+// ══════════════════════════════════════════════════════════════════════════
+const showEncargadoModal = ref(false)
+const encargadoModalMode = ref<'create' | 'edit'>('create')
+const encargadoEditEntry = ref<EncargadoEntry | null>(null)
+
+function openEncargadoCreate() {
+  encargadoModalMode.value = 'create'
+  encargadoEditEntry.value = null
+  showEncargadoModal.value = true
+}
+
+function openEncargadoEdit(entry: EncargadoEntry) {
+  encargadoModalMode.value = 'edit'
+  encargadoEditEntry.value = entry
+  showEncargadoModal.value = true
 }
 </script>
 
@@ -279,7 +314,7 @@ const rolEncargadoStyle: Record<string, string> = {
         <div class="flex items-center gap-2">
           <button v-if="canManageAux"
             class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 font-medium transition-all"
-            @click="openAuxModal">
+            @click="openEncargadoCreate">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path
                 d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"
@@ -378,23 +413,34 @@ const rolEncargadoStyle: Record<string, string> = {
 
               <!-- Resolución link + remove button -->
               <div class="flex items-center gap-1.5 shrink-0">
-                <a v-if="entry.encargado.imagenUrl" :href="entry.encargado.imagenUrl" target="_blank"
+                <button v-if="entry.encargado.respaldoUrl" type="button"
                   class="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 transition-colors font-medium"
-                  title="Ver resolución" @click.stop>
+                  title="Ver resolución" @click.stop="openRespaldo(entry.encargado.respaldoUrl)">
                   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path
                       d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
                       stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                   Resolución
-                </a>
-
+                </button>
+                <!-- Editar -->
+                <button class="w-9 h-9 flex items-center justify-center rounded-lg
+           bg-amber-50 text-amber-600 border border-amber-100
+           hover:bg-amber-100 transition-all" title="Editar encargado" @click="openEncargadoEdit(entry)">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path
+                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
                 <!-- Remove button — permission-gated -->
-                <button v-if="canRemoveEncargado(entry)"
-                  class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                  title="Remover de esta biblioteca" @click="openRemoveEncargado(entry)">
-                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" />
+                <button v-if="canRemoveEncargado(entry)" class="w-9 h-9 flex items-center justify-center rounded-lg
+           bg-red-50 text-red-500 border border-red-100
+           hover:bg-red-100 transition-all" title="Remover encargado" @click="openRemoveEncargado(entry)">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path
+                      d="M6 7h12M9 7V5.75A1.75 1.75 0 0110.75 4h2.5A1.75 1.75 0 0115 5.75V7m-7 0v11.25A1.75 1.75 0 009.75 20h4.5A1.75 1.75 0 0016 18.25V7"
+                      stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </button>
               </div>
@@ -534,158 +580,13 @@ const rolEncargadoStyle: Record<string, string> = {
     <!-- ══════════════════════════════════════════════════════════════════
          MODAL: Asignar encargado / auxiliar
     ══════════════════════════════════════════════════════════════════ -->
-    <Transition name="fade">
-      <div v-if="showAuxModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-        @click.self="showAuxModal = false">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-          <div class="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h3 class="text-base font-semibold text-slate-900">
-                {{ isBibliotecario ? 'Asignar encargado' : 'Auxiliar de biblioteca' }}
-              </h3>
-              <p class="text-xs text-slate-500 mt-0.5">{{ safeNombreCompleto }}</p>
-            </div>
-            <button
-              class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
-              @click="showAuxModal = false">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" />
-              </svg>
-            </button>
-          </div>
 
-          <div class="p-6 space-y-4">
-            <div
-              class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
-              <svg class="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              <span v-if="isEstudiante">El estudiante será asignado como <strong>encargado auxiliar</strong> en una
-                biblioteca de su carrera.</span>
-              <span v-else>El bibliotecario será asignado como <strong>encargado</strong> de la biblioteca
-                seleccionada.</span>
-            </div>
 
-            <!-- Carrera (solo estudiantes) -->
-            <div v-if="isEstudiante">
-              <label class="block text-xs font-medium text-slate-600 mb-1.5">Carrera del estudiante <span
-                  class="text-red-500">*</span></label>
-              <select v-model="aux.auxCarreraId.value"
-                class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400">
-                <option value="">{{ detailCarreras.length ? 'Seleccionar carrera…' : 'Sin carreras inscritas' }}
-                </option>
-                <option v-for="c in detailCarreras" :key="c.id_carrera" :value="c.id_carrera">{{ c.nombre_carrera }}
-                </option>
-              </select>
-            </div>
+    <EncargadoFormModal v-model="showEncargadoModal" :mode="encargadoModalMode" :user="user"
+      :is-estudiante="isEstudiante" :is-bibliotecario="isBibliotecario" :detail-carreras="detailCarreras"
+      :edit-entry="encargadoEditEntry" :encargado-entries="encargadoEntries" @assigned="onEncargadoAssigned"
+      @updated="onEncargadoUpdated" />
 
-            <!-- Biblioteca -->
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1.5">Biblioteca <span
-                  class="text-red-500">*</span></label>
-              <div v-if="aux.auxBibliotecasLoading.value" class="flex items-center gap-2 text-xs text-slate-400 h-10">
-                <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Cargando bibliotecas…
-              </div>
-              <select v-else v-model="aux.auxBibliotecaId.value" :disabled="isEstudiante && !aux.auxCarreraId.value"
-                class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed">
-                <option value="">
-                  {{ isEstudiante && !aux.auxCarreraId.value
-                    ? 'Selecciona una carrera primero'
-                    : auxBibliotecaOptions.length ? 'Seleccionar biblioteca…' : 'Sin bibliotecas disponibles' }}
-                </option>
-                <option v-for="b in auxBibliotecaOptions" :key="b.id_biblioteca" :value="b.id_biblioteca">{{ b.nombre }}
-                </option>
-              </select>
-
-              <!-- Mensaje de error si ya está asignado -->
-              <p v-if="yaEstaAsignadoEnEstaBiblioteca" class="mt-2 text-xs text-red-600 flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                {{ mensajeDuplicado }}
-              </p>
-
-              <template v-if="aux.auxBibliotecaId.value && aux.selectedBib()">
-                <div v-if="aux.selectedBib()!.encargados?.length"
-                  class="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                  <p class="text-xs text-slate-400 mb-1.5 font-medium">Encargados actuales</p>
-                  <div class="flex flex-wrap gap-1.5">
-                    <span v-for="enc in aux.selectedBib()!.encargados" :key="enc.id_usuario"
-                      class="text-xs px-2 py-0.5 rounded-full font-medium ring-1"
-                      :class="enc.rol === 'PRINCIPAL' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-200'">
-                      {{ enc.nombreCompleto }} · {{ enc.rol }}
-                    </span>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <!-- Imagen de resolución -->
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1.5">Imagen de resolución</label>
-              <div class="flex items-center gap-3">
-                <label
-                  class="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-amber-200 bg-white hover:bg-amber-50 transition-colors text-xs text-slate-600 font-medium">
-                  <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2">
-                    <path
-                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  {{ aux.auxResolucionFile.value ? aux.auxResolucionFile.value.name : 'Subir imagen / PDF' }}
-                  <input type="file" accept="image/*,.pdf" class="hidden" @change="aux.onFileSelected" />
-                </label>
-                <img v-if="aux.auxResolucionPreview.value" :src="aux.auxResolucionPreview.value"
-                  class="w-10 h-10 rounded-lg object-cover border border-amber-200" alt="Preview" />
-              </div>
-              <p class="text-xs text-slate-400 mt-1">Resolución de designación (opcional)</p>
-            </div>
-
-            <!-- Feedback -->
-            <p v-if="aux.auxError.value" class="text-xs text-red-500 flex items-center gap-1.5">
-              <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              {{ aux.auxError.value }}
-            </p>
-            <div v-if="aux.auxSuccess.value" class="flex items-center gap-1.5 text-xs text-emerald-600">
-              <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
-                  stroke-linejoin="round" />
-              </svg>
-              Asignación registrada correctamente
-            </div>
-          </div>
-
-          <div class="px-6 pb-6 flex gap-3 justify-end">
-            <button class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              @click="showAuxModal = false">Cancelar</button>
-            <button
-              class="px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center gap-2"
-              :disabled="aux.auxLoading.value || !aux.auxBibliotecaId.value || yaEstaAsignadoEnEstaBiblioteca"
-              @click="handleAssignAux">
-              <svg v-if="aux.auxLoading.value" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              {{ aux.auxLoading.value ? 'Asignando…' : 'Confirmar asignación' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
+    <RespaldoViewerModal v-model="showRespaldoModal" :url="respaldoActual" />
   </div>
 </template>
