@@ -224,9 +224,12 @@ function limpiarSeleccion() {
 }
 
 // Bloqueo: tiene deuda pendiente Y no fue dispensado manualmente
-const bloqueadoPorDeuda = computed(() =>
-  sancionUsuario.value?.tieneDeudaPendiente === true ||
-  sancionUsuario.value?.tieneSuspensionVigente === true
+// const bloqueadoPorDeuda = computed(() =>
+//   sancionUsuario.value?.tieneDeudaPendiente === true ||
+//   sancionUsuario.value?.tieneSuspensionVigente === true
+// )
+const bloqueadoPorPrestamo = computed(() =>
+  !!sancionSeleccionada.value
 )
 // Forzar "omitir bloqueo" (el bibliotecario decide proceder igual)
 const omitirBloqueo = ref(false)
@@ -271,7 +274,7 @@ watch(condicionDevolucion, (val) => {
 })
 const puedeConfirmar = computed(() =>
   !!prestamoSeleccionado.value &&
-  (!bloqueadoPorDeuda.value || omitirBloqueo.value) &&
+  (!bloqueadoPorPrestamo.value || omitirBloqueo.value) &&
   !devolucionLoading.value
 )
 // Si hay deterioro → forzar estado ejemplar a DETERIORADO o DAÑADO
@@ -743,7 +746,7 @@ async function confirmarSancion() {
             </div>
 
             <!-- <div v-else-if="bloqueadoPorDeuda && sancionUsuario" -->
-            <div v-else-if="bloqueadoPorDeuda && sancionPrestamoActual"
+            <div v-else-if="bloqueadoPorPrestamo && sancionPrestamoActual"
               class="rounded-xl border-2 border-red-200 overflow-hidden">
               <!-- Banner de alerta -->
               <div class="flex items-center gap-3 px-4 py-3 bg-red-50">
@@ -820,7 +823,7 @@ async function confirmarSancion() {
             </div>
 
             <!-- Sanción OK / sin sanciones -->
-            <div v-else-if="sancionUsuario && !bloqueadoPorDeuda"
+            <div v-else-if="sancionUsuario && !bloqueadoPorPrestamo"
               class="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-sm text-emerald-700">
               <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -831,7 +834,7 @@ async function confirmarSancion() {
 
             <!-- Comparación de condición -->
             <!-- <div> -->
-            <div :class="{ 'opacity-50 pointer-events-none': bloqueadoPorDeuda && !omitirBloqueo }">
+            <div :class="{ 'opacity-50 pointer-events-none': bloqueadoPorPrestamo && !omitirBloqueo }">
 
               <div class="flex items-center justify-between mb-3">
                 <label class="text-sm font-semibold text-slate-700">Condición del ejemplar</label>
@@ -954,7 +957,7 @@ async function confirmarSancion() {
               </svg>
               {{
                 devolucionLoading ? 'Registrando...' :
-                  !puedeConfirmar && bloqueadoPorDeuda ? 'Resuelve la sanción para continuar' :
+                  !puedeConfirmar && bloqueadoPorPrestamo ? 'Resuelve la sanción para continuar' :
                     ejemplarPerdido ? 'Confirmar devolución — ejemplar perdido' :
                       hayDeterioro ? 'Confirmar devolución con deterioro' :
                         'Confirmar devolución'
