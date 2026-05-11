@@ -12,6 +12,7 @@ import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import LibroReservaCard from '@/components/reservas/LibroReservaCard.vue'
 import ReservaModalConfirm from '@/components/reservas/ReservaModalConfirm.vue'
+import ModalReservaNoAuth from '@/components/reservas/ModalReservaNoAuth.vue'
 import type { Libro, Categoria } from '@/types/catalogo'
 import type { LibroPublico, BibliotecaPublica } from '@/types/reservas'
 import { buscarLibros } from '@/services/libros.service'
@@ -43,6 +44,7 @@ const biblioteca = ref<BibliotecaPublica>()
 const mostrarModal = ref(false)
 const libroSeleccionado = ref<LibroPublico | null>(null)
 
+const mostrarModalAuth = ref(false)
 
 const opcionesCategorias = computed(() => [
   { value: '', label: 'Todas las categorías' },
@@ -139,7 +141,8 @@ function iniciarReserva(libro: LibroPublico) {
     })
     // Redirigir a login con retorno al catálogo
     // router.push({ name: 'login', query: { redirect: '/catalogo-reservas' } })
-    router.push({ name: 'login', query: { redirect: '/catalogo' } })
+    mostrarModalAuth.value = true
+    // router.push({ name: 'login', query: { redirect: '/catalogo' } })
     return
   }
 
@@ -305,6 +308,8 @@ function resetFiltros() {
     <!-- ─── Modal de confirmación ────────────────────────────────────────── -->
     <ReservaModalConfirm v-if="mostrarModal && libroSeleccionado" :libro="libroSeleccionado" @close="onModalClose"
       @confirmada="onReservaConfirmada" />
+    <ModalReservaNoAuth :visible="mostrarModalAuth" @close="mostrarModalAuth = false"
+      @login="router.push({ name: 'login', query: { redirect: '/catalogo' } })" @register="router.push('/register')" />
   </div>
 </template>
 <style></style>

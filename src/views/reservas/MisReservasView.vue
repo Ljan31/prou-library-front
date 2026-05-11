@@ -94,7 +94,7 @@ function formatFecha(fecha: string | null) {
           Seguimiento de tus solicitudes de libros
         </p>
       </div>
-      <SButton variant="primary" size="sm" @click="router.push('/catalogo-reservas')">
+      <SButton variant="primary" size="sm" @click="router.push('/catalogo')">
         + Nueva reserva
       </SButton>
     </div>
@@ -116,7 +116,7 @@ function formatFecha(fecha: string | null) {
     <SEmptyState v-else-if="!reservasStore.misReservas.length" title="Sin reservas"
       description="Aún no has reservado ningún libro. Explora el catálogo." icon="book">
       <template #action>
-        <SButton variant="primary" size="sm" @click="router.push('/catalogo-reservas')">
+        <SButton variant="primary" size="sm" @click="router.push('/catalogo')">
           Ir al catálogo
         </SButton>
       </template>

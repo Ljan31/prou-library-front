@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
@@ -23,6 +24,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
+const router = useRouter()
 const { isAdmin, isBibliotecario } = usePermissions()
 const reservasStore = useReservasStore()
 

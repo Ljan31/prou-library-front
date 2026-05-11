@@ -33,20 +33,6 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ALL_ROLES,
   },
   {
-    label: "Mis Reservas",
-    to: "/mis-reservas",
-    icon: "bookmark-square",
-    roles: ALL_ROLES,
-  },
-
-  {
-    label: "Gestión de Reservas",
-    to: "/reservas",
-    icon: "clipboard-document-list",
-    roles: STAFF_ROLES,
-  },
-
-  {
     label: "Inventario",
     to: "/inventario",
     icon: "archive-box",
@@ -69,6 +55,19 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/mis-prestamos",
     icon: "bookmark",
     roles: ["ROLE_ESTUDIANTE"],
+  },
+  {
+    label: "Mis Reservas",
+    to: "/mis-reservas",
+    icon: "bookmark-square",
+    roles: ALL_ROLES,
+  },
+
+  {
+    label: "Gestión de Reservas",
+    to: "/reservas",
+    icon: "clipboard-document-list",
+    roles: STAFF_ROLES,
   },
   {
     label: "Certificados",
