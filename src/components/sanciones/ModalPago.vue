@@ -5,7 +5,16 @@ import SModal from '@/components/ui/SModal.vue'
 import SInput from '@/components/ui/SInput.vue'
 import SButton from '@/components/ui/SButton.vue'
 import type { SancionResponse } from '@/types/notificacion.types'
-
+export interface SancionPago {
+  idSancion: number
+  nombreUsuario: string
+  ciUsuario: string
+  montoMulta: number | null
+  tipoSancion?: string
+  estado?: string
+  fechaFinSuspension?: string | null
+  observaciones?: string | null
+}
 const props = defineProps<{ sancion: SancionResponse | null }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
@@ -18,7 +27,8 @@ const metodoPago = ref('')
 const observaciones = ref('')
 const enviando = ref(false)
 
-const METODOS = ['Efectivo', 'Transferencia bancaria', 'QR', 'Depósito bancario', 'Otro']
+// const METODOS = ['Efectivo', 'Transferencia bancaria', 'QR', 'Depósito bancario', 'Otro']
+const METODOS = ['Efectivo', 'QR', 'Otro']
 
 async function registrar() {
   if (!metodoPago.value || !props.sancion) return
