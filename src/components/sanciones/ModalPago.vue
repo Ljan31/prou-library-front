@@ -18,7 +18,7 @@ export interface SancionPago {
 const props = defineProps<{ sancion: SancionResponse | null }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  (e: 'pagado'): void
+  (e: 'pagado', idPrestamo: numbeR): void
 }>()
 const modelValue = defineModel<boolean>()
 
@@ -39,7 +39,7 @@ async function registrar() {
       observaciones: observaciones.value || undefined,
     })
     modelValue.value = false
-    emit('pagado')
+    emit('pagado', props.sancion.idPrestamo)
     metodoPago.value = ''
     observaciones.value = ''
   } finally {

@@ -174,6 +174,8 @@ const sancionLoading = ref(false)
 
 async function seleccionarPrestamo(p: Prestamo) {
   prestamoSeleccionado.value = p
+  console.log('------------------------')
+  console.log(prestamoSeleccionado.value)
   resetFormulario()
   sancionUsuario.value = null
   sancionSeleccionada.value = null
@@ -973,6 +975,7 @@ async function confirmarSancion() {
     <!-- modales -->
     <!-- ═══ MODAL: PAGO DE DEUDA INLINE ══════════════════════════════════════ -->
     <ModalPago v-model="modalPagoOpen" :sancion="sancionSeleccionada" @pagado="fetchPendientes" />
+    <!-- <ModalPago v-model="modalPagoOpen" :sancion="sancionSeleccionada" @pagado="seleccionarPrestamo" /> -->
 
     <!-- ═══ MODAL: SANCIÓN POR DETERIORO / PÉRDIDA ═══════════════════════════ -->
     <SModal v-model="modalSancionOpen"

@@ -388,7 +388,7 @@ const categoriaActual = computed(() =>
 </script>
 
 <template>
-  <BaseModal title="Nuevo libro en lote" size="xl" @close="emit('close')">
+  <BaseModal title="Nuevo libro" size="xl" @close="emit('close')">
 
     <!-- ── Indicador de pasos ──────────────────────────────────────────── -->
     <div class="flex items-center gap-2 mb-7">

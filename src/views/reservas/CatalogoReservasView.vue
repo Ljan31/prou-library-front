@@ -175,17 +175,19 @@ function resetFiltros() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-primary-50">
+  <!-- <div class="min-h-screen bg-primary-50"> -->
+  <div class="min-h-screen bg-white">
     <!-- ─── Hero Header ─────────────────────────────────────────────────── -->
-    <div class="bg-linear-to-br from-primary-900 to-primary-800 text-white">
+    <!-- <div class="bg-linear-to-br from-primary-900 to-primary-800 text-white"> -->
+    <div class="bg-white border-b border-slate-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <p class="text-primary-300 text-sm font-medium tracking-wide uppercase mb-1">
+            <p class="text-slate-500 text-sm font-medium tracking-wide uppercase mb-1">
               Facultad de Humanidades y Ciencias de la Educación — UMSA
             </p>
             <h1 class="text-3xl sm:text-4xl font-bold">Catálogo de Reservas</h1>
-            <p class="text-primary-200 mt-2">
+            <p class="text-slate-500 mt-2">
               Explora el fondo bibliográfico y reserva el libro que necesitas.
             </p>
           </div>

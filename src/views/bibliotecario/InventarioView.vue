@@ -18,6 +18,7 @@ import EjemplarHistorialModal from '@/components/catalogo/EjemplarHistorialModal
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import LibroLoteFormModal from '@/components/catalogo/LibroLoteFormModal.vue'
 import Libroeditarmodal from '@/components/catalogo/Libroeditarmodal.vue'
+import LibroModal from '@/components/inventario/LibroModal.vue'
 
 import {
   obtenerEjemplares,
@@ -79,6 +80,7 @@ async function cargarEjemplares() {
     } else {
       // Admin: todos los ejemplares
       todos.value = await obtenerEjemplares()
+      console.log('isadmin ejemplares', todos.value)
     }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Error al cargar ejemplares'
@@ -141,6 +143,7 @@ const modalActivo = ref<Modal>(null)
 const ejemplarSeleccionado = ref<Ejemplar | null>(null)
 const ejemplarEditando = ref<Ejemplar | null>(null)
 const eliminando = ref(false)
+const mostrarLibroModal = ref(false)
 
 // Transferir
 const nuevaBibliotecaId = ref<number | null>(null)
@@ -297,6 +300,15 @@ function exportarCSV() {
           Exportar
         </button>
 
+        <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
+        <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModal = true"
+          variant="primary">
+          <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
+          <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Nuevo ejemplarsss
+        </SButton>
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
         <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="abrirCrear" variant="primary">
           <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
@@ -519,6 +531,8 @@ function exportarCSV() {
     </div>
     <LibroLoteFormModal v-if="modalActivo === 'crear'" @close="cerrarModal" @saved="onGuardado" />
     <Libroeditarmodal v-if="modalActivo === 'editar'" @close="cerrarModal" @saved="onGuardado" :libroId="libroId" />
+
+    <LibroModal v-if="mostrarLibroModal" @close="mostrarLibroModal = false" @saved="cargarEjemplares" />
 
     <!-- Crear / Editar ejemplar -->
     <!-- <EjemplarFormModalInventario v-if="modalActivo === 'form'" :ejemplar="ejemplarEditando" @close="cerrarModal"
