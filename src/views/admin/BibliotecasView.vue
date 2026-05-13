@@ -8,6 +8,7 @@ import type { Biblioteca, CarreraDetail } from '@/services/bibliotecas.service'
 import BibliotecaFormModal from '@/components/bibliotecas/BibliotecaFormModal.vue'
 import CarreraFormModal from '@/components/bibliotecas/CarreraFormModal.vue'
 import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
+import ConfiguracionPrestamoModal from '@/components/bibliotecas/ConfiguracionPrestamoModal.vue'
 
 // ─── Stores ───────────────────────────────────────────────────────────────
 const store = useBibliotecasStore()
@@ -61,6 +62,15 @@ const showCarModal = ref(false)
 const editingCar = ref<CarreraDetail | null>(null)
 const showDelModal = ref(false)
 const delTarget = ref<{ type: 'bib' | 'car'; id: number; name: string } | null>(null)
+
+const showConfigModal = ref(false)
+const configBiblioteca = ref<{ id: number; nombre: string } | null>(null)
+function openConfigModal(bib: Biblioteca) {
+  console.log('clicl config')
+  console.log(bib)
+  configBiblioteca.value = { id: bib.id_biblioteca, nombre: bib.nombre }
+  showConfigModal.value = true
+}
 
 function openCreateBib() { editingBib.value = null; showBibModal.value = true }
 function openEditBib(b: Biblioteca) { editingBib.value = b; showBibModal.value = true }
@@ -300,6 +310,17 @@ function estadoColor(estado: string) {
               </svg>
               Editar
             </button>
+            <!-- Configuración de préstamos -->
+            <button @click="openConfigModal(bib)"
+              class="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+              title="Configuración de préstamos">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             <button v-if="authStore.isAdmin" @click="confirmDelete('bib', bib.id_biblioteca, bib.nombre)"
               class="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -426,5 +447,7 @@ function estadoColor(estado: string) {
       :title="`Eliminar ${delTarget?.type === 'bib' ? 'biblioteca' : 'carrera'}`"
       :message="`¿Estás seguro de que deseas eliminar «${delTarget?.name}»? Esta acción no se puede deshacer.`"
       @confirm="executeDelete" />
+    <ConfiguracionPrestamoModal v-if="configBiblioteca" v-model="showConfigModal" :biblioteca-id="configBiblioteca.id"
+      :nombre-bib="configBiblioteca.nombre" :key="configBiblioteca.id" />
   </div>
 </template>
