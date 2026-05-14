@@ -105,8 +105,10 @@ const libro = reactive({
 const erroresLibro = reactive<Record<string, string>>({})
 
 // Búsqueda de autor con autocompletado simple
+interface AutorOpcion { idAutor?: number; nombre: string; nuevo?: boolean }
+const autoresSeleccionados = ref<AutorOpcion[]>([])
 const busquedaAutor = ref('')
-const resultadosAutor = ref<{ nombre: string; idAutor?: number }[]>([])
+const resultadosAutor = ref<AutorOpcion[]>([])
 const buscandoAutor = ref(false)
 const showDropAutor = ref(false)
 let timerAutor: ReturnType<typeof setTimeout>
@@ -130,6 +132,28 @@ function elegirAutor(nombre: string) {
   const actual = libro.autores.trim()
   libro.autores = actual ? `${actual}; ${nombre}` : nombre
   busquedaAutor.value = ''; showDropAutor.value = false
+}
+
+function agregarAutorExistente(autor: AutorOpcion) {
+  if (!autoresSeleccionados.value.find(a => a.idAutor === autor.idAutor)) {
+    autoresSeleccionados.value.push(autor)
+  }
+  busquedaAutor.value = ''
+  showDropAutor.value = false
+}
+
+function crearNuevoAutor() {
+  const nombre = busquedaAutor.value.trim()
+  if (!nombre) return
+  if (!autoresSeleccionados.value.find(a => a.nombre.toLowerCase() === nombre.toLowerCase())) {
+    autoresSeleccionados.value.push({ nombre, nuevo: true })
+  }
+  busquedaAutor.value = ''
+  showDropAutor.value = false
+}
+
+function quitarAutor(idx: number) {
+  autoresSeleccionados.value.splice(idx, 1)
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -214,14 +238,24 @@ watch(() => libro.categoriaId, (idCategoria) => {
 })
 
 // Auto-rellenar cutter autor a partir del campo autores del libro
-watch(() => libro.autores, (v) => {
-  // if (ej.cutterAutor) return   // no pisar si ya lo editó manualmente
-  const primerAutor = v.split(/[;,]/)[0].trim()
-  if (!primerAutor) return
-  // 3 primeras letras del apellido (primera palabra) en mayúsculas
-  ej.cutterAutor = primerAutor.split(' ')[0].slice(0, 3).toUpperCase()
-})
+watch(autoresSeleccionados, (autores) => {
+  libro.autores = autores
+    .map(a => a.nombre)
+    .join('; ')
 
+  if (!autores.length) {
+    ej.cutterAutor = ''
+    return
+  }
+
+  const primerAutor = autores[0].nombre.trim()
+
+  ej.cutterAutor = primerAutor
+    .split(' ')[0]
+    .slice(0, 3)
+    .toUpperCase()
+
+}, { deep: true })
 // Auto-rellenar cutter título
 watch(() => libro.titulo, (v) => {
   // if (ej.cutterTitulo) return
@@ -273,9 +307,9 @@ function validarPaso1(): boolean {
 }
 
 function validarPaso3(): boolean {
+  console.log('validar3')
   Object.keys(erroresEj).forEach(k => delete erroresEj[k])
   if (!ej.bibliotecaId) erroresEj.biblioteca = 'Selecciona una biblioteca'
-  if (!ej.ubicacionFisica.trim()) erroresEj.ubicacion = 'La ubicación es obligatoria'
   if (ej.cantidadEjemplares < 1) erroresEj.cantidad = 'Mínimo 1 ejemplar'
   if (ej.cantidadEjemplares > 50) erroresEj.cantidad = 'Máximo 50 ejemplares por vez'
   return !Object.keys(erroresEj).length
@@ -294,7 +328,9 @@ const guardando = ref(false)
 const errorGuardar = ref('')
 
 async function guardar() {
+  if (!validarPaso1()) return
   if (!validarPaso3()) return
+  console.log('paso validar3')
   guardando.value = true; errorGuardar.value = ''
   try {
     // Construir N ejemplares con sufijo Ej.N
@@ -396,6 +432,26 @@ const cerrarDropdownAutor = () => {
             }}
           </p>
         </div>
+        <div>
+          <!-- <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+            Biblioteca <span class="text-red-400">*</span>
+          </label> -->
+          <div v-if="!isAdmin && bibliotecaPropia"
+            class="flex items-center gap-2.5 px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+            <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4" />
+            </svg>
+            <span class="text-sm font-medium text-indigo-700">{{ bibliotecaPropia.nombre }}</span>
+          </div>
+          <select v-else v-model="ej.bibliotecaId"
+            class="w-full text-sm rounded-xl border px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
+            :class="erroresEj.biblioteca ? 'border-red-400' : 'border-slate-200'">
+            <option :value="null" disabled>Seleccionar biblioteca</option>
+            <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">{{ bib.nombre }}</option>
+          </select>
+          <p v-if="erroresEj.biblioteca" class="text-xs text-red-500 mt-1">{{ erroresEj.biblioteca }}</p>
+        </div>
       </div>
     </template>
 
@@ -493,54 +549,84 @@ const cerrarDropdownAutor = () => {
           </div>
 
           <!-- Autores con autocompletado -->
-          <div class="md:col-span-6">
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Autor(es) <span class="text-red-400">*</span>
-            </label>
-            <input v-model="libro.autores" type="text"
-              placeholder="Ej. GUTTENTAG TICHAUER, WERNER; ARZE RAMIREZ, MARIA RITA"
-              class="w-full text-sm rounded-xl border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow mb-1.5"
-              :class="erroresLibro.autores ? 'border-red-400 bg-red-50' : 'border-slate-200'" />
-            <p v-if="erroresLibro.autores" class="text-xs text-red-500 mb-1">{{ erroresLibro.autores }}</p>
-            <p class="text-xs text-slate-400 mb-1.5">Separa múltiples autores con punto y coma ( ; )</p>
 
-            <!-- Buscador de autores existentes -->
-            <div class="relative">
-              <div class="flex gap-2">
-                <div class="relative flex-1">
-                  <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <!-- Autores -->
+          <div class="md:col-span-6">
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Autores</label>
+
+            <!-- Tags autores seleccionados -->
+            <div v-if="autoresSeleccionados.length" class="flex flex-wrap gap-1.5 mb-2">
+              <span v-for="(autor, i) in autoresSeleccionados" :key="i"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                :class="autor.nuevo ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-indigo-100 text-indigo-800 border border-indigo-200'">
+                <span v-if="autor.nuevo" class="text-amber-600 font-bold">+</span>
+                {{ autor.nombre }}
+                <button @click="quitarAutor(i)" class="ml-0.5 text-slate-400 hover:text-red-500 transition-colors">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  <input v-model="busquedaAutor" type="text" placeholder="Buscar autor existente..."
-                    @focus="showDropAutor = busquedaAutor.length > 0" @blur="cerrarDropdownAutor"
-                    class="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50" />
-                </div>
+                </button>
+              </span>
+            </div>
+
+            <!-- Input búsqueda -->
+            <div class="relative">
+              <div class="relative">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <input v-model="busquedaAutor" type="text" placeholder="Buscar autor o escribir nombre nuevo..."
+                  @focus="showDropAutor = busquedaAutor.length > 0" @blur="cerrarDropdownAutor"
+                  class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
               </div>
+
+              <!-- Dropdown resultados -->
               <div v-if="showDropAutor"
                 class="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-                <div v-if="buscandoAutor" class="flex items-center gap-2 px-4 py-2.5 text-xs text-slate-400">
+
+                <!-- Cargando -->
+                <div v-if="buscandoAutor" class="flex items-center gap-2 px-4 py-3 text-xs text-slate-400">
                   <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   Buscando...
                 </div>
-                <button v-for="a in resultadosAutor" :key="a.idAutor ?? a.nombre"
-                  @mousedown.prevent="elegirAutor(a.nombre)"
-                  class="w-full flex items-center gap-2 px-4 py-2 text-xs text-left hover:bg-indigo-50 transition-colors">
-                  <div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <span class="text-indigo-600 font-semibold">{{ a.nombre.charAt(0) }}</span>
+
+                <template v-else>
+                  <!-- Resultados existentes -->
+                  <button v-for="autor in resultadosAutor" :key="autor.idAutor"
+                    @mousedown.prevent="agregarAutorExistente(autor)"
+                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-indigo-50 transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <span class="text-xs font-semibold text-indigo-600">
+                        {{ autor.nombre.charAt(0).toUpperCase() }}
+                      </span>
+                    </div>
+                    <span class="text-slate-800 truncate">{{ autor.nombre }}</span>
+                  </button>
+
+                  <!-- Crear nuevo -->
+                  <button v-if="busquedaAutor.trim()" @mousedown.prevent="crearNuevoAutor"
+                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-amber-50 text-amber-700 border-t border-slate-100 transition-colors">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Crear "<strong>{{ busquedaAutor }}</strong>" como nuevo autor
+                  </button>
+
+                  <div v-if="!resultadosAutor.length && !busquedaAutor.trim()"
+                    class="px-4 py-3 text-xs text-slate-400 text-center">
+                    Escribe para buscar autores
                   </div>
-                  <span class="text-slate-700 truncate">{{ a.nombre }}</span>
-                </button>
-                <div v-if="!buscandoAutor && !resultadosAutor.length"
-                  class="px-4 py-2.5 text-xs text-slate-400 text-center">
-                  No se encontraron autores
-                </div>
+                </template>
               </div>
             </div>
+            <p class="text-xs text-slate-400 mt-1.5">
+              Los autores marcados con <span class="text-amber-600 font-semibold">+</span> se crearán al guardar
+            </p>
           </div>
         </div>
 
@@ -753,191 +839,6 @@ const cerrarDropdownAutor = () => {
           </div>
         </div>
 
-      </div>
-
-      <!-- ════════════════════════════════════════════════════════════
-           PASO 3 — EJEMPLARES + CÓDIGO PARA SOLICITAR
-      ════════════════════════════════════════════════════════════════ -->
-      <div v-else-if="paso === 3" class="space-y-5">
-
-        <!-- Preview del código — estilo catálogo real -->
-        <div class="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
-          <div class="flex items-center gap-2 px-4 py-2 border-b border-amber-200 bg-amber-100/60">
-            <svg class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-            <p class="text-xs font-semibold text-amber-700 uppercase tracking-wide">
-              Código para solicitar — preview
-            </p>
-          </div>
-          <div class="px-4 py-3">
-            <!-- Tabla estilo catálogo -->
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs">
-                <thead>
-                  <tr class="text-amber-700 font-medium">
-                    <th class="text-left pb-1.5 pr-6">Colección</th>
-                    <th class="text-left pb-1.5 pr-4">Decimal</th>
-                    <th class="text-left pb-1.5 pr-4">Cutter autor</th>
-                    <th class="text-left pb-1.5 pr-4">Cutter título</th>
-                    <th class="text-left pb-1.5">Ejemplar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="n in Math.min(ej.cantidadEjemplares, 5)" :key="n" class="font-mono text-slate-700">
-                    <td class="pr-6 py-0.5 text-slate-500">
-                      {{ categoriaActual?.nombre_categoria ?? categoriaActual?.nombreCategoria ?? '—' }}
-                    </td>
-                    <td class="pr-4 py-0.5">{{ ej.clasificacionDecimal || '___' }}</td>
-                    <td class="pr-4 py-0.5">{{ ej.cutterAutor || '___' }}</td>
-                    <td class="pr-4 py-0.5">{{ ej.cutterTitulo || '___' }}</td>
-                    <td class="py-0.5">
-                      <span v-if="ej.cantidadEjemplares > 1" class="text-indigo-600 font-semibold">Ej.{{ n }}</span>
-                      <span v-else class="text-slate-400">—</span>
-                    </td>
-                  </tr>
-                  <tr v-if="ej.cantidadEjemplares > 5">
-                    <td colspan="5" class="text-slate-400 italic pt-1">
-                      ... y {{ ej.cantidadEjemplares - 5 }} ejemplar(es) más
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- Clasificación decimal + Cutter -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-3 uppercase tracking-wide">
-            Código para solicitar
-          </label>
-          <div class="grid grid-cols-3 gap-3">
-            <div>
-              <label class="block text-xs text-slate-500 mb-1">
-                Clasificación decimal
-                <span class="text-slate-400">(Dewey)</span>
-              </label>
-              <input v-model="ej.clasificacionDecimal" type="text" placeholder="Ej. 989.506"
-                class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label class="block text-xs text-slate-500 mb-1">Cutter autor</label>
-              <input v-model="ej.cutterAutor" type="text" placeholder="Ej. REY"
-                class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <p class="text-xs text-slate-400 mt-1">Auto: 3 letras del apellido</p>
-            </div>
-            <div>
-              <label class="block text-xs text-slate-500 mb-1">Cutter título</label>
-              <input v-model="ej.cutterTitulo" type="text" placeholder="Ej. izq"
-                class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <p class="text-xs text-slate-400 mt-1">Auto: 3 letras del título</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Número de ejemplares -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-            Número de ejemplares
-          </label>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center rounded-xl border border-slate-200 overflow-hidden">
-              <button @click="ej.cantidadEjemplares = Math.max(1, ej.cantidadEjemplares - 1)"
-                class="px-3 py-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors font-semibold text-lg leading-none">
-                −
-              </button>
-              <input v-model.number="ej.cantidadEjemplares" type="number" min="1" max="50"
-                class="w-16 text-center text-sm font-semibold text-slate-900 py-2.5 border-x border-slate-200 focus:outline-none focus:bg-indigo-50" />
-              <button @click="ej.cantidadEjemplares = Math.min(50, ej.cantidadEjemplares + 1)"
-                class="px-3 py-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors font-semibold text-lg leading-none">
-                +
-              </button>
-            </div>
-            <div>
-              <p class="text-sm text-slate-700 font-medium">
-                {{ ej.cantidadEjemplares }} ejemplar{{ ej.cantidadEjemplares !== 1 ? 'es' : '' }}
-              </p>
-              <p v-if="ej.cantidadEjemplares > 1" class="text-xs text-slate-400">
-                Se crearán con sufijo Ej.1, Ej.2… Ej.{{ ej.cantidadEjemplares }}
-              </p>
-            </div>
-          </div>
-          <p v-if="erroresEj.cantidad" class="text-xs text-red-500 mt-1">{{ erroresEj.cantidad }}</p>
-        </div>
-
-        <!-- Biblioteca + Ubicación -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Biblioteca <span class="text-red-400">*</span>
-            </label>
-            <div v-if="!isAdmin && bibliotecaPropia"
-              class="flex items-center gap-2.5 px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
-              <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4" />
-              </svg>
-              <span class="text-sm font-medium text-indigo-700">{{ bibliotecaPropia.nombre }}</span>
-            </div>
-            <select v-else v-model="ej.bibliotecaId"
-              class="w-full text-sm rounded-xl border px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
-              :class="erroresEj.biblioteca ? 'border-red-400' : 'border-slate-200'">
-              <option :value="null" disabled>Seleccionar biblioteca</option>
-              <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">{{ bib.nombre }}</option>
-            </select>
-            <p v-if="erroresEj.biblioteca" class="text-xs text-red-500 mt-1">{{ erroresEj.biblioteca }}</p>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Ubicación física <span class="text-red-400">*</span>
-            </label>
-            <input v-model="ej.ubicacionFisica" type="text" placeholder="Ej. Estante A - Nivel 2"
-              class="w-full text-sm rounded-xl border px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              :class="erroresEj.ubicacion ? 'border-red-400 bg-red-50' : 'border-slate-200'" />
-            <p v-if="erroresEj.ubicacion" class="text-xs text-red-500 mt-1">{{ erroresEj.ubicacion }}</p>
-          </div>
-        </div>
-
-        <!-- Estado + Fecha + Precio -->
-        <div class="grid grid-cols-3 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Estado
-              inicial</label>
-            <select v-model="ej.estadoEjemplar"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
-              <option value="DISPONIBLE">🟢 Disponible</option>
-              <option value="EN_REPARACION">🟡 En reparación</option>
-              <option value="DAÑADO">🟠 Dañado</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Adquisición</label>
-            <input v-model="ej.fechaAdquisicion" type="date"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Precio
-              (Bs.)</label>
-            <input v-model.number="ej.precioCompra" type="number" step="0.01" placeholder="85.00"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-        </div>
-
-        <!-- Observaciones -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-            Observaciones <span class="text-slate-400 font-normal normal-case">(opcional)</span>
-          </label>
-          <input v-model="ej.observaciones" type="text" placeholder="Ej. Donación Carrera de Literatura, UMSA"
-            class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
-
-        <p v-if="errorGuardar" class="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-xl">
-          {{ errorGuardar }}
-        </p>
       </div>
 
     </template>
