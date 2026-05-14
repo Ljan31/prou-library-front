@@ -19,6 +19,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import LibroLoteFormModal from '@/components/catalogo/LibroLoteFormModal.vue'
 import Libroeditarmodal from '@/components/catalogo/Libroeditarmodal.vue'
 import LibroModal from '@/components/inventario/LibroModal.vue'
+import LibroRapidoModal from '@/components/inventario/LibroRapidoModal.vue'
 
 import {
   obtenerEjemplares,
@@ -144,6 +145,7 @@ const ejemplarSeleccionado = ref<Ejemplar | null>(null)
 const ejemplarEditando = ref<Ejemplar | null>(null)
 const eliminando = ref(false)
 const mostrarLibroModal = ref(false)
+const mostrarLibroModalRapido = ref(false)
 
 // Transferir
 const nuevaBibliotecaId = ref<number | null>(null)
@@ -158,6 +160,7 @@ function cerrarModal() {
   nuevaBibliotecaId.value = null
   motivoTransferir.value = ''
   errorTransferir.value = ''
+  mostrarLibroModalRapido.value = false
 }
 
 function irANuevoEjemplar() {
@@ -215,8 +218,9 @@ function onEstadoCambiado() {
 async function confirmarEliminar() {
   if (!ejemplarSeleccionado.value) return
   eliminando.value = true
+  console.log('delete', ejemplarSeleccionado.value.id_ejemplar)
   try {
-    await api.delete(`/api/ejemplares/${ejemplarSeleccionado.value.idEjemplar}`)
+    await api.delete(`/ejemplares/${ejemplarSeleccionado.value.idEjemplar}`)
     ui.toast.success('Eliminado', `Ejemplar ${ejemplarSeleccionado.value.codigoEjemplar} eliminado`)
     cerrarModal()
     cargarEjemplares()
@@ -308,6 +312,15 @@ function exportarCSV() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           Nuevo ejemplarsss
+        </SButton>
+        <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
+        <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModalRapido = true"
+          variant="primary">
+          <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
+          <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Nuevo ejemplar rapido
         </SButton>
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
         <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="abrirCrear" variant="primary">
@@ -534,6 +547,8 @@ function exportarCSV() {
 
     <LibroModal v-if="mostrarLibroModal" @close="mostrarLibroModal = false" @saved="cargarEjemplares" />
 
+    <LibroRapidoModal v-if="mostrarLibroModalRapido" :libro-id="ejemplarSeleccionado"
+      @close="mostrarLibroModalRapido = false" @saved="onGuardado" />
     <!-- Crear / Editar ejemplar -->
     <!-- <EjemplarFormModalInventario v-if="modalActivo === 'form'" :ejemplar="ejemplarEditando" @close="cerrarModal"
       @saved="onGuardado" /> -->

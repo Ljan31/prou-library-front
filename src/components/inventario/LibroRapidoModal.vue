@@ -156,6 +156,64 @@ function quitarAutor(idx: number) {
   autoresSeleccionados.value.splice(idx, 1)
 }
 
+const busquedaCategoria = ref('')
+const mostrarCategorias = ref(false)
+
+const categoriasFiltradas = computed(() => {
+  const q = busquedaCategoria.value.toLowerCase().trim()
+
+  if (!q) return categorias.value
+
+  return categorias.value.filter(cat => {
+    const nombre = (
+      cat.nombre_categoria ??
+      cat.nombreCategoria ??
+      ''
+    ).toLowerCase()
+
+    const dewey = (
+      cat.codigo_dewey ??
+      cat.codigoDewey ??
+      ''
+    ).toLowerCase()
+
+    return nombre.includes(q) || dewey.includes(q)
+  })
+})
+const seleccionarCategoria = (cat: any) => {
+  libro.categoriaId = cat.id_categoria ?? cat.idCategoria
+
+  busquedaCategoria.value =
+    cat.nombre_categoria ?? cat.nombreCategoria
+
+  mostrarCategorias.value = false
+}
+// ── Categoría inline (crear nueva) ────────────────────────────────────────
+const modoNuevaCategoria = ref(false)
+const nuevaCategoriaNombre = ref('')
+const nuevaCategoriaDescripcion = ref('')
+const nuevaCategoriaDewey = ref('')
+
+
+async function guardarNuevaCategoria() {
+  if (!nuevaCategoriaNombre.value.trim()) return
+  try {
+    const res = await api.post('/categorias', {
+      nombre_categoria: nuevaCategoriaNombre.value.trim(),
+      descripcion: nuevaCategoriaDescripcion.value.trim() || undefined,
+      codigo_dewey: nuevaCategoriaDewey.value.trim() || undefined,
+    })
+    const cat: Categoria = res.data?.data ?? res.data
+    categorias.value.push(cat)
+    libro.categoriaId = cat.id_categoria ?? cat.idCategoria ?? null
+    modoNuevaCategoria.value = false
+    nuevaCategoriaNombre.value = ''
+    nuevaCategoriaDescripcion.value = ''
+    nuevaCategoriaDewey.value = ''
+  } catch (e: unknown) {
+    // silencioso — mostrar en campo si se quiere extender
+  }
+}
 // ══════════════════════════════════════════════════════════════════════════
 // PASO 2 — EDICIÓN
 // ══════════════════════════════════════════════════════════════════════════
@@ -163,7 +221,7 @@ const edicion = reactive({
   isbn: '',
   editorial: '',
   anoPublicacion: new Date().getFullYear(),
-  edicionTexto: '',       // "1ra", "2da"…
+  edicionTexto: '1ra',       // "1ra", "2da"…
   numeroPaginas: null as number | null,
 })
 
@@ -302,7 +360,8 @@ async function precargarLibro(id: number) {
 function validarPaso1(): boolean {
   Object.keys(erroresLibro).forEach(k => delete erroresLibro[k])
   if (!libro.titulo.trim()) erroresLibro.titulo = 'El título es obligatorio'
-  if (!libro.autores.trim()) erroresLibro.autores = 'Al menos un autor es obligatorio'
+  if (!edicion.isbn.trim()) erroresLibro.isbn = 'El ISBN es obligatorio'
+  // if (!libro.autores.trim()) erroresLibro.autores = 'Al menos un autor es obligatorio'
   return !Object.keys(erroresLibro).length
 }
 
@@ -341,11 +400,15 @@ async function guardar() {
         ubicacionFisica: ej.ubicacionFisica.trim() || undefined,
         clasificacionDecimal: ej.clasificacionDecimal.trim() || undefined,
         cutterAutor: ej.cutterAutor.trim() || undefined,
+        codigoEjemplar: ej.cantidadEjemplares >= 1
+          ? `${ej.cutterTitulo.trim()} Ej.${i + 1}`
+          : ej.cutterTitulo.trim() || undefined,
         cutterTitulo: ej.cantidadEjemplares > 1
           ? `${ej.cutterTitulo.trim()} Ej.${i + 1}`
           : ej.cutterTitulo.trim() || undefined,
+
         estadoEjemplar: ej.estadoEjemplar,
-        fechaAdquisicion: ej.fechaAdquisicion || undefined,
+        fechaAdquisicion: ej.fechaAdquisicion || new Date().toISOString().split('T')[0],
         precioCompra: ej.precioCompra,
         observaciones: ej.observaciones.trim() || undefined,
       })
@@ -356,9 +419,13 @@ async function guardar() {
       idioma: libro.idioma,
       categoriaId: libro.categoriaId || undefined,
       descripcion: libro.descripcion.trim() || undefined,
-      autores: libro.autores.split(/[;,]/)
-        .map(a => a.trim()).filter(Boolean)
-        .map(nombre => ({ nombre })),
+      // Autores: los existentes van como autorIds, los nuevos como autores[]
+      autorIds: autoresSeleccionados.value
+        .filter(a => !a.nuevo && a.idAutor)
+        .map(a => a.idAutor),
+      autores: autoresSeleccionados.value
+        .filter(a => a.nuevo)
+        .map(a => ({ nombre: a.nombre })),
       ediciones: [{
         isbn: edicion.isbn.trim() || undefined,
         editorial: edicion.editorial.trim() || undefined,
@@ -384,13 +451,26 @@ async function guardar() {
         autores: datos.autores,
       })
     } else {
+      console.log('====================')
+      console.log('📦 PAYLOAD JSON')
+      console.log(JSON.stringify(datos, null, 2))
+      console.log('====================')
+      for (const pair of fd.entries()) {
+        console.log(pair[0], pair[1])
+      }
       await api.post('/catalogo/lote', fd)
     }
 
     emit('saved')
   } catch (e: unknown) {
+    console.log('error', e)
+    console.log(e.response)
     const err = e as any
-    errorGuardar.value = err?.response?.data?.message ?? 'Error al guardar'
+    if (err?.response?.data?.message?.includes('ISBN')) {
+      erroresLibro.isbn = err?.response?.data?.message
+    }
+    errorGuardar.value = err?.response?.data?.message
+      ?? (e instanceof Error ? e.message : 'Error al guardar')
   } finally {
     guardando.value = false
   }
@@ -406,6 +486,11 @@ const cerrarDropdownAutor = () => {
     showDropAutor.value = false
   }, 180)
 }
+const ocultarCategorias = () => {
+  window.setTimeout(() => {
+    mostrarCategorias.value = false
+  }, 150)
+}
 </script>
 
 <template>
@@ -417,7 +502,9 @@ const cerrarDropdownAutor = () => {
         <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
           <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" />
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.523 5.754 19 7.5 19s3.332-.477 4.5-1.253" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 6.253C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.523 18.246 19 16.5 19s-3.332-.477-4.5-1.253" />
           </svg>
         </div>
         <div>
@@ -548,8 +635,6 @@ const cerrarDropdownAutor = () => {
             </div>
           </div>
 
-          <!-- Autores con autocompletado -->
-
           <!-- Autores -->
           <div class="md:col-span-6">
             <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Autores</label>
@@ -632,25 +717,81 @@ const cerrarDropdownAutor = () => {
 
 
         <!-- Categoría + Idioma -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- <div class="grid grid-cols-1 md:grid-cols-4 gap-4"> -->
+        <div class="grid grid-cols-1 md:grid-cols-[2.5fr_1.2fr_0.8fr_1fr] gap-4">
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Categoría / Colección
             </label>
-            <select v-model="libro.categoriaId"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
-              <option :value="null">Sin categoría</option>
-              <option v-for="cat in categorias" :key="cat.id_categoria ?? cat.idCategoria"
-                :value="cat.id_categoria ?? cat.idCategoria">
-                {{ cat.nombre_categoria ?? cat.nombreCategoria }}
-                <template v-if="cat.codigo_dewey ?? cat.codigoDewey">
-                  ({{ cat.codigo_dewey ?? cat.codigoDewey }})
-                </template>
-              </option>
-            </select>
-            <p v-if="categoriaActual" class="text-xs text-slate-400 mt-1">
-              Dewey: {{ categoriaActual.codigo_dewey ?? categoriaActual.codigoDewey ?? '—' }}
-            </p>
+            <div v-if="!modoNuevaCategoria" class="flex gap-2">
+              <div class="relative w-full">
+
+                <input v-model="busquedaCategoria" type="text" placeholder="Buscar categoría..."
+                  @focus="mostrarCategorias = true" @blur="ocultarCategorias"
+                  class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+
+                <div v-if="mostrarCategorias"
+                  class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  <button v-for="cat in categoriasFiltradas" :key="cat.id_categoria ?? cat.idCategoria" type="button"
+                    @click="seleccionarCategoria(cat)"
+                    class="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors">
+                    <div class="text-sm text-slate-800">
+                      {{ cat.nombre_categoria ?? cat.nombreCategoria }}
+                    </div>
+
+                    <div v-if="cat.codigo_dewey ?? cat.codigoDewey" class="text-xs text-slate-400">
+                      Dewey:
+                      {{ cat.codigo_dewey ?? cat.codigoDewey }}
+                    </div>
+                  </button>
+
+                  <div v-if="!categoriasFiltradas.length" class="px-3 py-2 text-sm text-slate-400">
+                    Sin resultados
+                  </div>
+                </div>
+              </div>
+              <!-- <select v-model="libro.categoriaId"
+                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+                <option :value="null">Sin categoría</option>
+                <option v-for="cat in categorias" :key="cat.id_categoria ?? cat.idCategoria"
+                  :value="cat.id_categoria ?? cat.idCategoria">
+                  {{ cat.nombre_categoria ?? cat.nombreCategoria }}
+                  <template v-if="cat.codigo_dewey ?? cat.codigoDewey">
+                    ({{ cat.codigo_dewey ?? cat.codigoDewey }})
+                  </template>
+                </option>
+              </select> -->
+              <!-- <p v-if="categoriaActual" class="text-xs text-slate-400 mt-1">
+                Dewey: {{ categoriaActual.codigo_dewey ?? categoriaActual.codigoDewey ?? '—' }}
+              </p> -->
+              <button @click="modoNuevaCategoria = true"
+                class="flex-shrink-0 w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                title="Nueva categoría">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Inline nueva categoría -->
+            <div v-else class="p-3 border border-indigo-200 bg-indigo-50 rounded-xl space-y-2">
+              <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold text-indigo-700">Nueva categoría</p>
+                <button @click="modoNuevaCategoria = false" class="text-xs text-slate-400 hover:text-slate-600">
+                  Cancelar
+                </button>
+              </div>
+              <input v-model="nuevaCategoriaNombre" type="text" placeholder="Nombre *"
+                class="w-full text-sm rounded-lg border border-indigo-200 bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <div class="grid grid-cols-2 gap-2">
+                <input v-model="nuevaCategoriaDewey" type="text" placeholder="Código Dewey"
+                  class="w-full text-sm rounded-lg border border-indigo-200 bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <button @click="guardarNuevaCategoria" :disabled="!nuevaCategoriaNombre.trim()"
+                  class="text-xs font-semibold bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                  Crear
+                </button>
+              </div>
+            </div>
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Idioma</label>
@@ -710,7 +851,7 @@ const cerrarDropdownAutor = () => {
           <label class="block text-xs font-semibold text-slate-600 mb-3 uppercase tracking-wide">
             Código para solicitar
           </label>
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr_0.8fr_1.2fr] gap-3">
             <div>
               <label class="block text-xs text-slate-500 mb-1">
                 Clasificación decimal
@@ -730,6 +871,16 @@ const cerrarDropdownAutor = () => {
               <input v-model="ej.cutterTitulo" type="text" placeholder="Ej. izq"
                 class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <p class="text-xs text-slate-400 mt-1">Auto: 3 letras del título</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">ISBN</label>
+              <input v-model="edicion.isbn" type="text" placeholder="978-…" class="w-full text-sm font-mono rounded-xl border px-3 py-2.5
+           focus:outline-none focus:ring-2 transition-shadow" :class="erroresLibro.isbn
+            ? 'border-red-400 bg-red-50 focus:ring-red-500'
+            : 'border-slate-200 focus:ring-indigo-500'" />
+              <p v-if="erroresLibro.isbn" class="text-xs text-red-500 mt-1">
+                {{ erroresLibro.isbn }}
+              </p>
             </div>
           </div>
         </div>
@@ -767,7 +918,7 @@ const cerrarDropdownAutor = () => {
                     <td class="pr-4 py-0.5">{{ ej.cutterAutor || '___' }}</td>
                     <td class="pr-4 py-0.5">{{ ej.cutterTitulo || '___' }}</td>
                     <td class="py-0.5">
-                      <span v-if="ej.cantidadEjemplares > 1" class="text-indigo-600 font-semibold">Ej.{{ n }}</span>
+                      <span v-if="ej.cantidadEjemplares >= 1" class="text-indigo-600 font-semibold">Ej.{{ n }}</span>
                       <span v-else class="text-slate-400">—</span>
                     </td>
                   </tr>
