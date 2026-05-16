@@ -28,6 +28,9 @@ const portadaUrlInput = ref('')   // URL externa escrita por el usuario
 const portadaActual = computed(() =>
   getUrl(props.edicion?.imagenPortada)
 )
+const pdfActual = computed(() =>
+  getUrl(props.edicion?.pdfUrl)
+)
 
 function onArchivoChange(ev: Event) {
   const file = (ev.target as HTMLInputElement).files?.[0]
@@ -49,6 +52,24 @@ function limpiarPortada() {
 const previewVisible = computed(() =>
   portadaPreview.value || portadaUrlInput.value || portadaActual.value
 )
+
+// PDF
+const pdfFile = ref<File | null>(null)
+const pdfNombre = ref('')
+
+// Cuando selecciona un archivo PDF
+function onPdfChange(ev: Event) {
+  const file = (ev.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  pdfFile.value = file
+  pdfNombre.value = file.name
+}
+
+// Limpiar PDF seleccionado
+function quitarPdf() {
+  pdfFile.value = null
+  pdfNombre.value = ''
+}
 
 const form = reactive({
   isbn: '',
@@ -111,11 +132,13 @@ async function guardar() {
     }
     // Archivo (Caso A) — null significa "sin cambio" para el backend (Caso C)
     const archivo = modoPortada.value === 'archivo' ? portadaFile.value : null
+    const archivoPdf = pdfFile.value  // si es null, no se envía
+
     console.log("archivo", archivo)
     if (props.edicion) {
-      await actualizarEdicion(props.edicion.idEdicion, payload, archivo)
+      await actualizarEdicion(props.edicion.idEdicion, payload, archivo, archivoPdf)
     } else {
-      await crearEdicion(payload, archivo)
+      await crearEdicion(payload, archivo, archivoPdf)
     }
     emit('saved')
   } catch (e: unknown) {
@@ -140,88 +163,78 @@ async function guardar() {
   <BaseModal :title="edicion ? 'Editar ediciónss' : 'Nueva edición'" size="md" @close="emit('close')">
     <div class="space-y-4">
 
-      <!-- ── Portada ───────────────────────────────────────────────────── -->
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-2">Portada</label>
+     <!-- ── Portada + PDF lado a lado ───────────────────────────── -->
+      <div class="flex flex-col md:flex-row gap-6">
+        
+        <!-- ── Portada ── -->
+        <div class="flex-1 flex flex-col justify-start">
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Portada <span class="text-slate-400 font-normal normal-case">(opcional)</span>
+            </label>
 
-        <!-- Tabs archivo / URL -->
-        <div class="flex rounded-lg border border-slate-200 overflow-hidden text-xs w-fit mb-3">
-          <button @click="modoPortada = 'archivo'; limpiarPortada()" :class="['px-3 py-1.5 font-medium transition-colors',
-            modoPortada === 'archivo' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50']">
-            Subir archivo
-          </button>
-          <button @click="modoPortada = 'url'; limpiarPortada()" :class="['px-3 py-1.5 font-medium transition-colors',
-            modoPortada === 'url' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50']">
-            URL externa
-          </button>
-        </div>
-
-        <div class="flex items-start gap-4">
-          <!-- Preview -->
-          <div
-            class="flex-shrink-0 w-24 h-32 rounded-xl overflow-hidden bg-gradient-to-br from-indigo-50 to-slate-100 border border-slate-200 relative group">
-            <img v-if="previewVisible" :src="previewVisible" alt="Portada" class="w-full h-full object-cover"
-              @error="portadaPreview = ''" />
-            <div v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-2">
-              <svg class="w-7 h-7 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div class="relative block w-28 aspect-[3/4] rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-indigo-300 bg-slate-50 cursor-pointer group transition-colors">
+            <!-- Imagen -->
+            <img v-if="previewVisible" :src="previewVisible" alt="Portada"
+                class="absolute inset-0 w-full h-full object-cover"
+                @click="($refs.portadaInput as HTMLInputElement)?.click()"
+                @error="portadaPreview = ''" />
+            <div v-else class="absolute inset-0 flex flex-col items-center justify-center gap-1.5"
+                @click="($refs.portadaInput as HTMLInputElement)?.click()">
+              <svg class="w-7 h-7 text-slate-300 group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
-              <span class="text-xs text-slate-400 text-center leading-tight">Sin portada</span>
+              <span class="text-xs text-slate-400 text-center px-2 leading-tight">Haz clic para subir una imagen</span>
             </div>
 
-            <!-- Botón limpiar si hay imagen -->
-            <button v-if="previewVisible" @click="limpiarPortada"
-              class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Quitar portada">
+            <!-- Botón limpiar -->
+            <button v-if="previewVisible" @click.stop="limpiarPortada"
+                    class="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors">
               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+
+            <!-- Input de archivo oculto -->
+            <input ref="portadaInput" type="file" accept="image/*" class="sr-only" @change="onArchivoChange" />
           </div>
 
-          <!-- Control según modo -->
-          <div class="flex-1">
-            <!-- Modo archivo -->
-            <div v-if="modoPortada === 'archivo'">
-              <label
-                class="flex flex-col items-center justify-center gap-2 px-4 py-6 border-2 border-dashed rounded-xl cursor-pointer transition-colors"
-                :class="portadaFile ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'">
-                <svg class="w-6 h-6" :class="portadaFile ? 'text-emerald-500' : 'text-slate-400'" fill="none"
-                  viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                </svg>
-                <span class="text-xs text-center"
-                  :class="portadaFile ? 'text-emerald-700 font-medium' : 'text-slate-500'">
-                  {{ portadaFile ? portadaFile.name : 'Haz clic o arrastra una imagen' }}
-                </span>
-                <span class="text-xs text-slate-400">JPG, PNG, WEBP</span>
-                <input type="file" accept="image/*" class="sr-only" @change="onArchivoChange" />
-              </label>
-              <p v-if="portadaActual && !portadaFile" class="text-xs text-slate-400 mt-1.5 text-center">
-                Portada actual guardada · elige un archivo para reemplazarla
-              </p>
-            </div>
+          
+        </div>
 
-            <!-- Modo URL -->
-            <div v-else class="space-y-2">
-              <input v-model="portadaUrlInput" type="url" placeholder="https://cdn.example.com/portada.jpg"
-                class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <p class="text-xs text-slate-400">
-                La URL debe ser pública y accesible (JPG, PNG, WEBP).
-              </p>
-              <p v-if="portadaActual && !portadaUrlInput" class="text-xs text-slate-400">
-                Portada actual: <a :href="portadaActual" target="_blank"
-                  class="text-indigo-500 hover:underline truncate inline-block max-w-[200px] align-bottom">
-                  {{ portadaActual }}
-                </a>
-              </p>
+        <!-- ── PDF ── -->
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+            PDF Digital <span class="text-slate-400 font-normal normal-case">(opcional)</span>
+          </label>
+
+          <div v-if="!pdfNombre"
+              class="flex items-center gap-3 p-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer"
+              @click="($refs.pdfRef as HTMLInputElement)?.click()">
+            <svg class="w-6 h-6 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <div>
+              <p class="text-sm text-slate-500 font-medium">Haz clic para subir un PDF</p>
+              <p class="text-xs text-slate-400">PDF máx. 50MB</p>
             </div>
+            <input ref="pdfRef" type="file" accept=".pdf" class="sr-only" @change="onPdfChange" />
+          </div>
+
+          <div v-else class="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <svg class="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span class="text-sm text-emerald-700 truncate flex-1">{{ pdfNombre }}</span>
+            <button @click="quitarPdf" class="text-emerald-400 hover:text-red-500 transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
-
       <!-- ── Datos de la edición ────────────────────────────────────────── -->
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
