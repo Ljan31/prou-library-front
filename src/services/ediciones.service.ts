@@ -39,6 +39,7 @@ function unwrap<T>(data: unknown): T {
 function buildFormData(
   payload: EdicionPayload,
   portadaFile?: File | null,
+  pdfFile?: File | null,
 ): FormData {
   console.log("build");
   console.log(payload, portadaFile);
@@ -52,6 +53,9 @@ function buildFormData(
 
   if (portadaFile) {
     fd.append("portada", portadaFile);
+  }
+  if (pdfFile) {
+    fd.append("pdf", pdfFile);
   }
 
   return fd;
@@ -79,11 +83,12 @@ export async function obtenerEdicion(id: number): Promise<Edicion> {
 export async function crearEdicion(
   payload: EdicionPayload,
   portadaFile?: File | null,
+  pdfFile?: File | null,
 ): Promise<Edicion> {
   console.log("crear");
   console.log(payload, portadaFile);
   console.log("--------------");
-  const fd = buildFormData(payload, portadaFile);
+  const fd = buildFormData(payload, portadaFile, pdfFile);
   console.log("fd");
   console.log(fd);
   for (const [key, value] of fd.entries()) {
@@ -101,8 +106,9 @@ export async function actualizarEdicion(
   id: number,
   payload: Omit<EdicionPayload, "libroId"> & { libroId?: number },
   portadaFile?: File | null,
+  pdfFile?: File | null,
 ): Promise<Edicion> {
-  const fd = buildFormData(payload as EdicionPayload, portadaFile);
+  const fd = buildFormData(payload as EdicionPayload, portadaFile, pdfFile);
   const res = await api.put(`/ediciones/${id}`, fd);
   return unwrap<Edicion>(res.data);
 }
