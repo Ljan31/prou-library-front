@@ -171,3 +171,6 @@ export async function transferir(
     },
   );
 }
+export async function eliminarEjemplar(id: number): Promise<void> {
+  await api.delete(`/ejemplares/${id}`);
+}

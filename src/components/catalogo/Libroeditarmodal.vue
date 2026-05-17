@@ -21,6 +21,7 @@ import ConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
 import api from '@/services/axios'
 import { obtenerCategorias } from '@/services/categorias.service'
 import { eliminarEdicion } from '@/services/ediciones.service'
+import { eliminarEjemplar } from '@/services/ejemplares.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
 import { useMedia } from '@/composables/useMedia'
 import { useAuthStore } from '@/stores/auth.store'
@@ -100,7 +101,7 @@ async function cargarLibro() {
 
     }
     else ejemplares.value = ejsPlanos
-
+    console.log('libro: ', libroRaw)
   } catch (e: unknown) {
     errorCarga.value = e instanceof Error ? e.message : 'Error al cargar el libro'
   } finally {
@@ -246,6 +247,10 @@ function cerrar() {
   ejemplarSeleccionado.value = null
   ejemplarEditando.value = null
   edicionAEliminar.value = null
+  ejemplarAEliminar.value = null
+
+  mostrarModalEliminarEdicion.value = false
+  mostrarModalEliminarEjemplar.value = false
 }
 
 // Ediciones
@@ -302,9 +307,15 @@ mostrarModalEliminarEdicion.value = false
 
 
 // Ejemplares
+const mostrarModalEliminarEjemplar = ref(false)
+const ejemplarAEliminar = ref<Ejemplar | null>(null)
+const eliminandoEjemplar = ref(false)
 function abrirNuevoEjemplar(edicionId?: number) {
+  console.log('==============')
+  console.log(edicionId)
+  console.log(ediciones.value)
   ejemplarEditando.value = null
-  edicionIdParaEjemplar.value = edicionId ?? props.libro.ediciones?.[0]?.idEdicion ?? null
+  edicionIdParaEjemplar.value = edicionId ?? ediciones?.value?.[0]?.idEdicion ?? null
   subModal.value = 'ejemplar-form'
 }
 
@@ -316,7 +327,40 @@ function abrirEditarEjemplar(e: Ejemplar) {
 
 function abrirCambioEstado(e: Ejemplar) { ejemplarSeleccionado.value = e; subModal.value = 'estado' }
 function abrirHistorial(e: Ejemplar) { ejemplarSeleccionado.value = e; subModal.value = 'historial' }
+function confirmarEliminarEjemplar(ej: Ejemplar) {
+  ejemplarAEliminar.value = ej
+  mostrarModalEliminarEjemplar.value = true
+}
 
+async function eliminarEjemplarConfirmada() {
+  if (!ejemplarAEliminar.value) return
+
+  eliminandoEjemplar.value = true
+  console.log('deleteEJ',ejemplarAEliminar.value)
+  try {
+    await eliminarEjemplar(ejemplarAEliminar.value.id_ejemplar)
+    ui.toast.success(
+      'Eliminada',
+      'Ejemplar eliminada correctamente'
+    )
+    mostrarModalEliminarEjemplar.value = false
+    ejemplarAEliminar.value = null
+    cargarLibro()
+    // emit('editar', props.libro)
+  } catch (e: unknown) {
+
+    const mensaje =
+      e?.response?.data?.message ||
+      e?.message ||
+      'No se pudo eliminar'
+
+    ui.toast.error('Error', mensaje)
+mostrarModalEliminarEjemplar.value = false
+    ejemplarAEliminar.value = null
+  } finally {
+    eliminandoEjemplar.value = false
+  }
+}
 function onEdicionGuardada() {
   cerrar()
   ui.toast.success('Guardado', 'Edición guardada correctamente')
@@ -624,7 +668,15 @@ const categoriaActual = computed(() =>
            TAB 3 — EJEMPLARES
       ══════════════════════════════════════════════════════════════════ -->
       <div v-else-if="tabActiva === 'ejemplares'" class="space-y-4">
-
+        <div v-if="isAdmin || isBibliotecario" class="flex justify-end mb-3">
+          <button @click="abrirNuevoEjemplar()"
+            class="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Agregar ejemplar
+          </button>
+        </div>
         <!-- Filtro por edición -->
         <div class="flex items-center gap-2 flex-wrap">
           <button @click="filtroEdicionId = 'todos'"
@@ -655,6 +707,10 @@ const categoriaActual = computed(() =>
                   <span class="text-sm font-mono font-semibold text-slate-900">{{ ej.codigoEjemplar }}</span>
                   <span v-if="ej.codigoTopografico" class="text-xs text-slate-400 font-mono">{{ ej.codigoTopografico
                   }}</span>
+                    <span :class="['text-xs px-1.5 py-0.5 rounded font-medium',
+                estadoEjemplarConfig[ej.estadoEjemplar]?.clases ?? 'bg-slate-100 text-slate-600']">
+                {{ estadoEjemplarConfig[ej.estadoEjemplar]?.label ?? ej.estadoEjemplar }}
+              </span>
                 </div>
                 <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span
@@ -668,78 +724,53 @@ const categoriaActual = computed(() =>
               </div>
 
               <!-- Editar -->
-              <button
-                @click="ejemplarEditandoId === ej.idEjemplar ? cancelarEdicionEjemplar() : iniciarEdicionEjemplar(ej)"
-                :class="[
-                  'p-1.5 rounded-lg transition-colors flex-shrink-0',
-                  ejemplarEditandoId === ej.idEjemplar
-                    ? 'text-indigo-600 bg-indigo-100'
-                    : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                ]">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-            </div>
+             
+              <div v-if="isAdmin || isBibliotecario" class="flex items-center gap-1.5 flex-shrink-0">
 
-            <!-- Form inline edición ejemplar -->
-            <div v-if="ejemplarEditandoId === ej.idEjemplar && ejemplarEditando"
-              class="px-4 pb-4 pt-2 border-t border-slate-100 bg-indigo-50/30 space-y-2.5">
-
-              <div class="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label class="block text-xs text-slate-600 mb-1">Código ejemplar</label>
-                  <input v-model="ejemplarEditando.codigoEjemplar" type="text"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label class="block text-xs text-slate-600 mb-1">Código topográfico</label>
-                  <input v-model="ejemplarEditando.codigoTopografico" type="text"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div class="col-span-2">
-                  <label class="block text-xs text-slate-600 mb-1">Ubicación física</label>
-                  <input v-model="ejemplarEditando.ubicacionFisica" type="text"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label class="block text-xs text-slate-600 mb-1">Biblioteca</label>
-                  <select v-model="ejemplarEditando.bibliotecaId"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">{{ bib.nombre }}</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs text-slate-600 mb-1">Precio (Bs.)</label>
-                  <input v-model.number="ejemplarEditando.precioCompra" type="number" step="0.01"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div class="col-span-2">
-                  <label class="block text-xs text-slate-600 mb-1">Observaciones</label>
-                  <input v-model="ejemplarEditando.observaciones" type="text"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-              </div>
-
-              <p v-if="errorEjemplar" class="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{{ errorEjemplar }}
-              </p>
-
-              <div class="flex items-center justify-end gap-2">
-                <button @click="cancelarEdicionEjemplar"
-                  class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                  Cancelar
-                </button>
-                <button @click="guardarEjemplar" :disabled="guardandoEjemplar"
-                  class="px-4 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-60 flex items-center gap-1.5">
-                  <svg v-if="guardandoEjemplar" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                <!-- Historial -->
+                <button
+                  @click="abrirHistorial(ej)"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                  title="Historial">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Guardar
+                </button>
+
+                <!-- Cambiar estado -->
+                <button
+                  @click="abrirCambioEstado(ej)"
+                  :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Cambiar estado">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                  </svg>
+                </button>
+
+                <!-- Editar -->
+                <button
+                  @click="abrirEditarEjemplar(ej)"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  title="Editar">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button v-if="isAdmin || isBibliotecario" @click="confirmarEliminarEjemplar(ej)"
+                  class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="Eliminar">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                 </button>
               </div>
             </div>
+          
           </div>
         </div>
 
@@ -828,7 +859,7 @@ const categoriaActual = computed(() =>
     <EdicionFormModal v-if="subModal === 'edicion-form'" :edicion="edicionEditando" :libro-id="props.libroId"
       @close="cerrar" @saved="onEdicionGuardada" />
 
-    <EjemplarFormModal v-if="subModal === 'ejemplar-form'" :ejemplar="ejemplarEditando" :ediciones="libro.ediciones"
+    <EjemplarFormModal v-if="subModal === 'ejemplar-form'" :ejemplar="ejemplarEditando" :ediciones="ediciones"
       :edicion-id-inicial="edicionIdParaEjemplar ?? undefined" @close="cerrar" @saved="onEjemplarGuardado" />
 
     <EjemplarEstadoModal v-if="subModal === 'estado' && ejemplarSeleccionado" :ejemplar="ejemplarSeleccionado"
@@ -837,11 +868,27 @@ const categoriaActual = computed(() =>
     <EjemplarHistorialModal v-if="subModal === 'historial' && ejemplarSeleccionado" :ejemplar="ejemplarSeleccionado"
       @close="cerrar" />
     <ConfirmModal
-        v-model="mostrarModalEliminarEdicion"
-        :loading="eliminandoEdicion"
-        title="¿Eliminar edición?"
-        :message="`¿Eliminar la edición ISBN ${edicionAEliminar?.isbn}? Solo es posible si no tiene ejemplares.`"
-        @confirm="eliminarEdicionConfirmada"
-      />
+      v-model="mostrarModalEliminarEdicion"
+      :loading="eliminandoEdicion"
+      title="¿Eliminar edición?"
+      :message="`¿Eliminar la edición ISBN ${edicionAEliminar?.isbn}? Solo es posible si no tiene ejemplares.`"
+      @confirm="eliminarEdicionConfirmada"
+    />
+    <ConfirmModal
+      v-model="mostrarModalEliminarEjemplar"
+      :loading="eliminandoEjemplar"
+      title="¿Eliminar ejemplar?"
+      :message="`
+        ¿Eliminar el ejemplar ${
+          ejemplarAEliminar?.codigoEjemplar ||
+          ejemplarAEliminar?.codigoTopografico ||
+          ejemplarAEliminar?.codigoTopograficoConcat ||
+          '#' + ejemplarAEliminar?.idEjemplar ||
+          'seleccionado'
+        }?
+        Solo es posible si no tiene préstamos ni reservas.
+      `"
+      @confirm="eliminarEjemplarConfirmada"
+    />
   </BaseModal>
 </template>
