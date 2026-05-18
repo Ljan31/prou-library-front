@@ -45,6 +45,10 @@ export interface Ejemplar {
   idEjemplar: number;
   codigoEjemplar: string;
   codigoTopografico?: string;
+  codigoTopograficoConcat?: string;
+  clasificacionDecimal?: string;
+  cutterAutor?: string;
+  cutterTitulo?: string;
   ubicacionFisica?: string;
   estadoEjemplar: EstadoEjemplar;
   fechaAdquisicion?: string;

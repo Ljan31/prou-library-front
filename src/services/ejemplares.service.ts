@@ -106,6 +106,9 @@ export async function obtenerHistorial(id: number): Promise<HistorialItem[]> {
 export async function crearEjemplar(data: {
   codigoEjemplar: string;
   codigoTopografico?: string;
+  clasificacionDecimal?: string;
+  cutterAutor?: string;
+  cutterTitulo?: string;
   ubicacionFisica?: string;
   edicionId: number; // ← campo nuevo
   bibliotecaId: number;
@@ -124,6 +127,9 @@ export async function actualizarEjemplar(
   data: {
     codigoEjemplar?: string;
     codigoTopografico?: string;
+    clasificacionDecimal?: string;
+    cutterAutor?: string;
+    cutterTitulo?: string;
     ubicacionFisica?: string;
     edicionId?: number;
     bibliotecaId?: number;
