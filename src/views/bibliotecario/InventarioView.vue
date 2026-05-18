@@ -36,23 +36,13 @@ const auth = useAuthStore()
 const { isAdmin, isBibliotecario } = usePermissions()
 const router = useRouter()
 const { getUrl } = useMedia()
-// ─── Biblioteca del usuario logueado ──────────────────────────────────────
-const bibliotecaPropia = computed<BibliotecaOpcion | null>(() => {
-  const lista = auth.user?.biblioteca
-  if (!lista || lista.length === 0) return null
 
-  const bib = lista[0] // 👈 tomas la primera
-
-  const id = (bib.id_biblioteca ?? bib.idBiblioteca ?? bib.id) as number | undefined
-  const nombre = (bib.nombre ?? bib.name) as string | undefined
-
-  return id && nombre ? { id, nombre } : null
-})
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Dashboard', to: '/dashboard' },
     { label: 'Inventario' },
   ])
+  cargarBibliotecas()
   cargarEjemplares()
 })
 // watch(
@@ -65,23 +55,86 @@ onMounted(() => {
 //   },
 //   { immediate: true }
 // )
+
+// ══════════════════════════════════════════════════════════════════
+// VISTA — ejemplares | libros
+// ══════════════════════════════════════════════════════════════════
+type Vista = 'ejemplares' | 'libros'
+const vistaActiva = ref<Vista>(
+  (sessionStorage.getItem('inventario_vista') as Vista) ?? 'ejemplares'
+)
+watch(vistaActiva, (v) => sessionStorage.setItem('inventario_vista', v))
+
+// ══════════════════════════════════════════════════════════════════
+// BIBLIOTECAS (admin)
+// ══════════════════════════════════════════════════════════════════
+interface BibliotecaOpcion { id: number; nombre: string }
+
+const bibliotecas = ref<BibliotecaOpcion[]>([])
+const cargandoBibs = ref(false)
+const filtroBiblioteca = ref<number | ''>('')   // '' = todas
+
+// ─── Biblioteca del usuario logueado ──────────────────────────────────────
+const bibliotecaPropia = computed<BibliotecaOpcion | null>(() => {
+  const lista = auth.user?.biblioteca
+  if (!lista || lista.length === 0) return null
+
+  const bib = lista[0] // 👈 tomas la primera
+
+  const id = (bib.id_biblioteca ?? bib.idBiblioteca ?? bib.id) as number | undefined
+  const nombre = (bib.nombre ?? bib.name) as string | undefined
+
+  return id && nombre ? { id, nombre } : null
+})
+
+async function cargarBibliotecas() {
+  if (!isAdmin.value) return
+  cargandoBibs.value = true
+  try {
+    const res = await bibliotecasService.getAll()
+    const raw = (res.data as any)?.data ?? res.data
+    const lista = Array.isArray(raw) ? raw : []
+    bibliotecas.value = lista
+      .filter((b: any) => b.estado === 'ACTIVA' || !b.estado)
+      .map((b: any) => ({
+        id: b.id_biblioteca ?? b.idBiblioteca ?? b.id,
+        nombre: b.nombre ?? b.name,
+      }))
+  } catch { }
+  finally { cargandoBibs.value = false }
+}
+
+// Cuando admin cambia el filtro de biblioteca, recargar
+watch(filtroBiblioteca, () => cargarEjemplares())
+
 // ─── Carga de datos ───────────────────────────────────────────────────────
 const cargando = ref(false)
 const error = ref<string | null>(null)
 const todos = ref<Ejemplar[]>([])
-
+const pdfActivo = ref(false)
 async function cargarEjemplares() {
   cargando.value = true
   error.value = null
   try {
-    if (isBibliotecario.value && !isAdmin.value && bibliotecaPropia.value) {
-      // Bibliotecario: solo ve su biblioteca
+    // if (isBibliotecario.value && !isAdmin.value && bibliotecaPropia.value) {
+    //   // Bibliotecario: solo ve su biblioteca
+    //   todos.value = await obtenerEjemplaresPorBiblioteca(bibliotecaPropia.value.id)
+    //   console.log('ejemplares', todos.value)
+    // } else {
+    //   // Admin: todos los ejemplares
+    //   todos.value = await obtenerEjemplares()
+    //   console.log('isadmin ejemplares', todos.value)
+    // }
+    if (isAdmin.value) {
+      if (filtroBiblioteca.value !== '') {
+        todos.value = await obtenerEjemplaresPorBiblioteca(filtroBiblioteca.value as number)
+      } else {
+        todos.value = await obtenerEjemplares()
+      }
+    } else if (isBibliotecario.value && bibliotecaPropia.value) {
       todos.value = await obtenerEjemplaresPorBiblioteca(bibliotecaPropia.value.id)
-      console.log('ejemplares', todos.value)
     } else {
-      // Admin: todos los ejemplares
-      todos.value = await obtenerEjemplares()
-      console.log('isadmin ejemplares', todos.value)
+      todos.value = []
     }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Error al cargar ejemplares'
@@ -115,7 +168,9 @@ const ejemplaresFiltrados = computed(() => {
       e.codigoTopografico?.toLowerCase().includes(q) ||
       e.ubicacionFisica?.toLowerCase().includes(q) ||
       e.edicion?.isbn?.toLowerCase().includes(q) ||
-      e.edicion?.titulo?.toLowerCase().includes(q)
+      e.edicion?.titulo?.toLowerCase().includes(q) ||
+      (e.edicion as any)?.autores?.some((a: any) =>
+        a.nombre?.toLowerCase().includes(q))
     )
   }
   if (estadoFiltro.value) {
@@ -124,6 +179,137 @@ const ejemplaresFiltrados = computed(() => {
   return lista
 })
 
+
+// ══════════════════════════════════════════════════════════════════
+// ORDENAMIENTO (Vista Ejemplares)
+// ══════════════════════════════════════════════════════════════════
+type SortKey = 'codigoEjemplar' | 'titulo' | 'estado' | 'fecha' | 'biblioteca'
+const sortKey = ref<SortKey>('codigoEjemplar')
+const sortAsc = ref(true)
+
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) sortAsc.value = !sortAsc.value
+  else { sortKey.value = key; sortAsc.value = true }
+}
+
+const ejemplaresOrdenados = computed(() => {
+  const lista = [...ejemplaresFiltrados.value]
+  lista.sort((a, b) => {
+    let va: string | number = ''
+    let vb: string | number = ''
+    switch (sortKey.value) {
+      case 'codigoEjemplar': va = a.codigoEjemplar ?? ''; vb = b.codigoEjemplar ?? ''; break
+      case 'titulo': va = a.edicion?.titulo ?? ''; vb = b.edicion?.titulo ?? ''; break
+      case 'estado': va = a.estadoEjemplar ?? ''; vb = b.estadoEjemplar ?? ''; break
+      case 'fecha': va = a.fechaAdquisicion ?? ''; vb = b.fechaAdquisicion ?? ''; break
+      case 'biblioteca': va = a.biblioteca?.nombre ?? ''; vb = b.biblioteca?.nombre ?? ''; break
+    }
+    const cmp = String(va).localeCompare(String(vb), 'es', { numeric: true })
+    return sortAsc.value ? cmp : -cmp
+  })
+  return lista
+})
+
+// ── Paginación vista ejemplares ───────────────────────────────────
+const paginaEj = ref(1)
+const porPaginaEj = 10
+watch(ejemplaresFiltrados, () => { paginaEj.value = 1 })
+
+const totalPaginasEj = computed(() =>
+  Math.max(1, Math.ceil(ejemplaresOrdenados.value.length / porPaginaEj))
+)
+const ejemplaresPagina = computed(() =>
+  ejemplaresOrdenados.value.slice(
+    (paginaEj.value - 1) * porPaginaEj,
+    paginaEj.value * porPaginaEj,
+  )
+)
+
+// ══════════════════════════════════════════════════════════════════
+// VISTA LIBROS AGRUPADOS
+// ══════════════════════════════════════════════════════════════════
+const librosExpandidos = ref<Set<number>>(new Set())
+
+interface LibroAgrupado {
+  idLibro: number
+  titulo: string
+  autores: string
+  isbn: string          // primer ISBN
+  categoria: string
+  imagenPortada: string
+  total: number
+  disponibles: number
+  prestados: number
+  bibliotecas: string[]
+  ejemplares: Ejemplar[]
+  expandido: boolean
+}
+
+const librosAgrupados = computed<LibroAgrupado[]>(() => {
+  const mapa = new Map<number, LibroAgrupado>()
+  let i = 1;
+  for (const ej of ejemplaresFiltrados.value) {
+    i++;
+    const idLibro = (ej.edicion as any)?.idLibro ?? (ej.edicion as any)?.libro?.idLibro ?? 0
+    if (!mapa.has(idLibro)) {
+      mapa.set(idLibro, {
+        idLibro,
+        titulo: ej.edicion?.titulo ?? '—',
+        autores: (ej.edicion as any)?.autores?.map((a: any) => a.nombre).join(', ')
+          ?? (ej.edicion as any)?.autorTexto ?? '—',
+        isbn: ej.edicion?.isbn ?? '—',
+        categoria: (ej.edicion as any)?.categoria?.nombreCategoria ?? '',
+        imagenPortada: ej.edicion?.imagenPortada ?? '',
+        total: 0,
+        disponibles: 0,
+        prestados: 0,
+        bibliotecas: [],
+        ejemplares: [],
+        expandido: false,
+      })
+    }
+    const libro = mapa.get(idLibro)!
+    libro.total++
+    if (ej.estadoEjemplar === 'DISPONIBLE') libro.disponibles++
+    if (ej.estadoEjemplar === 'PRESTADO') libro.prestados++
+    const bib = ej.biblioteca?.nombre
+    if (bib && !libro.bibliotecas.includes(bib)) libro.bibliotecas.push(bib)
+    libro.ejemplares.push(ej)
+  }
+  return Array.from(mapa.values()).sort((a, b) =>
+    a.titulo.localeCompare(b.titulo, 'es')
+  )
+})
+
+// Paginación vista libros
+const paginaLib = ref(1)
+const porPaginaLib = 10
+watch(librosAgrupados, () => { paginaLib.value = 1 })
+
+const totalPaginasLib = computed(() =>
+  Math.max(1, Math.ceil(librosAgrupados.value.length / porPaginaLib))
+)
+const librosPagina = computed(() =>
+  librosAgrupados.value.slice(
+    (paginaLib.value - 1) * porPaginaLib,
+    paginaLib.value * porPaginaLib,
+  )
+)
+
+// function toggleLibro(libro: LibroAgrupado) {
+//   console.log('toggleLibro', libro)
+//   console.log('expendido', libro.expandido)
+//   libro.expandido = !libro.expandido
+//   console.log('libro', libro.expendido)
+// }
+
+function toggleLibro(libro: LibroAgrupado) {
+  if (librosExpandidos.value.has(libro.idLibro)) {
+    librosExpandidos.value.delete(libro.idLibro)
+  } else {
+    librosExpandidos.value.add(libro.idLibro)
+  }
+}
 // ─── Stats resumen ────────────────────────────────────────────────────────
 const stats = computed(() => {
   const l = todos.value
@@ -173,7 +359,6 @@ function abrirCrear() {
 }
 
 function abrirEditar(e: Ejemplar) {
-  console.log('editar', e)
   libroId.value = e.edicion?.idLibro
   ejemplarEditando.value = e
   modalActivo.value = 'editar'
@@ -218,7 +403,6 @@ function onEstadoCambiado() {
 async function confirmarEliminar() {
   if (!ejemplarSeleccionado.value) return
   eliminando.value = true
-  console.log('delete', ejemplarSeleccionado.value.id_ejemplar)
   try {
     await api.delete(`/ejemplares/${ejemplarSeleccionado.value.idEjemplar}`)
     ui.toast.success('Eliminado', `Ejemplar ${ejemplarSeleccionado.value.codigoEjemplar} eliminado`)
@@ -275,6 +459,19 @@ function exportarCSV() {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// ── Helpers ────────────────────────────────────────────────────────
+function sortIcon(key: SortKey) {
+  if (sortKey.value !== key) return 'text-slate-300'
+  return sortAsc.value ? 'text-indigo-500 rotate-0' : 'text-indigo-500 rotate-180'
+}
+
+function disponibilidadColor(disponibles: number, total: number) {
+  const pct = total ? disponibles / total : 0
+  if (pct >= 0.6) return 'bg-emerald-500'
+  if (pct >= 0.3) return 'bg-amber-400'
+  return 'bg-red-500'
+}
 </script>
 
 <template>
@@ -285,16 +482,50 @@ function exportarCSV() {
       <div>
         <h1 class="text-2xl font-semibold text-slate-900">Inventario de Ejemplares</h1>
         <p class="text-sm text-slate-500 mt-0.5">
-          {{ ejemplaresFiltrados.length }} ejemplar{{ ejemplaresFiltrados.length !== 1 ? 'es' : '' }}
+          {{ ejemplaresFiltrados.length }}
+          ejemplar{{ ejemplaresFiltrados.length !== 1 ? 'es' : '' }}
+          <template v-if="vistaActiva === 'libros'">
+            · {{ librosAgrupados.length }} título{{ librosAgrupados.length !== 1 ? 's' : '' }}
+          </template>
           <template v-if="isBibliotecario && !isAdmin && bibliotecaPropia">
             · <span class="text-indigo-600 font-medium">{{ bibliotecaPropia.nombre }}</span>
+          </template>
+          <template v-if="isAdmin && filtroBiblioteca">
+            · <span class="text-indigo-600 font-medium">
+              {{bibliotecas.find(b => b.id === filtroBiblioteca)?.nombre}}
+            </span>
           </template>
         </p>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
+        <!-- Toggle vista -->
+        <div class="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+          <button @click="vistaActiva = 'ejemplares'" :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+            vistaActiva === 'ejemplares'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-500 hover:text-slate-700']">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            Ejemplares
+          </button>
+          <button @click="vistaActiva = 'libros'" :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+            vistaActiva === 'libros'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-500 hover:text-slate-700']">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.523 5.754 19 7.5 19s3.332-.477 4.5-1.253" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 6.253C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.523 18.246 19 16.5 19s-3.332-.477-4.5-1.253" />
+          </svg>
+            Libros
+          </button>
+        </div>
         <!-- Exportar CSV -->
-        <button @click="exportarCSV"
+        <!-- <button @click="exportarCSV"
           class="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
           title="Exportar a CSV">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -302,17 +533,17 @@ function exportarCSV() {
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           Exportar
-        </button>
+        </button> -->
 
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
-        <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModal = true"
-          variant="primary">
-          <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
-          <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModal = true"
+          variant="primary"> -->
+        <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
+        <!-- <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           Nuevo ejemplarsss
-        </SButton>
+        </SButton> -->
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
         <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModalRapido = true"
           variant="primary">
@@ -320,16 +551,17 @@ function exportarCSV() {
           <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Nuevo ejemplar rapido
+          Nuevo Libro
         </SButton>
+        <!-- opcion 2 -->
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
-        <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="abrirCrear" variant="primary">
-          <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
+        <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary"> -->
+        <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="abrirCrear" variant="primary">
           <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           Nuevo ejemplar
-        </SButton>
+        </SButton> -->
       </div>
     </div>
 
@@ -382,6 +614,33 @@ function exportarCSV() {
         <SInput v-model="busqueda" placeholder="Buscar por código, ISBN, título, ubicación..." clearable
           class="flex-1" />
         <SSelect v-model="estadoFiltro" :options="opcionesEstado" class="sm:w-52" />
+
+
+        <!-- Filtro biblioteca (solo admin) -->
+        <div v-if="isAdmin" class="sm:w-60">
+          <div v-if="cargandoBibs"
+            class="flex items-center gap-2 h-10 px-3 border border-slate-200 rounded-xl text-sm text-slate-400">
+            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Cargando...
+          </div>
+          <div v-else class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none"
+              viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+            </svg>
+            <select v-model="filtroBiblioteca"
+              class="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+              <option value="">Todas las bibliotecas</option>
+              <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">
+                {{ bib.nombre }}
+              </option>
+            </select>
+          </div>
+        </div>
       </div>
     </SCard>
 
@@ -397,139 +656,349 @@ function exportarCSV() {
     </div>
 
     <!-- ── Vacío ── -->
-    <SEmptyState v-else-if="!ejemplaresFiltrados.length" title="Sin ejemplares"
+    <SEmptyState v-else-if="!ejemplaresFiltrados.length" title="Sin resultados"
       description="No se encontraron ejemplares con los filtros aplicados." icon="archive-box">
       <template #action>
-        <SButton variant="ghost" size="sm" @click="busqueda = ''; estadoFiltro = ''">
+        <SButton variant="ghost" size="sm" @click="busqueda = ''; estadoFiltro = ''; filtroBiblioteca = ''">
           Limpiar filtros
         </SButton>
       </template>
     </SEmptyState>
 
     <!-- ── Lista de ejemplares ── -->
-    <div v-else class="space-y-2">
-      <div v-for="ej in ejemplaresFiltrados" :key="ej.idEjemplar"
-        class="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-4 py-3 hover:border-indigo-200 hover:shadow-sm transition-all">
-        <!-- Estado dot + badge -->
+    <template v-else class="space-y-2">
+      <!-- ════════════════════════════════════════════════════════════
+           VISTA 1 — EJEMPLARES (tabla con orden + paginación)
+      ════════════════════════════════════════════════════════════════ -->
+      <template v-if="vistaActiva === 'ejemplares'">
+        <div v-for="ej in ejemplaresPagina" :key="ej.idEjemplar"
+          class="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-4 py-3 hover:border-indigo-200 hover:shadow-sm transition-all">
+          <!-- Estado dot + badge -->
 
-        <div class="flex-shrink-0">
-          <!-- <img v-if="ej.edicion?.imagenPortada" :src="ej.edicion.imagenPortada" alt="Portada"
-            class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm" /> -->
-          <img v-if="ej.edicion?.imagenPortada" :src="getUrl(ej.edicion.imagenPortada)" alt="Portada"
-            class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm" />
-          <div v-else
-            class="w-12 h-16 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-400">
-            —
+          <div class="flex-shrink-0">
+            <img v-if="ej.edicion?.imagenPortada" :src="getUrl(ej.edicion.imagenPortada)" alt="Portada"
+              class="w-12 h-16 object-cover rounded-md border border-slate-200 shadow-sm" />
+            <div v-else
+              class="w-12 h-16 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-400">
+              —
+            </div>
+          </div>
+
+          <!-- Info principal -->
+          <div class="flex-1 min-w-0">
+            <div class="mb-1">
+              <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+                estadoEjemplarConfig[ej.estadoEjemplar]?.clases ?? 'bg-slate-100 text-slate-600']">
+
+                <span :class="['w-1.5 h-1.5 rounded-full',
+                  estadoEjemplarConfig[ej.estadoEjemplar]?.dot ?? 'bg-slate-400']" />
+
+                {{ estadoEjemplarConfig[ej.estadoEjemplar]?.label ?? ej.estadoEjemplar }}
+              </span>
+            </div>
+            <!-- Fila 1: código + ISBN -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-mono text-sm font-semibold text-slate-900">
+                {{ 
+                  ej.codigoEjemplar ||
+                  ej.codigoTopograficoConcat ||
+                  ej.codigoTopografico
+                }}
+              </span>
+              <span class="text-slate-300 text-xs">|</span>
+              <span class="text-xs text-slate-500 font-mono">{{ ej.codigoTopografico }}</span>
+              <template v-if="ej.edicion?.isbn">
+                <span class="text-slate-300 text-xs">·</span>
+                <span class="text-xs text-indigo-600 font-mono">{{ ej.edicion.isbn }}</span>
+              </template>
+            </div>
+            <!-- Fila 2: libro + ubicación + biblioteca -->
+            <div class="flex items-center gap-2 flex-wrap mt-0.5">
+              <span v-if="ej.edicion?.titulo" class="text-xs text-slate-700 truncate max-w-xs">
+                {{ ej.edicion.titulo }}
+              </span>
+              <template v-if="ej.ubicacionFisica">
+                <span class="text-slate-300 text-xs">·</span>
+                <span class="text-xs text-slate-500">{{ ej.ubicacionFisica }}</span>
+              </template>
+              <!-- Solo admin ve la biblioteca (el bibliotecario ya sabe cuál es la suya) -->
+              <template v-if="isAdmin && ej.biblioteca?.nombre">
+                <span class="text-slate-300 text-xs">·</span>
+                <span class="text-xs text-slate-400">{{ ej.biblioteca.nombre }}</span>
+              </template>
+            </div>
+          </div>
+
+          <!-- Precio + fecha (columna secundaria, oculta en móvil) -->
+          <div class="hidden md:block text-right flex-shrink-0">
+            <p class="text-sm text-slate-700">
+              {{ ej.precioCompra != null ? `Bs. ${ej.precioCompra.toFixed(2)}` : '—' }}
+            </p>
+            <p class="text-xs text-slate-400">{{ ej.fechaAdquisicion ?? '—' }}</p>
+          </div>
+
+          <!-- Acciones -->
+          <div class="flex items-center gap-1 flex-shrink-0">
+
+            <!-- Historial -->
+            <button @click="abrirHistorial(ej)"
+              class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Historial de estados">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+
+            <!-- Cambiar estado -->
+            <button @click="abrirEstado(ej)" :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+              class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Cambiar estado">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+            </button>
+
+            <!-- Editar -->
+            <button @click="abrirEditar(ej)" :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+              class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Editar">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button v-if="ej.edicion?.pdfUrl" @click="verPdf(ej.edicion.pdfUrl)"
+              class="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Ver PDF">
+              📄
+            </button>
+            <!-- Eliminar (solo admin, y si no está prestado) -->
+            <button v-if="isAdmin" @click="abrirConfirmarEliminar(ej)"
+              :disabled="!!ej.prestamoActivo || ej.estadoEjemplar === 'PRESTADO'"
+              class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Eliminar">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
         </div>
-
-        <!-- Info principal -->
-        <div class="flex-1 min-w-0">
-          <div class="mb-1">
-            <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
-              estadoEjemplarConfig[ej.estadoEjemplar]?.clases ?? 'bg-slate-100 text-slate-600']">
-
-              <span :class="['w-1.5 h-1.5 rounded-full',
-                estadoEjemplarConfig[ej.estadoEjemplar]?.dot ?? 'bg-slate-400']" />
-
-              {{ estadoEjemplarConfig[ej.estadoEjemplar]?.label ?? ej.estadoEjemplar }}
-            </span>
-          </div>
-          <!-- Fila 1: código + ISBN -->
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-mono text-sm font-semibold text-slate-900">{{ ej.codigoEjemplar }}</span>
-            <span class="text-slate-300 text-xs">|</span>
-            <span class="text-xs text-slate-500 font-mono">{{ ej.codigoTopografico }}</span>
-            <template v-if="ej.edicion?.isbn">
-              <span class="text-slate-300 text-xs">·</span>
-              <span class="text-xs text-indigo-600 font-mono">{{ ej.edicion.isbn }}</span>
-            </template>
-          </div>
-          <!-- Fila 2: libro + ubicación + biblioteca -->
-          <div class="flex items-center gap-2 flex-wrap mt-0.5">
-            <span v-if="ej.edicion?.titulo" class="text-xs text-slate-700 truncate max-w-xs">
-              {{ ej.edicion.titulo }}
-            </span>
-            <template v-if="ej.ubicacionFisica">
-              <span class="text-slate-300 text-xs">·</span>
-              <span class="text-xs text-slate-500">{{ ej.ubicacionFisica }}</span>
-            </template>
-            <!-- Solo admin ve la biblioteca (el bibliotecario ya sabe cuál es la suya) -->
-            <template v-if="isAdmin && ej.biblioteca?.nombre">
-              <span class="text-slate-300 text-xs">·</span>
-              <span class="text-xs text-slate-400">{{ ej.biblioteca.nombre }}</span>
-            </template>
-          </div>
-        </div>
-
-        <!-- Precio + fecha (columna secundaria, oculta en móvil) -->
-        <div class="hidden md:block text-right flex-shrink-0">
-          <p class="text-sm text-slate-700">
-            {{ ej.precioCompra != null ? `Bs. ${ej.precioCompra.toFixed(2)}` : '—' }}
+        <!-- Paginación ejemplares -->
+        <div v-if="totalPaginasEj > 1" class="flex items-center justify-between mt-4">
+          <p class="text-xs text-slate-500">
+            Mostrando {{ (paginaEj - 1) * porPaginaEj + 1 }}–{{ Math.min(paginaEj * porPaginaEj,
+              ejemplaresOrdenados.length) }}
+            de {{ ejemplaresOrdenados.length }}
           </p>
-          <p class="text-xs text-slate-400">{{ ej.fechaAdquisicion ?? '—' }}</p>
+          <div class="flex items-center gap-1">
+            <button @click="paginaEj--" :disabled="paginaEj === 1"
+              class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <template v-for="p in totalPaginasEj" :key="p">
+              <button v-if="Math.abs(p - paginaEj) <= 2 || p === 1 || p === totalPaginasEj" @click="paginaEj = p"
+                :class="['w-8 h-8 rounded-lg text-sm font-medium transition-colors',
+                  p === paginaEj
+                    ? 'bg-indigo-600 text-white'
+                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50']">
+                {{ p }}
+              </button>
+              <span v-else-if="Math.abs(p - paginaEj) === 3" class="text-slate-400 text-sm px-1">…</span>
+            </template>
+            <button @click="paginaEj++" :disabled="paginaEj === totalPaginasEj"
+              class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- ════════════════════════════════════════════════════════════
+           VISTA 2 — LIBROS AGRUPADOS
+      ════════════════════════════════════════════════════════════════ -->
+      <template v-else>
+        <div class="space-y-2">
+          <div v-for="libro in librosPagina" :key="libro.idLibro"
+            class="border border-slate-200 rounded-2xl bg-white overflow-hidden hover:border-indigo-200 transition-colors shadow-sm">
+
+            <!-- Fila resumen del libro -->
+            <div class="flex items-center gap-4 px-4 py-3 cursor-pointer select-none" @click="toggleLibro(libro)">
+
+              <!-- Portada -->
+              <div class="flex-shrink-0">
+                <img v-if="libro.imagenPortada" :src="getUrl(libro.imagenPortada)" alt="Portada"
+                  class="w-11 h-15 object-cover rounded-lg border border-slate-200 shadow-sm" />
+                <div v-else
+                  class="w-11 h-15 bg-gradient-to-br from-indigo-100 to-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Info libro -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start gap-2 flex-wrap">
+                  <p class="text-sm font-semibold text-slate-900 truncate">{{ libro.titulo }}</p>
+                  <span v-if="libro.categoria"
+                    class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">
+                    {{ libro.categoria }}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5 truncate">{{ libro.autores }}</p>
+                <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                  <span class="text-xs font-mono text-slate-400">{{ libro.isbn }}</span>
+
+                  <!-- Bibliotecas donde existe -->
+                  <div v-if="isAdmin && libro.bibliotecas.length" class="flex items-center gap-1 flex-wrap">
+                    <span v-for="bib in libro.bibliotecas.slice(0, 3)" :key="bib"
+                      class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                      {{ bib }}
+                    </span>
+                    <span v-if="libro.bibliotecas.length > 3" class="text-xs text-slate-400">
+                      +{{ libro.bibliotecas.length - 3 }} más
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Disponibilidad -->
+              <div class="flex-shrink-0 text-center min-w-[80px]">
+                <!-- Barra de disponibilidad -->
+                <div class="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden mx-auto mb-1.5">
+                  <div
+                    :class="['h-full rounded-full transition-all', disponibilidadColor(libro.disponibles, libro.total)]"
+                    :style="{ width: libro.total ? `${(libro.disponibles / libro.total) * 100}%` : '0%' }" />
+                </div>
+                <p class="text-sm font-semibold" :class="libro.disponibles > 0 ? 'text-emerald-600' : 'text-red-500'">
+                  {{ libro.disponibles }}
+                  <span class="text-xs text-slate-400 font-normal">/ {{ libro.total }}</span>
+                </p>
+                <p class="text-xs text-slate-400">disponibles</p>
+              </div>
+
+              <!-- Contador ejemplares prestados -->
+              <div v-if="libro.prestados > 0" class="flex-shrink-0 text-center min-w-[60px]">
+                <p class="text-sm font-semibold text-orange-600">{{ libro.prestados }}</p>
+                <p class="text-xs text-slate-400">prestados</p>
+              </div>
+
+              <!-- Chevron expandir -->
+              <svg class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200"
+                :class="librosExpandidos.has(libro.idLibro) ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            <!-- Tabla de ejemplares expandida -->
+            <!-- <div v-if="libro.expandido" class="border-t border-slate-100 bg-slate-50/60"> -->
+            <div v-if="librosExpandidos.has(libro.idLibro)" class="border-t border-slate-100 bg-slate-50/60">
+
+              <!-- Sub-header tabla -->
+              <div
+                class="grid grid-cols-12 gap-3 px-6 py-2 text-xs font-medium text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                <span class="col-span-3">Código ejemplar</span>
+                <span class="col-span-2">Topográfico</span>
+                <span class="col-span-2">Ubicación</span>
+                <span v-if="isAdmin" class="col-span-2">Biblioteca</span>
+                <span class="col-span-2">Estado</span>
+                <span class="col-span-1 text-right">Acc.</span>
+              </div>
+
+              <div v-for="(ej, idx) in libro.ejemplares" :key="ej.idEjemplar"
+                class="grid grid-cols-12 gap-3 px-6 py-2.5 items-center hover:bg-white transition-colors text-sm"
+                :class="idx < libro.ejemplares.length - 1 ? 'border-b border-slate-100' : ''">
+
+                <span class="col-span-3 font-mono text-slate-800 text-xs">{{ ej.codigoEjemplar }}</span>
+                <span class="col-span-2 font-mono text-slate-500 text-xs truncate">{{ ej.codigoTopografico ?? '—'
+                }}</span>
+                <span class="col-span-2 text-slate-500 text-xs truncate">{{ ej.ubicacionFisica ?? '—' }}</span>
+                <span v-if="isAdmin" class="col-span-2 text-slate-500 text-xs truncate">{{ ej.biblioteca?.nombre ?? '—'
+                }}</span>
+
+                <div class="col-span-2">
+                  <span :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                    estadoEjemplarConfig[ej.estadoEjemplar]?.clases ?? 'bg-slate-100 text-slate-600']">
+                    <span :class="['w-1.5 h-1.5 rounded-full',
+                      estadoEjemplarConfig[ej.estadoEjemplar]?.dot ?? 'bg-slate-400']" />
+                    {{ estadoEjemplarConfig[ej.estadoEjemplar]?.label ?? ej.estadoEjemplar }}
+                  </span>
+                </div>
+
+                <!-- Acciones inline del ejemplar en vista libro -->
+                <div class="col-span-1 flex items-center justify-end gap-0.5">
+                  <button @click.stop="abrirEstado(ej)" :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+                    class="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors disabled:opacity-30"
+                    title="Cambiar estado">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                  </button>
+                  <button @click.stop="abrirEditar(ej)" :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+                    class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors disabled:opacity-30"
+                    title="Editar">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button v-if="ej.edicion?.pdfUrl" @click.stop="verPdf(ej.edicion.pdfUrl)"
+                    class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Ver PDF">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Acciones -->
-        <div class="flex items-center gap-1 flex-shrink-0">
-
-          <!-- Historial -->
-          <button @click="abrirHistorial(ej)"
-            class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Historial de estados">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-
-          <!-- Cambiar estado -->
-          <button @click="abrirEstado(ej)" :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
-            class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Cambiar estado">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-            </svg>
-          </button>
-
-          <!-- Editar -->
-          <button @click="abrirEditar(ej)" :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
-            class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Editar">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-
-          <!-- Transferir (solo admin) -->
-          <button v-if="isAdmin" @click="abrirTransferir(ej)"
-            :disabled="['BAJA', 'PERDIDO', 'PRESTADO'].includes(ej.estadoEjemplar)"
-            class="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Transferir a otra biblioteca">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-          </button>
-          <button v-if="ej.edicion?.pdfUrl" @click="verPdf(ej.edicion.pdfUrl)"
-            class="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Ver PDF">
-            📄
-          </button>
-          <!-- Eliminar (solo admin, y si no está prestado) -->
-          <button v-if="isAdmin" @click="abrirConfirmarEliminar(ej)"
-            :disabled="!!ej.prestamoActivo || ej.estadoEjemplar === 'PRESTADO'"
-            class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Eliminar">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+        <!-- Paginación libros -->
+        <div v-if="totalPaginasLib > 1" class="flex items-center justify-between mt-4">
+          <p class="text-xs text-slate-500">
+            Mostrando {{ (paginaLib - 1) * porPaginaLib + 1 }}–{{ Math.min(paginaLib * porPaginaLib,
+              librosAgrupados.length) }}
+            de {{ librosAgrupados.length }} libros
+          </p>
+          <div class="flex items-center gap-1">
+            <button @click="paginaLib--" :disabled="paginaLib === 1"
+              class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <template v-for="p in totalPaginasLib" :key="p">
+              <button v-if="Math.abs(p - paginaLib) <= 2 || p === 1 || p === totalPaginasLib" @click="paginaLib = p"
+                :class="['w-8 h-8 rounded-lg text-sm font-medium transition-colors',
+                  p === paginaLib
+                    ? 'bg-indigo-600 text-white'
+                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50']">
+                {{ p }}
+              </button>
+              <span v-else-if="Math.abs(p - paginaLib) === 3" class="text-slate-400 text-sm px-1">…</span>
+            </template>
+            <button @click="paginaLib++" :disabled="paginaLib === totalPaginasLib"
+              class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      </template>
+    </template>
 
     <!-- ═══════════════════════════════════════════════════════════════
          MODALES
@@ -546,7 +1015,7 @@ function exportarCSV() {
     <Libroeditarmodal v-if="modalActivo === 'editar'" @close="cerrarModal" @saved="onGuardado" :libroId="libroId" />
 
     <LibroModal v-if="mostrarLibroModal" @close="mostrarLibroModal = false" @saved="cargarEjemplares" />
-
+    <!-- vista actual -->
     <LibroRapidoModal v-if="mostrarLibroModalRapido" :libro-id="ejemplarSeleccionado"
       @close="mostrarLibroModalRapido = false" @saved="onGuardado" />
     <!-- Crear / Editar ejemplar -->
@@ -573,80 +1042,6 @@ function exportarCSV() {
       </span>.
       <span class="text-xs text-slate-400 mt-2 block">Esta acción no se puede deshacer.</span>
     </ConfirmModal>
-
-    <!-- Transferir a otra biblioteca (solo admin) -->
-    <Teleport to="body" v-if="modalActivo === 'transferir' && ejemplarSeleccionado">
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-        @click.self="cerrarModal">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-          <!-- Header -->
-          <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-            <div>
-              <h2 class="text-base font-semibold text-slate-900">Transferir ejemplar</h2>
-              <p class="text-xs text-slate-500 mt-0.5 font-mono">{{ ejemplarSeleccionado.codigoEjemplar }}</p>
-            </div>
-            <button @click="cerrarModal"
-              class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Body -->
-          <div class="px-6 py-5 space-y-4">
-            <!-- Info del ejemplar actual -->
-            <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-              <div class="flex-1">
-                <p class="text-xs text-slate-500">Biblioteca actual</p>
-                <p class="text-sm font-medium text-slate-900">
-                  {{ ejemplarSeleccionado.biblioteca?.nombre ?? 'Sin biblioteca' }}
-                </p>
-              </div>
-              <svg class="w-5 h-5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-
-            <!-- ID de nueva biblioteca (en un sistema real sería un select cargado) -->
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">ID de la biblioteca destino *</label>
-              <input v-model.number="nuevaBibliotecaId" type="number" placeholder="Ej. 3"
-                class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <p class="text-xs text-slate-400 mt-1">
-                Ingresa el ID de la biblioteca a la que se transferirá el ejemplar.
-              </p>
-            </div>
-
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Motivo *</label>
-              <textarea v-model="motivoTransferir" rows="2" placeholder="Redistribución de recursos..."
-                class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-            </div>
-
-            <p v-if="errorTransferir" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-              {{ errorTransferir }}
-            </p>
-          </div>
-
-          <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200">
-            <button @click="cerrarModal"
-              class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-              Cancelar
-            </button>
-            <button @click="confirmarTransferir" :disabled="transfiriendo || !nuevaBibliotecaId"
-              class="px-5 py-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-              <svg v-if="transfiriendo" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Transferir
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
   </div>
 </template>

@@ -70,7 +70,6 @@ async function cargarLibro() {
   try {
     const res = await api.get(`/libros/${props.libroId}`)
     const data = res.data?.data ?? res.data
-    console.log('Datos extraídos del API:', data)
     libroRaw.value = data
 
     // Rellenar form info
@@ -87,21 +86,17 @@ async function cargarLibro() {
 
     // Ediciones
     ediciones.value = data.ediciones ?? []
-    console.log('Ediciones:', ediciones.value)
     // Ejemplares: aplanar de todas las ediciones
     const ejsPlanos: Ejemplar[] = []
     for (const ed of (data.ediciones ?? [])) {
       if (ed.ejemplares?.length) ejsPlanos.push(...ed.ejemplares)
     }
-    console.log('Ejemplares planos antes de fallback:', ejsPlanos)
     // Si no vienen en el libro, cargar por separado
     if (!ejsPlanos.length) {
       await cargarEjemplares()
-      console.log('Ejemplares cargados por separado:', ejemplares.value)
 
     }
     else ejemplares.value = ejsPlanos
-    console.log('libro: ', libroRaw)
   } catch (e: unknown) {
     errorCarga.value = e instanceof Error ? e.message : 'Error al cargar el libro'
   } finally {
@@ -256,7 +251,6 @@ function cerrar() {
 // Ediciones
 function abrirNuevaEdicion() { edicionEditando.value = null; subModal.value = 'edicion-form' }
 function abrirEditarEdicion(ed: Edicion) { 
-  console.log('editar edicion', ed)
   edicionEditando.value = ed; subModal.value = 'edicion-form' 
 }
 
@@ -311,16 +305,12 @@ const mostrarModalEliminarEjemplar = ref(false)
 const ejemplarAEliminar = ref<Ejemplar | null>(null)
 const eliminandoEjemplar = ref(false)
 function abrirNuevoEjemplar(edicionId?: number) {
-  console.log('==============')
-  console.log(edicionId)
-  console.log(ediciones.value)
   ejemplarEditando.value = null
   edicionIdParaEjemplar.value = edicionId ?? ediciones?.value?.[0]?.idEdicion ?? null
   subModal.value = 'ejemplar-form'
 }
 
 function abrirEditarEjemplar(e: Ejemplar) {
-  console.log('e', e)
   ejemplarEditando.value = e
   subModal.value = 'ejemplar-form'
 }
@@ -336,7 +326,6 @@ async function eliminarEjemplarConfirmada() {
   if (!ejemplarAEliminar.value) return
 
   eliminandoEjemplar.value = true
-  console.log('deleteEJ',ejemplarAEliminar.value)
   try {
     await eliminarEjemplar(ejemplarAEliminar.value.id_ejemplar)
     ui.toast.success(
@@ -704,7 +693,13 @@ const categoriaActual = computed(() =>
 
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-sm font-mono font-semibold text-slate-900">{{ ej.codigoEjemplar }}</span>
+                  <span class="text-sm font-mono font-semibold text-slate-900">
+                    {{ 
+                      ej.codigoEjemplar ||
+                      ej.codigoTopograficoConcat ||
+                      ej.codigoTopografico
+                    }}
+                  </span>
                   <span v-if="ej.codigoTopografico" class="text-xs text-slate-400 font-mono">{{ ej.codigoTopografico
                   }}</span>
                     <span :class="['text-xs px-1.5 py-0.5 rounded font-medium',
@@ -770,7 +765,6 @@ const categoriaActual = computed(() =>
                 </button>
               </div>
             </div>
-          
           </div>
         </div>
 
@@ -860,6 +854,7 @@ const categoriaActual = computed(() =>
       @close="cerrar" @saved="onEdicionGuardada" />
 
     <EjemplarFormModal v-if="subModal === 'ejemplar-form'" :ejemplar="ejemplarEditando" :ediciones="ediciones"
+      :libro="libroRaw"
       :edicion-id-inicial="edicionIdParaEjemplar ?? undefined" @close="cerrar" @saved="onEjemplarGuardado" />
 
     <EjemplarEstadoModal v-if="subModal === 'estado' && ejemplarSeleccionado" :ejemplar="ejemplarSeleccionado"

@@ -5,7 +5,7 @@ import { crearEjemplar, actualizarEjemplar } from '@/services/ejemplares.service
 import { bibliotecasService } from '@/services/bibliotecas.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
-import type { Ejemplar, Edicion } from '@/types/catalogo'
+import type { Ejemplar, Edicion, Libro } from '@/types/catalogo'
 
 const props = defineProps<{
   ejemplar: Ejemplar | null
@@ -13,6 +13,7 @@ const props = defineProps<{
   ediciones?: Edicion[]
   // Si se pasa una edicion pre-seleccionada (desde el detalle de una edición)
   edicionIdInicial?: number
+  libro?: Libro
 }>()
 
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -70,17 +71,46 @@ onMounted(async () => {
     } finally {
       cargandoBibs.value = false
     }
-    console.log('admin', bibliotecas.value)
   } else if (bibliotecaPropia.value) {
     // Bibliotecario: solo ve su propia biblioteca
     bibliotecas.value = bibliotecaPropia.value
-    console.log("bibliotecario", bibliotecas.value)
   }
 })
+
+// ══════════════════════════════════════════════════════════════════════════
+// AUTO-SUGERENCIA DE CUTTERS (solo al crear)
+// ══════════════════════════════════════════════════════════════════════════
+ 
+/** Extrae las N primeras letras del apellido (primera palabra) del primer autor */
+function sugerirCutterAutor(autores: { nombre: string }[]): string {
+  if (!autores?.length) return ''
+  const primerAutor = autores[0].nombre.trim()
+  // Formato "APELLIDO NOMBRE" o "Apellido, Nombre"
+  const apellido = primerAutor.replace(',', ' ').trim().split(/\s+/)[0]
+  return apellido.slice(0, 3).toUpperCase()
+}
+ 
+/** Extrae las 3 primeras letras del título (sin artículo inicial) */
+function sugerirCutterTitulo(titulo: string): string {
+  if (!titulo) return ''
+  const sinArticulo = titulo
+    .trim()
+    .replace(/^(el|la|los|las|un|una|unos|unas|the|a|an)\s+/i, '')
+    .replace(/\s+/g, '')
+  return sinArticulo.slice(0, 3).toLowerCase()
+}
+ 
+/** Extrae la clasificación decimal de la categoría */
+function sugerirClasificacion(categoria: string): string {
+  if (!categoria) return ''
+  return (categoria.codigoDewey ?? categoria.codigo_dewey ?? '').toString()
+}
+
 // ─── Formulario 
 const guardando = ref(false)
 const errorGeneral = ref('')
 const errores = reactive<Record<string, string>>({})
+const cantidadEjemplares = ref(1)
 
 const opcionesEstado = [
   { value: 'DISPONIBLE', label: '🟢 Disponible' },
@@ -93,6 +123,9 @@ const form = reactive({
   bibliotecaId: null as number | null,
   codigoEjemplar: '',
   codigoTopografico: '',
+  clasificacionDecimal: '',
+  cutterAutor:          '',
+  cutterTitulo:         '',
   ubicacionFisica: '',
   estadoEjemplar: 'DISPONIBLE',
   fechaAdquisicion: new Date().toISOString().split('T')[0],
@@ -104,7 +137,6 @@ watch(bibliotecaPropia, (bib) => {
   // if (bib && !form.bibliotecaId) {
   //   form.bibliotecaId = bib.id
   // }
-  console.log('bib', bib)
   if (bib.length > 0 && !form.bibliotecaId) {
     form.bibliotecaId = bib[0].id   // selecciona la primera por defecto
   }
@@ -112,12 +144,14 @@ watch(bibliotecaPropia, (bib) => {
 
 watch(() => props.ejemplar, (e) => {
   limpiarErrores(); errorGeneral.value = ''
-  console.log('watch', props.ejemplar)
   if (e) {
     form.edicionId = e.edicion?.idEdicion ?? props.edicionIdInicial ?? null
     form.bibliotecaId = e.biblioteca?.id_biblioteca ?? null
     form.codigoEjemplar = e.codigoEjemplar ?? ''
-    form.codigoTopografico = e.codigoTopografico ?? ''
+    form.codigoTopografico = e.codigoTopografico ?? e.codigoTopograficoConcat ?? ''
+    form.clasificacionDecimal = (e as any).clasificacionDecimal ?? ''
+    form.cutterAutor          = (e as any).cutterAutor          ?? ''
+    form.cutterTitulo         = (e as any).cutterTitulo         ?? ''
     form.ubicacionFisica = e.ubicacionFisica ?? ''
     form.estadoEjemplar = e.estadoEjemplar ?? 'DISPONIBLE'
     form.fechaAdquisicion = e.fechaAdquisicion ?? new Date().toISOString().split('T')[0]
@@ -139,14 +173,45 @@ watch(() => props.ejemplar, (e) => {
     form.fechaAdquisicion = new Date().toISOString().split('T')[0]
     form.precioCompra = null
     form.observaciones = ''
+     // Auto-sugerir desde libroContexto si está disponible
+    if (props.libro) {
+      form.clasificacionDecimal = sugerirClasificacion(props.libro.categoria)
+      form.cutterAutor          = sugerirCutterAutor(props.libro.autores ?? [])
+      form.cutterTitulo         = sugerirCutterTitulo(props.libro.titulo ?? '')
+    } else {
+      form.clasificacionDecimal = ''
+      form.cutterAutor          = ''
+      form.cutterTitulo         = ''
+    }
   }
 }, { immediate: true })
+
+// ── Preview del código para solicitar ────────────────────────────────────
+const codigoPreview = computed(() => {
+  const dec = form.clasificacionDecimal.trim() || '___'
+  const aut = form.cutterAutor.trim()           || '___'
+  const tit = form.cutterTitulo.trim()          || '___'
+ 
+  if (!props.ejemplar && cantidadEjemplares.value > 1) {
+    const filas = Array.from({ length: Math.min(cantidadEjemplares.value, 4) }, (_, i) =>
+      `${dec}  ${aut}  ${tit} Ej.${i + 1}`
+    )
+    if (cantidadEjemplares.value > 4) filas.push(`  …y ${cantidadEjemplares.value - 4} más`)
+    return filas.join('\n')
+  }
+  return `${dec}  ${aut}  ${tit}`
+})
+ 
+const mostrarPreview = computed(() =>
+  !!(form.clasificacionDecimal || form.cutterAutor || form.cutterTitulo)
+)
+
 
 function limpiarErrores() { Object.keys(errores).forEach(k => delete errores[k]) }
 
 function validar(): boolean {
   limpiarErrores()
-  if (!form.codigoEjemplar.trim()) errores.codigoEjemplar = 'El código es requerido'
+  // if (!form.codigoEjemplar.trim()) errores.codigoEjemplar = 'El código es requerido'
   if (!form.ubicacionFisica.trim()) errores.ubicacionFisica = 'La ubicación es requerida'
   if (!form.edicionId) errores.edicionId = 'Debe seleccionar una edición'
   if (!form.bibliotecaId) errores.bibliotecaId = 'Debe seleccionar una biblioteca'
@@ -158,11 +223,13 @@ async function guardar() {
   guardando.value = true; errorGeneral.value = ''
   try {
     if (props.ejemplar) {
-      console.log('update')
-      console.log(props.ejemplar)
+      
       await actualizarEjemplar(props.ejemplar.id_ejemplar, {
         codigoEjemplar: form.codigoEjemplar,
         codigoTopografico: form.codigoTopografico || undefined,
+        clasificacionDecimal: form.clasificacionDecimal.trim() || undefined,
+        cutterAutor:          form.cutterAutor.trim()          || undefined,
+        cutterTitulo:         form.cutterTitulo.trim()         || undefined,
         ubicacionFisica: form.ubicacionFisica || undefined,
         edicionId: form.edicionId!,
         bibliotecaId: form.bibliotecaId!,
@@ -173,6 +240,11 @@ async function guardar() {
       await crearEjemplar({
         codigoEjemplar: form.codigoEjemplar,
         codigoTopografico: form.codigoTopografico || undefined,
+        clasificacionDecimal: form.clasificacionDecimal.trim() || undefined,
+        cutterAutor:          form.cutterAutor.trim()          || undefined,
+        cutterTitulo:         form.cutterTitulo.trim()
+          ? `${form.cutterTitulo.trim()}`
+          : undefined,
         ubicacionFisica: form.ubicacionFisica || undefined,
         edicionId: form.edicionId!,
         bibliotecaId: form.bibliotecaId!,
@@ -282,53 +354,129 @@ async function guardar() {
         </div>
       </div>
 
+      
+      <!-- ── Código para solicitar ──────────────────────────────────── -->
+      <div class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            Código para solicitar
+          </label>
+          <!-- Indicador de sugerencia automática (solo al crear con contexto) -->
+          <span v-if="!ejemplar && props.libro"
+            class="text-xs text-indigo-500 font-medium flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Sugerido automáticamente
+          </span>
+          <!-- Indicador modo edición -->
+          <span v-else-if="ejemplar"
+            class="text-xs text-slate-400 flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Datos originales del ejemplar
+          </span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2.5">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Clasificación decimal</label>
+            <input v-model="form.clasificacionDecimal" type="text"
+              placeholder="Ej. 989.506"
+              class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Cutter autor</label>
+            <input v-model="form.cutterAutor" type="text"
+              placeholder="Ej. REY"
+              class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Cutter título</label>
+            <input v-model="form.cutterTitulo" type="text"
+              placeholder="Ej. izq"
+              class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
+          </div>
+        </div>
+
+        <!-- Preview código — aparece cuando hay algo escrito -->
+        <!-- <Transition name="slide-fade">
+          <div v-if="mostrarPreview"
+            class="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+            <div class="flex items-center gap-2 px-3 py-1.5 border-b border-amber-200 bg-amber-100/60">
+              <svg class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span class="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                Código para solicitar — preview
+              </span>
+            </div>
+            <pre class="px-4 py-2.5 text-xs font-mono text-amber-800 leading-relaxed whitespace-pre-wrap">{{ codigoPreview }}</pre>
+          </div>
+        </Transition> -->
+      </div>
+
+
+
       <!-- Código + Topográfico -->
       <div class="grid grid-cols-2 gap-3">
-        <div>
+        <!-- <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Código ejemplar *</label>
           <input v-model="form.codigoEjemplar" type="text" placeholder="EJ-2024-010"
             class="w-full text-sm rounded-lg border px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.codigoEjemplar ? 'border-red-400' : 'border-slate-200'" />
           <p v-if="errores.codigoEjemplar" class="text-xs text-red-500 mt-1">{{ errores.codigoEjemplar }}</p>
           <p class="text-xs text-slate-400 mt-0.5">Debe ser único</p>
-        </div>
+        </div> -->
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Código topográfico</label>
           <input v-model="form.codigoTopografico" type="text" placeholder="004.1 C676"
             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
+
+           <!-- Ubicación física -->
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">
+            Ubicación física *
+          </label>
+
+          <input
+            v-model="form.ubicacionFisica"
+            type="text"
+            placeholder="Estante B-2, Fila 1"
+            class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            :class="errores.ubicacionFisica ? 'border-red-400' : 'border-slate-200'"
+          />
+
+          <p v-if="errores.ubicacionFisica" class="text-xs text-red-500 mt-1">
+            {{ errores.ubicacionFisica }}
+          </p>
+        </div>
       </div>
 
-      <!-- Ubicación -->
-      <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación física *</label>
-        <input v-model="form.ubicacionFisica" type="text" placeholder="Estante B-2, Fila 1"
-          class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          :class="errores.ubicacionFisica ? 'border-red-400' : 'border-slate-200'" />
-        <p v-if="errores.ubicacionFisica" class="text-xs text-red-500 mt-1">{{ errores.ubicacionFisica }}</p>
-      </div>
-
-      <!-- Estado (solo al crear) -->
-      <div v-if="!ejemplar">
-        <label class="block text-xs font-medium text-slate-600 mb-1">Estado inicial</label>
-        <select v-model="form.estadoEjemplar"
-          class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-          <option v-for="op in opcionesEstado" :key="op.value" :value="op.value">{{ op.label }}</option>
-        </select>
-      </div>
-
+      
       <!-- Fecha + Precio -->
       <div class="grid grid-cols-2 gap-3">
+        <!-- Estado (solo al crear) -->
+        <div v-if="!ejemplar">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Estado inicial</label>
+          <select v-model="form.estadoEjemplar"
+            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option v-for="op in opcionesEstado" :key="op.value" :value="op.value">{{ op.label }}</option>
+          </select>
+        </div>
+
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Fecha adquisición</label>
           <input v-model="form.fechaAdquisicion" type="date"
             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Precio compra (Bs.)</label>
-          <input v-model.number="form.precioCompra" type="number" step="0.01" placeholder="85.00"
-            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
+       
       </div>
 
       <!-- Observaciones -->
