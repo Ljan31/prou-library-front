@@ -126,7 +126,6 @@ export const useAuthStore = defineStore("auth", () => {
     error.value = null;
     try {
       const loginData = await authService.login(credentials);
-      console.log("loginData", loginData);
       // Save token first (interceptor will attach it to the /me call)
       setToken(loginData.token);
 
@@ -140,7 +139,6 @@ export const useAuthStore = defineStore("auth", () => {
           loginData.bibliotecas ?? loginData.bibliotecas,
         ),
       };
-      console.log("user", user);
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error de autenticación";
