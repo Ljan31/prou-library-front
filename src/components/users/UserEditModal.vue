@@ -61,7 +61,6 @@ const encargadoBibliotecas = ref<BibliotecaResponse[]>([])
 const encargadoLoading = ref(false)
 
 watch(() => props.user, async (u) => {
-  console.log('user', u)
   if (!u) return
   Object.assign(form, {
     nombre: u.persona?.nombre ?? '',
@@ -91,8 +90,6 @@ watch(() => props.user, async (u) => {
 }, { immediate: true })
 
 async function loadEncargadoBibliotecas(usuarioId: number) {
-  console.log('loadencargado')
-  console.log(usuarioId)
   encargadoLoading.value = true
   try {
     // Filter global list by checking encargados
@@ -101,19 +98,13 @@ async function loadEncargadoBibliotecas(usuarioId: number) {
     )
     if (fromCache.length) {
       encargadoBibliotecas.value = fromCache
-      console.log('cache')
     } else {
       // Fallback: reload all and filter
       const res = await bibliotecasService.getAll()
-      console.log(res)
       const raw = res.data as any
-      console.log(raw)
       const all: BibliotecaResponse[] = Array.isArray(raw) ? raw : (raw?.data ?? [])
-      console.log(all)
       encargadoBibliotecas.value = all.filter(b => b.encargados?.some(e => e.idUsuario === usuarioId))
-      console.log('no cache')
     }
-    console.log(encargadoBibliotecas.value)
   } catch { /* silent */ } finally { encargadoLoading.value = false }
 }
 
