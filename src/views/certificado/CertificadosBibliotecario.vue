@@ -687,14 +687,14 @@ function estadoCertClasses(estado: string) {
               </svg>
               Descargar PDF oficial
             </button>
-            <button @click="abrirImprimir(certGenerado)"
+            <!-- <button @click="abrirImprimir(certGenerado)"
               class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               Imprimir vista web
-            </button>
+            </button> -->
             <button @click="resetCertificado"
               class="sm:flex-none flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-500 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -709,7 +709,7 @@ function estadoCertClasses(estado: string) {
     </Transition>
 
     <!-- ══ TABLA DE CERTIFICADOS DE LA BIBLIOTECA ══ -->
-    <div v-if="!certGenerado" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <!-- <div v-if="!certGenerado" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex-wrap gap-y-2">
         <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -767,7 +767,7 @@ function estadoCertClasses(estado: string) {
           </div>
         </div>
       </div>
-    </div>
+    </div> -->
 
   </div>
 </template>
