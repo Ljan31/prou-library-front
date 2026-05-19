@@ -27,12 +27,23 @@ const aux = useAuxAssign()
 aux.watchCarrera()
 
 const loading = ref(false)
-const form = reactive({ nombre: '', apellido_pat: '', apellido_mat: '', celular: '', enabled: true })
+const form = reactive({ 
+  nombre: '', apellido_pat: '', apellido_mat: '', 
+  celular: '', enabled: true, ci: '',
+  email: '',
+})
 const errors = reactive<Record<string, string>>({})
 
 // ── Target user role checks ────────────────────────────────────────────────
 const isTargetEstudiante = computed(() => props.user?.roles?.some(r => r.name === 'ROLE_ESTUDIANTE') ?? false)
 const isTargetBibliotecario = computed(() => props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false)
+
+// Admin: can reset anyone | Bibliotecario: only students
+const canResetPassword = computed(() => {
+  if (isAdmin.value) return true
+  if (isStaff.value && isTargetEstudiante.value) return true
+  return false
+})
 
 // Aux section visible for students (staff) or bibliotecarios (admin only)
 const showAuxSection = computed(() => {
@@ -50,6 +61,7 @@ const encargadoBibliotecas = ref<BibliotecaResponse[]>([])
 const encargadoLoading = ref(false)
 
 watch(() => props.user, async (u) => {
+  console.log('user', u)
   if (!u) return
   Object.assign(form, {
     nombre: u.persona?.nombre ?? '',
@@ -57,6 +69,8 @@ watch(() => props.user, async (u) => {
     apellido_mat: u.persona?.apellido_mat ?? '',
     celular: u.persona?.celular ?? '',
     enabled: u.enabled,
+    ci: u.persona?.ci?.toString() ?? '',
+    email: u.persona?.email ?? '',
   })
   Object.keys(errors).forEach(k => delete errors[k])
   aux.resetAux()
@@ -77,6 +91,8 @@ watch(() => props.user, async (u) => {
 }, { immediate: true })
 
 async function loadEncargadoBibliotecas(usuarioId: number) {
+  console.log('loadencargado')
+  console.log(usuarioId)
   encargadoLoading.value = true
   try {
     // Filter global list by checking encargados
@@ -85,13 +101,19 @@ async function loadEncargadoBibliotecas(usuarioId: number) {
     )
     if (fromCache.length) {
       encargadoBibliotecas.value = fromCache
+      console.log('cache')
     } else {
       // Fallback: reload all and filter
       const res = await bibliotecasService.getAll()
+      console.log(res)
       const raw = res.data as any
+      console.log(raw)
       const all: BibliotecaResponse[] = Array.isArray(raw) ? raw : (raw?.data ?? [])
-      encargadoBibliotecas.value = all.filter(b => b.encargados?.some(e => e.id_usuario === usuarioId))
+      console.log(all)
+      encargadoBibliotecas.value = all.filter(b => b.encargados?.some(e => e.idUsuario === usuarioId))
+      console.log('no cache')
     }
+    console.log(encargadoBibliotecas.value)
   } catch { /* silent */ } finally { encargadoLoading.value = false }
 }
 
@@ -103,6 +125,11 @@ function validate(): boolean {
   Object.keys(errors).forEach(k => delete errors[k])
   if (!form.nombre.trim()) errors.nombre = 'Requerido'
   if (!form.apellido_pat.trim()) errors.apellido_pat = 'Requerido'
+  if (isAdmin.value) {
+    if (!form.email.trim()) errors.email = 'Requerido'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Email inválido'
+    if (!form.ci.trim() || isNaN(Number(form.ci))) errors.ci = 'CI numérico requerido'
+  }
   return Object.keys(errors).length === 0
 }
 
@@ -113,6 +140,7 @@ async function handleEdit() {
     const payload: UpdateUserPayload = {
       nombre: form.nombre, apellido_pat: form.apellido_pat,
       apellido_mat: form.apellido_mat, celular: form.celular, enabled: form.enabled,
+      ...(isAdmin.value ? { ci: Number(form.ci), email: form.email } : {}),
     }
     const res = await userService.update(props.user.id_usuario, payload)
     const raw = res.data as any
@@ -144,6 +172,43 @@ const showCarreraFilter = computed(() => isTargetEstudiante.value)
 const directBibliotecas = computed(() =>
   isTargetBibliotecario.value ? allBibliotecas.value : []
 )
+// ══════════════════════════════════════════════════════════════════════════
+// RESET PASSWORD SECTION
+// ══════════════════════════════════════════════════════════════════════════
+const resetLoading = ref(false)
+const tempPassword = ref<string | null>(null)
+const showResetConfirm = ref(false)
+const tempPasswordCopied = ref(false)
+ 
+function openResetConfirm() {
+  showResetConfirm.value = true
+  tempPassword.value = null
+  tempPasswordCopied.value = false
+}
+ 
+async function handleResetPassword() {
+  if (!props.user) return
+  resetLoading.value = true
+  try {
+    const res = await userService.adminResetPassword(props.user.id_usuario)
+    const raw = res.data as any
+    const data = raw?.data ?? raw
+    tempPassword.value = data?.temporaryPassword ?? null
+    showResetConfirm.value = false
+    ui.toast.success('Contraseña restablecida', 'Se generó una contraseña temporal')
+  } catch (e: unknown) {
+    ui.toast.error('Error', e instanceof Error ? e.message : 'No se pudo restablecer')
+  } finally { resetLoading.value = false }
+}
+ 
+async function copyTempPassword() {
+  if (!tempPassword.value) return
+  try {
+    await navigator.clipboard.writeText(tempPassword.value)
+    tempPasswordCopied.value = true
+    setTimeout(() => { tempPasswordCopied.value = false }, 5000)
+  } catch { /* silent */ }
+}
 </script>
 
 <template>
@@ -202,6 +267,47 @@ const directBibliotecas = computed(() =>
                 <input v-model="form.celular" type="text"
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
+                <!-- CI — editable solo por admin, read-only para otros -->
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                  CI
+                  <span v-if="isAdmin" class="text-red-500">*</span>
+                  <span v-else class="text-slate-400 font-normal ml-1">(solo admin)</span>
+                </label>
+                <input
+                  v-model="form.ci"
+                  type="text"
+                  :readonly="!isAdmin"
+                  class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
+                  :class="[
+                    !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
+                    errors.ci ? 'border-red-300 bg-red-50' : ''
+                  ]"
+                  @input="delete errors.ci"
+                />
+                <p v-if="errors.ci" class="text-xs text-red-500 mt-0.5">{{ errors.ci }}</p>
+              </div>
+               <!-- Email — editable solo por admin -->
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                  Email
+                  <span v-if="isAdmin" class="text-red-500">*</span>
+                  <span v-else class="text-slate-400 font-normal ml-1">(solo admin)</span>
+                </label>
+                <input
+                  v-model="form.email"
+                  type="email"
+                  :readonly="!isAdmin"
+                  class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
+                  :class="[
+                    !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
+                    errors.email ? 'border-red-300 bg-red-50' : ''
+                  ]"
+                  @input="delete errors.email"
+                />
+                <p v-if="errors.email" class="text-xs text-red-500 mt-0.5">{{ errors.email }}</p>
+              </div>
+
             </div>
             <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
               <div>
@@ -238,21 +344,104 @@ const directBibliotecas = computed(() =>
                     stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span class="flex-1 text-xs font-medium text-emerald-800 truncate">{{ bib.nombre }}</span>
-                <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="bib.encargados?.find(e => e.id_usuario === user?.id_usuario)?.rol === 'PRINCIPAL'
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="bib.encargados?.find(e => e.idUsuario === user?.id_usuario)?.rol === 'PRINCIPAL'
                   ? 'bg-emerald-200 text-emerald-800'
                   : 'bg-slate-100 text-slate-600'">
-                  {{bib.encargados?.find(e => e.id_usuario === user?.id_usuario)?.rol ?? 'AUXILIAR'}}
+                  {{bib.encargados?.find(e => e.idUsuario === user?.id_usuario)?.rol ?? 'AUXILIAR'}}
                 </span>
                 <!-- Imagen de resolución si existe -->
-                <a v-if="bib.encargados?.find(e => e.id_usuario === user?.id_usuario)?.imagenUrl"
-                  :href="bib.encargados?.find(e => e.id_usuario === user?.id_usuario)?.imagenUrl!" target="_blank"
-                  class="text-xs text-indigo-500 hover:text-indigo-700 underline shrink-0">Resolución</a>
+                <!-- <a v-if="bib.encargados?.find(e => e.idUsuario === user?.id_usuario)?.respaldoUrl"
+                  :href="bib.encargados?.find(e => e.idUsuario === user?.id_usuario)?.respaldoUrl!" target="_blank"
+                  class="text-xs text-indigo-500 hover:text-indigo-700 underline shrink-0">Resolución</a> -->
               </div>
             </div>
           </div>
 
+
+           <!-- SECCIÓN: Restablecer contraseña -->
+          <div v-if="canResetPassword" class="rounded-xl border border-slate-200 p-4 space-y-3">
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <p class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Contraseña</p>
+            </div>
+
+            <!-- Contraseña temporal generada -->
+            <Transition name="slide-up">
+              <div v-if="tempPassword" class="space-y-2">
+                <p class="text-xs text-slate-500">Contraseña temporal generada. Compártela con el usuario.</p>
+                <div class="flex items-center gap-2 p-3 rounded-lg bg-indigo-50 border border-indigo-200">
+                  <code class="flex-1 text-sm font-mono font-semibold text-indigo-700 tracking-wider">{{ tempPassword }}</code>
+                  <button
+                    class="flex items-center gap-1 text-xs font-medium transition-colors px-2 py-1 rounded"
+                    :class="tempPasswordCopied ? 'text-emerald-600 bg-emerald-50' : 'text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100'"
+                    @click="copyTempPassword"
+                  >
+                    <svg v-if="tempPasswordCopied" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    {{ tempPasswordCopied ? 'Copiado' : 'Copiar' }}
+                  </button>
+                </div>
+                <p class="text-xs text-amber-600 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  El usuario deberá cambiar esta contraseña al ingresar.
+                </p>
+              </div>
+            </Transition>
+
+            <!-- Botón de reset + confirmación inline -->
+            <template v-if="!showResetConfirm && !tempPassword">
+              <p class="text-xs text-slate-400">
+                Genera una contraseña temporal para
+                <span class="font-medium text-slate-600">{{ user?.persona?.nombreCompleto ?? user?.username }}</span>.
+              </p>
+              <button
+                class="w-full h-9 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors font-medium"
+                @click="openResetConfirm"
+              >
+                Restablecer contraseña
+              </button>
+            </template>
+
+            <!-- Confirmación inline -->
+            <template v-if="showResetConfirm && !tempPassword">
+              <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
+                <svg class="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>¿Confirmas el restablecimiento de contraseña de <strong>{{ user?.persona?.nombreCompleto }}</strong>? Se generará una contraseña temporal.</span>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  class="flex-1 h-9 rounded-lg border border-slate-200 text-sm text-slate-500 hover:bg-slate-50 transition-colors"
+                  @click="showResetConfirm = false"
+                >Cancelar</button>
+                <button
+                  class="flex-1 h-9 rounded-lg bg-amber-500 text-white text-sm font-medium hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  :disabled="resetLoading"
+                  @click="handleResetPassword"
+                >
+                  <svg v-if="resetLoading" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  {{ resetLoading ? 'Generando…' : 'Sí, restablecer' }}
+                </button>
+              </div>
+            </template>
+          </div>
+
           <!-- Sección auxiliar: Asignar encargado (staff para estudiantes, admin para bibliotecarios) -->
-          <Transition name="slide-up">
+          <!-- <Transition name="slide-up">
             <div v-if="showAuxSection" class="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
               <div class="flex items-center gap-2">
                 <div class="w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
@@ -277,7 +466,6 @@ const directBibliotecas = computed(() =>
                 </template>
               </p>
 
-              <!-- Carrera (solo para estudiantes) -->
               <div v-if="showCarreraFilter">
                 <label class="block text-xs font-medium text-slate-600 mb-1">Carrera del estudiante</label>
                 <div v-if="carrerasLoading" class="flex items-center gap-1.5 text-xs text-slate-400 h-9">
@@ -296,7 +484,6 @@ const directBibliotecas = computed(() =>
                 </select>
               </div>
 
-              <!-- Biblioteca -->
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Biblioteca</label>
                 <div v-if="aux.auxBibliotecasLoading.value"
@@ -323,7 +510,6 @@ const directBibliotecas = computed(() =>
                   </option>
                 </select>
 
-                <!-- Encargados actuales -->
                 <template v-if="aux.auxBibliotecaId.value">
                   <div v-if="aux.selectedBib()?.encargados?.length"
                     class="mt-2 p-2.5 rounded-lg bg-white/70 border border-amber-100">
@@ -339,7 +525,6 @@ const directBibliotecas = computed(() =>
                 </template>
               </div>
 
-              <!-- Imagen de resolución -->
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Imagen de resolución</label>
                 <div class="flex items-center gap-3">
@@ -360,7 +545,6 @@ const directBibliotecas = computed(() =>
                 <p class="text-xs text-slate-400 mt-1">Imagen o PDF de la resolución de designación (opcional)</p>
               </div>
 
-              <!-- Feedback -->
               <p v-if="aux.auxError.value" class="text-xs text-red-500 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2">
@@ -389,7 +573,7 @@ const directBibliotecas = computed(() =>
                 {{ aux.auxLoading.value ? 'Asignando…' : 'Asignar encargado' }}
               </button>
             </div>
-          </Transition>
+          </Transition> -->
 
         </div>
 

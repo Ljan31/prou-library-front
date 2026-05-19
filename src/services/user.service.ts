@@ -45,6 +45,15 @@ export interface UpdateUserPayload {
   celular?: string;
   enabled?: boolean;
 }
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface AdminResetPasswordResponse {
+  temporaryPassword: string
+}
 
 export const userService = {
   getAll(): Promise<AxiosResponse<UserResponse[]>> {
@@ -80,5 +89,21 @@ export const userService = {
 
   getRoles(): Promise<AxiosResponse<RoleData[]>> {
     return api.get("/roles");
+  },
+  /**
+  * El propio usuario cambia su contraseña.
+  * PUT /api/users/change-password
+  */
+  changePassword(payload: ChangePasswordRequest): Promise<AxiosResponse> {
+    return api.put('/users/change-password', payload)
+  },
+
+  /**
+   * Admin o Bibliotecario restablece la contraseña de otro usuario.
+   * Devuelve una contraseña temporal.
+   * PUT /api/users/{id}/reset-password
+   */
+  adminResetPassword(id: number): Promise<AxiosResponse<{ data: AdminResetPasswordResponse }>> {
+    return api.put(`/users/${id}/reset-password`)
   },
 };

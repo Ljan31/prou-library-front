@@ -1,9 +1,9 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8098";
+const BASE_URL = import.meta.env.VITE_SBF_API_URL ?? "http://localhost:8098";
 
 const api = axios.create({
-  baseURL: `${BASE_URL}/api`,
+  baseURL: `${BASE_URL}/`,
   timeout: 15_000,
   // headers: { "Content-Type": "application/json" },
 });
