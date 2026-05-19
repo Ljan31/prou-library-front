@@ -43,6 +43,8 @@ export interface UpdateUserPayload {
   apellido_pat?: string;
   apellido_mat?: string;
   celular?: string;
+  email?: string;
+  ci?: string;
   enabled?: boolean;
 }
 export interface ChangePasswordRequest {

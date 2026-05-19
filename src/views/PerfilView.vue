@@ -45,6 +45,8 @@ const editForm = reactive({
   apellido_pat: '',
   apellido_mat: '',
   celular: '',
+  email: '',
+  ci: '',
 })
 
 const editErrors = reactive<Record<string, string>>({})
@@ -55,6 +57,8 @@ function openEdit() {
     apellido_pat: auth.user?.persona.apellido_pat ?? '',
     apellido_mat: auth.user?.persona.apellido_mat ?? '',
     celular: auth.user?.persona.celular ?? '',
+    email: auth.user?.persona.email ?? '',
+    ci: auth.user?.persona.ci ?? '',
   })
   Object.keys(editErrors).forEach(k => delete editErrors[k])
   editMode.value = true
@@ -68,6 +72,13 @@ function validateEdit(): boolean {
   Object.keys(editErrors).forEach(k => delete editErrors[k])
   if (!editForm.nombre.trim()) editErrors.nombre = 'Requerido'
   if (!editForm.apellido_pat.trim()) editErrors.apellido_pat = 'Requerido'
+  if (editForm.email && !editForm.email.includes('@')) {
+    editErrors.email = 'Email inválido'
+  }
+
+  if (editForm.ci && isNaN(Number(editForm.ci))) {
+    editErrors.ci = 'CI inválido'
+  }
   return Object.keys(editErrors).length === 0
 }
 
@@ -80,13 +91,21 @@ async function saveEdit() {
       apellido_pat: editForm.apellido_pat,
       apellido_mat: editForm.apellido_mat,
       celular: editForm.celular,
+      email: editForm.email,
+      ci: editForm.ci,
     })
     // Refresh session to reflect updated persona
     await auth.initSession()
     editMode.value = false
     ui.toast.success('Perfil actualizado', 'Tus datos han sido guardados')
-  } catch (e: unknown) {
-    ui.toast.error('Error', e instanceof Error ? e.message : 'No se pudo actualizar')
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.message ||
+      e?.response?.data?.error ||
+      e?.message ||
+      'Error inesperado'
+
+    ui.toast.error('Error', msg)
   } finally {
     editLoading.value = false
   }
@@ -161,6 +180,120 @@ async function removeCarrera(carreraId: number) {
   } catch (e: unknown) {
     ui.toast.error('Error', e instanceof Error ? e.message : 'No se pudo remover')
   }
+}
+
+const passwordMode = ref(false)
+const passwordLoading = ref(false)
+
+const passwordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+
+const passwordErrors = reactive<Record<string, string>>({})
+
+const showPasswords = reactive({
+  current: false,
+  next: false,
+  confirm: false,
+})
+
+function validatePassword(): boolean {
+
+  Object.keys(passwordErrors).forEach(
+    k => delete passwordErrors[k]
+  )
+
+  if (!passwordForm.currentPassword) {
+    passwordErrors.currentPassword =
+      'Ingresa tu contraseña actual'
+  }
+
+  if (!passwordForm.newPassword) {
+    passwordErrors.newPassword =
+      'Ingresa una nueva contraseña'
+  } else if (passwordForm.newPassword.length < 6) {
+    passwordErrors.newPassword =
+      'Mínimo 6 caracteres'
+  }
+
+  if (
+    passwordForm.confirmPassword !==
+    passwordForm.newPassword
+  ) {
+    passwordErrors.confirmPassword =
+      'Las contraseñas no coinciden'
+  }
+
+  return Object.keys(passwordErrors).length === 0
+}
+const passwordStrength = computed(() => {
+
+  const p = passwordForm.newPassword
+
+  if (!p) return 0
+
+  let score = 0
+
+  if (p.length >= 6) score++
+  if (p.length >= 8) score++
+  if (/[A-Z]/.test(p)) score++
+  if (/[0-9]/.test(p)) score++
+  if (/[^A-Za-z0-9]/.test(p)) score++
+
+  return score
+})
+const passwordStrengthLabel = computed(() => {
+  if (passwordStrength.value <= 1)
+    return 'Débil'
+  if (passwordStrength.value <= 3)
+    return 'Media'
+  return 'Segura'
+})
+const passwordStrengthClass = computed(() => {
+  if (passwordStrength.value <= 1)
+    return 'bg-red-500'
+  if (passwordStrength.value <= 3)
+    return 'bg-amber-500'
+  return 'bg-emerald-500'
+})
+async function savePassword() {
+  if (!validatePassword()) return
+  passwordLoading.value = true
+  try {
+    await userService.changePassword({
+      currentPassword:
+        passwordForm.currentPassword,
+      newPassword:
+        passwordForm.newPassword,
+      confirmPassword:
+        passwordForm.confirmPassword,
+    })
+    passwordMode.value = false
+    Object.assign(passwordForm, {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    })
+    ui.toast.success(
+      'Contraseña actualizada',
+      'Tu contraseña fue cambiada correctamente'
+    )
+  } catch (e: any) {
+    const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        'Error inesperado'
+
+      ui.toast.error('Error', msg)
+  } finally {
+    passwordLoading.value = false
+  }
+}
+function togglePassword(field: 'current' | 'next' | 'confirm') {
+  showPasswords[field] = !showPasswords[field]
 }
 </script>
 
@@ -276,17 +409,48 @@ async function removeCarrera(carreraId: number) {
             <input v-model="editForm.apellido_mat" type="text"
               class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
           </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">
+              Email <span class="text-red-500">*</span>
+            </label>
+
+            <input
+              v-model="editForm.email"
+              type="email"
+              class="w-full h-9 px-3 text-sm rounded-lg border outline-none focus:ring-2 focus:ring-indigo-500/20"
+              :class="editErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
+            />
+
+            <p v-if="editErrors.email" class="text-xs text-red-500 mt-0.5">
+              {{ editErrors.email }}
+            </p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">
+              CI
+            </label>
+
+            <input
+              v-model="editForm.ci"
+              type="text"
+              class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+
+            <p v-if="editErrors.ci" class="text-xs text-red-500 mt-0.5">
+              {{ editErrors.ci }}
+            </p>
+          </div>
         </div>
 
         <!-- Note: email and CI are not editable -->
-        <p class="text-xs text-slate-400 mt-3 flex items-center gap-1.5">
+        <!-- <p class="text-xs text-slate-400 mt-3 flex items-center gap-1.5">
           <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
           </svg>
           El correo y CI no son editables desde este panel.
-        </p>
+        </p> -->
 
         <!-- Action buttons -->
         <div class="flex gap-3 justify-end mt-5 pt-5 border-t border-slate-100">
@@ -434,6 +598,186 @@ async function removeCarrera(carreraId: number) {
       </dl>
     </SCard>
 
+    <SCard padding="lg">
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <h3 class="text-base font-semibold text-slate-900"> Seguridad </h3>
+          <p class="text-xs text-slate-500 mt-0.5"> Gestiona tu contraseña y seguridad de acceso</p>
+        </div>
+
+        <button
+          v-if="!passwordMode"
+          class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-all"
+          @click="passwordMode = true"
+        >
+          Cambiar contraseña
+        </button>
+      </div>
+
+      <!-- VIEW -->
+      <div v-if="!passwordMode"
+        class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+
+        <div>
+          <p class="text-sm font-medium text-slate-800">
+            Contraseña
+          </p>
+
+          <p class="text-xs text-slate-500 mt-0.5">
+            Última actualización desconocida
+          </p>
+        </div>
+
+        <div class="flex items-center gap-1.5 text-slate-400">
+          <span class="tracking-widest text-lg">
+            ••••••••
+          </span>
+        </div>
+      </div>
+
+      <!-- EDIT -->
+
+      <div v-else class="space-y-4">
+
+        <!-- Current -->
+
+        <div class="relative">
+          <label class="block text-xs font-medium text-slate-500 mb-1">
+            Contraseña actual
+          </label>
+
+          <input
+            v-model="passwordForm.currentPassword"
+            :type="showPasswords.current ? 'text' : 'password'"
+            class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+          />
+          <!-- ICON BUTTON -->
+          <button
+            type="button"
+            class="absolute right-2 top-8 text-slate-400 hover:text-slate-600"
+            @click="togglePassword('current')"
+          >
+            <svg v-if="showPasswords.current"
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2">
+
+              <path d="M17.94 17.94A10.94 10.94 0 0112 19c-6.5 0-10-7-10-7a18.45 18.45 0 015.06-5.94M9.9 4.24A10.94 10.94 0 0112 5c6.5 0 10 7 10 7a18.6 18.6 0 01-4.21 5.4"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+
+            </svg>
+
+            <svg v-else
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2">
+
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
+              <circle cx="12" cy="12" r="3"/>
+
+            </svg>
+          </button>
+          <p v-if="passwordErrors.currentPassword"
+            class="text-xs text-red-500 mt-1">
+
+            {{ passwordErrors.currentPassword }}
+          </p>
+        </div>
+
+        <!-- New -->
+
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">
+            Nueva contraseña
+          </label>
+
+          <input
+            v-model="passwordForm.newPassword"
+            :type="showPasswords.next ? 'text' : 'password'"
+            class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+          />
+
+          <!-- strength -->
+
+          <div class="mt-2">
+
+            <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+
+              <div
+                class="h-full transition-all duration-300"
+                :class="passwordStrengthClass"
+                :style="{
+                  width: `${passwordStrength * 20}%`
+                }"
+              />
+            </div>
+
+            <p class="text-xs text-slate-500 mt-1">
+              Seguridad:
+              <span class="font-medium">
+                {{ passwordStrengthLabel }}
+              </span>
+            </p>
+          </div>
+
+          <p v-if="passwordErrors.newPassword"
+            class="text-xs text-red-500 mt-1">
+
+            {{ passwordErrors.newPassword }}
+          </p>
+        </div>
+
+        <!-- Confirm -->
+
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">
+            Confirmar contraseña
+          </label>
+
+          <input
+            v-model="passwordForm.confirmPassword"
+            :type="showPasswords.confirm ? 'text' : 'password'"
+            class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+          />
+
+          <p v-if="passwordErrors.confirmPassword"
+            class="text-xs text-red-500 mt-1">
+
+            {{ passwordErrors.confirmPassword }}
+          </p>
+        </div>
+
+        <!-- Actions -->
+
+        <div class="flex justify-end gap-3 pt-3">
+
+          <button
+            class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100"
+            @click="passwordMode = false"
+          >
+            Cancelar
+          </button>
+
+          <button
+            class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
+            :disabled="passwordLoading"
+            @click="savePassword"
+          >
+            {{ passwordLoading
+                ? 'Guardando...'
+                : 'Actualizar contraseña'
+            }}
+          </button>
+
+        </div>
+
+      </div>
+
+    </SCard>
   </div>
 </template>
 
