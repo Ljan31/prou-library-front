@@ -27,7 +27,7 @@ export const REQUISITO_LABELS: Record<string, string> = {
 
 export const REQUISITOS_DISPONIBLES = Object.keys(REQUISITO_LABELS)
 export function mapRazon(dto: any): RazonCertificado { return { ...dto, requisitos: normalizeRequisitos(dto.requisitos) } }
-function normalizeRequisitos(requisitos: any): string[] {
+export function normalizeRequisitos(requisitos: any): string[] {
   if (Array.isArray(requisitos)) return requisitos
 
   if (typeof requisitos === 'string') {
@@ -49,7 +49,10 @@ export const razonCertificadoService = {
   getByBiblioteca(bibliotecaId: number): Promise<RazonCertificado[]> {
     return api
       .get(`/razones-certificado/biblioteca/${bibliotecaId}`)
-      .then(r => r.data?.data ?? r.data)
+      .then(r => {
+        const data = r.data?.data ?? r.data
+        return data.map(mapRazon)
+      })
   },
 
   getById(id: number): Promise<RazonCertificado> {
