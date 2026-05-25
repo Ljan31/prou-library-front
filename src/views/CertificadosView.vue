@@ -8,18 +8,19 @@ import CertificadosBibliotecario from './certificado/CertificadosBibliotecario.v
 import CertificadosGenerar from './certificado/CertificadosGenerar.vue'
 import CertificadosValidar from './certificado/CertificadosValidar.vue'
 import CertificadosHistorial from './certificado/CertificadosHistorial.vue'
+import SolicitudesCertificadoView from './certificado/SolicitudesCertificadoView.vue'
 
 const ui = useUiStore()
 const { isAdmin, isBibliotecario, isEstudiante } = usePermissions()
 
-type Tab = 'generar' | 'validar' | 'historial'
-const activeTab = ref<Tab>('generar')
+type Tab = 'solicitudes'| 'generar' | 'validar' | 'historial'
+const activeTab = ref<Tab>('solicitudes')
 
 onMounted(() => {
   ui.setBreadcrumbs([{ label: 'Certificados' }])
   const params = new URLSearchParams(window.location.search)
   const tab = params.get('tab') as Tab | null
-  if (tab && ['generar', 'validar', 'historial'].includes(tab)) {
+  if (tab && ['solicitudes', 'generar', 'validar', 'historial'].includes(tab)) {
     activeTab.value = tab
   }
 })
@@ -36,6 +37,10 @@ onMounted(() => {
       </div>
 
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+        <button v-if="isAdmin || isBibliotecario" @click="activeTab = 'solicitudes'" :class="['px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+          activeTab === 'solicitudes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900']">
+          Solicitudes
+        </button>
         <button @click="activeTab = 'generar'" :class="['px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
           activeTab === 'generar' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900']">
           {{ isEstudiante ? 'Solicitar' : 'Generar' }}
@@ -54,6 +59,11 @@ onMounted(() => {
 
     <!-- ── Contenido por tab ── -->
     <!-- <CertificadosGenerar v-if="activeTab === 'generar'" :key="'generar'" /> -->
+    <template v-if="activeTab === 'solicitudes'">
+      <!-- <CertificadosEstudiante v-if="isEstudiante" key="estudiante" /> -->
+       <CertificadosEstudiante v-if="isEstudiante" key="estudiante" />
+      <SolicitudesCertificadoView v-if="isAdmin || isBibliotecario" key="bibliotecarios" />
+    </template>
     <template v-if="activeTab === 'generar'">
       <CertificadosEstudiante v-if="isEstudiante" key="estudiante" />
       <CertificadosBibliotecario v-else-if="isAdmin || isBibliotecario" key="bibliotecario" />
