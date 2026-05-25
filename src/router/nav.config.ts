@@ -60,7 +60,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Mis Reservas",
     to: "/mis-reservas",
     icon: "bookmark-square",
-    roles: ALL_ROLES,
+    roles: ["ROLE_ESTUDIANTE"],
   },
 
   {
@@ -102,4 +102,10 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "document-check",
     roles: ["ROLE_ESTUDIANTE"],
   },
+  // {
+  //   label: 'Solicitudes',
+  //   to: '/solicitudes-certificado',
+  //   icon: 'document-check',
+  //   roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO']
+  // }
 ];

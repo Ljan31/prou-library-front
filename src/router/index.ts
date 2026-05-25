@@ -42,6 +42,12 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/solicitar-certificado',
+    name: 'solicitar-certificado-publico',
+    component: () => import('@/views/certificado/SolicitudCertificadoPublicaView.vue'),
+    meta: { requiresAuth: false, title: 'Solicitar Certificado' }
+  },
+  {
     path: "/",
     component: () => import("@/layouts/AppLayout.vue"),
     meta: { requiresAuth: true },
@@ -243,6 +249,15 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Reservas",
         },
       },
+      {
+        path: 'solicitudes-certificado',
+        name: 'solicitudes-certificado',
+        component: () => import('@/views/certificado/SolicitudesCertificadoView.vue'),
+        meta: {
+          roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO'],
+          title: 'Solicitudes de Certificado',
+        }
+      }
     ],
   },
   {
