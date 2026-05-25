@@ -298,12 +298,7 @@ function validateRazon(): boolean {
 //   if (idx >= 0) razonForm.value.requisitos.splice(idx, 1)
 //   else razonForm.value.requisitos.push(req)
 // }
-function toggleRequisito(req: string) {
-  const current = razonForm.value.requisitos
-  razonForm.value.requisitos = current.includes(req)
-    ? current.filter(r => r !== req)
-    : [...current, req]
-}
+
 async function saveRazon() {
   if (!validateRazon()) return
   savingRazon.value = true
@@ -346,6 +341,41 @@ function requisitoLabel(key: string): string {
   return REQUISITO_LABELS[key] ?? key
 }
 
+// Nueva variable
+const nuevoRequisito = ref('')
+
+// Métodos
+function agregarRequisitoPersonalizado() {
+  const valor = nuevoRequisito.value.trim()
+  if (!valor) return
+
+  // Evitar duplicados
+  if (!razonForm.value.requisitos.includes(valor)) {
+    razonForm.value.requisitos.push(valor)
+  }
+
+  nuevoRequisito.value = '' // Limpiar input
+}
+
+function eliminarRequisito(index: number) {
+  razonForm.value.requisitos.splice(index, 1)
+}
+
+// (Opcional) Mejorar toggleRequisito para que también elimine si ya existe
+function toggleRequisito(req: string) {
+  const current = razonForm.value.requisitos
+  if (current.includes(req)) {
+    razonForm.value.requisitos = current.filter(r => r !== req)
+  } else {
+    razonForm.value.requisitos.push(req)
+  }
+}
+// function toggleRequisito(req: string) {
+//   const current = razonForm.value.requisitos
+//   razonForm.value.requisitos = current.includes(req)
+//     ? current.filter(r => r !== req)
+//     : [...current, req]
+// }
 </script>
 
 <template>
@@ -732,31 +762,86 @@ function requisitoLabel(key: string): string {
 
                       <!-- Requisitos -->
                       <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Requisitos</label>
-                        <div class="flex flex-wrap gap-2">
-                          <button
-                            v-for="req in REQUISITOS_DISPONIBLES"
-                            :key="req"
-                            @click="toggleRequisito(req)"
-                            :class="[
-                              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border-2 transition-all',
-                              razonForm.requisitos.includes(req)
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                            ]"
-                          >
-                            <svg v-if="razonForm.requisitos.includes(req)" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                            </svg>
-                            {{ requisitoLabel(req) }}
-                          </button>
-                          <span v-if="!REQUISITOS_DISPONIBLES.length" class="text-xs text-gray-400">
-                            Sin requisitos predefinidos
-                          </span>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">
+                          Requisitos
+                        </label>
+
+                        <!-- Requisitos Predefinidos -->
+                        <div v-if="REQUISITOS_DISPONIBLES.length" class="mb-4">
+                          <p class="text-xs text-gray-500 mb-2">Seleccionar predefinidos:</p>
+                          <div class="flex flex-wrap gap-2">
+                            <button
+                              v-for="req in REQUISITOS_DISPONIBLES"
+                              :key="req"
+                              @click="toggleRequisito(req)"
+                              :class="[
+                                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border-2 transition-all',
+                                razonForm.requisitos.includes(req)
+                                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                              ]"
+                            >
+                              <svg v-if="razonForm.requisitos.includes(req)" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              {{ requisitoLabel(req) }}
+                            </button>
+                          </div>
                         </div>
-                        <p class="text-xs text-gray-400 mt-1.5">
-                          Selecciona los documentos requeridos para este tipo de certificado.
-                        </p>
+
+                        <!-- Agregar requisito personalizado -->
+                        <div class="mt-4">
+                          <p class="text-xs text-gray-500 mb-2">Agregar requisito personalizado:</p>
+                          <div class="flex gap-2">
+                            <input
+                              v-model="nuevoRequisito"
+                              type="text"
+                              placeholder="Ej: Fotocopia de CI, Certificado de notas, ..."
+                              class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              @keyup.enter="agregarRequisitoPersonalizado"
+                            />
+                            <button
+                              @click="agregarRequisitoPersonalizado"
+                              class="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                              Agregar
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Lista de requisitos seleccionados -->
+                        <div v-if="razonForm.requisitos.length" class="mt-5">
+                          <p class="text-xs text-gray-500 mb-2">Requisitos seleccionados:</p>
+                          <div class="flex flex-wrap gap-2">
+                            <div
+                              v-for="(req, index) in razonForm.requisitos"
+                              :key="index"
+                              class="flex items-center gap-2 bg-white border border-gray-200 text-sm px-3 py-1.5 rounded-lg group"
+                            >
+                              <span>{{ req }}</span>
+                              <button
+                                @click="eliminarRequisito(index)"
+                                class="text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  class="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"
+                                  />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
                       </div>
 
                       <!-- Activo toggle -->
