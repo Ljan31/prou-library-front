@@ -28,7 +28,14 @@ function cambiarPagina(page: number) {
 function alHacerClic(notif: Notificacion) {
   if (!notif.leida) store.marcarLeida(notif.idNotificacion)
   if (notif.idReferencia) {
-    const ruta = notif.tipoNotificacion === 'SANCION' ? '/sanciones' : `/prestamos/${notif.idReferencia}`
+    let ruta = `/prestamos/${notif.idReferencia}`
+
+    if (notif.tipoNotificacion === 'SANCION') {
+      ruta = '/sanciones'
+    } else if (notif.tipoNotificacion === 'CERTIFICADO') {
+      ruta = '/certificados'
+    }
+
     router.push(ruta)
   }
 }
