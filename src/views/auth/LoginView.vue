@@ -177,6 +177,13 @@ async function handleLogin() {
          hover:bg-white/10 transition-all text-sm" @click="router.push('/catalogo-reservas')">
           Ver catálogo público
         </button>
+        <button
+          class="w-full h-10 mt-3 rounded-lg border border-primary-500/30 text-primary-300
+                hover:bg-primary-500/10 transition-all text-sm"
+          @click="router.push('/solicitar-certificado')"
+        >
+          Solicitar certificado
+        </button>
         <p class="text-center text-xs text-slate-600 mt-5">
           SIGEB v1.0 · UMSA Facultad de Humanidades
         </p>
