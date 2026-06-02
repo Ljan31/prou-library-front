@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import api from '@/services/axios'
@@ -8,6 +8,13 @@ import SBadge from '@/components/ui/SBadge.vue'
 import SButton from '@/components/ui/SButton.vue'
 import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
+import ReportePdfModal from '@/components/reportes/ReportePdfModal.vue'
+import { 
+  BoxIcon,        // para inventario
+  ReturnIcon,     // para préstamos (o ClockIcon si prefieres)
+  ChartIcon,      // para más prestados
+  LibraryIcon     // para estado por biblioteca
+} from '../dashboard/icons'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -83,7 +90,7 @@ interface EstadoEjemplarBiblioteca {
 
 // ─── Bibliotecas ─────────────────────────────────────────────────────────────
 
-const bibliotecas = ref<{ id: number; nombre: string }[]>([])
+const bibliotecas = ref<{ id_biblioteca: number; nombre: string }[]>([])
 
 async function fetchBibliotecas() {
   try {
@@ -101,30 +108,30 @@ const paso = ref<PasoVista>('configurar')
 
 // ─── Formulario ──────────────────────────────────────────────────────────────
 
-const TIPOS_REPORTE: { value: TipoReporte; label: string; descripcion: string; icon: string }[] = [
+const TIPOS_REPORTE: { value: TipoReporte; label: string; descripcion: string; icon: Component }[] = [
   {
     value: 'inventario',
     label: 'Inventario',
     descripcion: 'Ejemplares con estado, ubicación y categoría',
-    icon: 'ti-archive-box',
+    icon: BoxIcon
   },
   {
     value: 'prestamos',
     label: 'Préstamos',
     descripcion: 'Listado filtrado por estado y fechas',
-    icon: 'ti-arrow-right-circle',
+    icon: ReturnIcon,
   },
   {
     value: 'libros-mas-prestados',
     label: 'Más prestados',
     descripcion: 'Ranking de libros por cantidad de préstamos',
-    icon: 'ti-chart-bar',
+    icon: ChartIcon,
   },
   {
     value: 'estado-ejemplares',
     label: 'Estado por biblioteca',
     descripcion: 'Distribución de ejemplares por estado en cada sede',
-    icon: 'ti-building-library',
+    icon: LibraryIcon,
   },
 ]
 
@@ -148,14 +155,11 @@ const ESTADOS_EJEMPLAR = [
   { value: 'DAÑADO', label: 'Dañado' },
 ]
 
-const biblId =
-  auth.user?.biblioteca?.id_biblioteca ??
-  auth.user?.biblioteca?.[0]?.id_biblioteca ??
-  null
-
 const form = ref({
   tipo: '' as TipoReporte | '',
-  bibliotecaId: biblId as number | null,
+    bibliotecaId: (
+    auth.user?.biblioteca?.[0]?.id_biblioteca ?? null
+  ) as number | null,
   estadoPrestamo: '',
   estadoEjemplar: '',
   fechaInicio: '',
@@ -217,12 +221,13 @@ async function generarPreview() {
       inventarioDetalle.value = data.detalle ?? []
     }
 
-    else if (tipo === 'prestamos') {
-      const body: Record<string, unknown> = {}
-      if (form.value.bibliotecaId) body.bibliotecaId = Number(form.value.bibliotecaId)
-      if (form.value.estadoPrestamo) body.estado = form.value.estadoPrestamo
-      if (form.value.fechaInicio) body.fechaInicio = form.value.fechaInicio
-      if (form.value.fechaFin) body.fechaFin = form.value.fechaFin
+    else if (tipo === 'prestamos') {     
+      const body: Record<string, unknown>  = {
+        bibliotecaId: form.value.bibliotecaId || null,
+        estado: form.value.estadoPrestamo || null,
+        fechaInicio: form.value.fechaInicio ? form.value.fechaInicio + 'T00:00:00' : null,
+        fechaFin: form.value.fechaFin ? form.value.fechaFin + 'T23:59:59' : null,
+      }
       const res = await api.post('/reportes/prestamos', body)
       const data = res.data?.data ?? res.data
       prestamosResumen.value = data.resumen
@@ -334,6 +339,37 @@ function volverAConfigurar() {
   paso.value = 'configurar'
   resetPreview()
 }
+// ─── Modal PDF ────────────────────────────────────────────────────────────────
+
+const mostrarModalPdf = ref(false)
+
+const datosPdf = computed(() => ({
+  resumen: (() => {
+    if (form.value.tipo === 'inventario' && inventarioResumen.value)
+      return inventarioResumen.value as unknown as Record<string, unknown>
+    if (form.value.tipo === 'prestamos' && prestamosResumen.value)
+      return prestamosResumen.value as unknown as Record<string, unknown>
+    if (form.value.tipo === 'libros-mas-prestados' && librosMasPrestados.value)
+      return librosMasPrestados.value.resumen as unknown as Record<string, unknown>
+    if (form.value.tipo === 'estado-ejemplares' && estadoEjemplares.value)
+      return estadoEjemplares.value.resumen as unknown as Record<string, unknown>
+    return undefined
+  })(),
+  detalle:     form.value.tipo === 'inventario'            ? inventarioDetalle.value               : undefined,
+  prestamos:   form.value.tipo === 'prestamos'             ? prestamosDetalle.value                : undefined,
+  libros:      form.value.tipo === 'libros-mas-prestados'  ? librosMasPrestados.value?.libros      : undefined,
+  bibliotecas: form.value.tipo === 'estado-ejemplares'     ? estadoEjemplares.value?.bibliotecas   : undefined,
+}))
+
+const tituloBibliotecaActiva = computed(() => {
+  if (form.value.bibliotecaId == null) return ''
+
+  return (
+    bibliotecas.value.find(
+      b => b.id_biblioteca === form.value.bibliotecaId
+    )?.nombre ?? ''
+  )
+})
 </script>
 
 <template>
@@ -351,6 +387,20 @@ function volverAConfigurar() {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
           Volver a configurar
+        </SButton>
+         <!-- Botón PDF -->
+        <SButton
+          variant="outline"
+          size="sm"
+          @click="mostrarModalPdf = true"
+        >
+          <svg class="w-4 h-4 mr-1.5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="9" y1="13" x2="15" y2="13"/>
+            <line x1="9" y1="17" x2="11" y2="17"/>
+          </svg>
+          Ver PDF
         </SButton>
         <SButton
           size="sm"
@@ -372,42 +422,46 @@ function volverAConfigurar() {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         <!-- Selección de tipo (izquierda) -->
-        <div class="lg:col-span-2 space-y-3">
-          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tipo de reporte</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              v-for="tipo in TIPOS_REPORTE"
-              :key="tipo.value"
-              class="flex items-start gap-3 p-4 rounded-xl border text-left transition-all duration-150"
-              :class="form.tipo === tipo.value
-                ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-400'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-              @click="form.tipo = tipo.value"
+       <div class="lg:col-span-2 space-y-3">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tipo de reporte</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            v-for="tipo in TIPOS_REPORTE"
+            :key="tipo.value"
+            class="flex items-start gap-3 p-4 rounded-xl border text-left transition-all duration-150"
+            :class="form.tipo === tipo.value
+              ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-400'
+              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
+            @click="form.tipo = tipo.value"
+          >
+            <div
+              class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+              :class="form.tipo === tipo.value ? 'bg-indigo-100' : 'bg-slate-100'"
             >
-              <div
-                class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                :class="form.tipo === tipo.value ? 'bg-indigo-100' : 'bg-slate-100'"
-              >
-                <i
-                  :class="[tipo.icon, 'text-lg', form.tipo === tipo.value ? 'text-indigo-600' : 'text-slate-500']"
-                  aria-hidden="true"
-                />
-              </div>
-              <div>
-                <p
-                  class="text-sm font-semibold"
-                  :class="form.tipo === tipo.value ? 'text-indigo-700' : 'text-slate-800'"
-                >{{ tipo.label }}</p>
-                <p class="text-xs text-slate-500 mt-0.5 leading-snug">{{ tipo.descripcion }}</p>
-              </div>
-              <div v-if="form.tipo === tipo.value" class="ml-auto">
-                <svg class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </div>
-            </button>
-          </div>
+              <!-- NUEVO: Usamos el componente de icono -->
+              <component 
+                :is="tipo.icon" 
+                class="w-5 h-5"
+                :class="form.tipo === tipo.value ? 'text-indigo-600' : 'text-slate-500'"
+              />
+            </div>
+            
+            <div>
+              <p
+                class="text-sm font-semibold"
+                :class="form.tipo === tipo.value ? 'text-indigo-700' : 'text-slate-800'"
+              >{{ tipo.label }}</p>
+              <p class="text-xs text-slate-500 mt-0.5 leading-snug">{{ tipo.descripcion }}</p>
+            </div>
+            
+            <div v-if="form.tipo === tipo.value" class="ml-auto">
+              <svg class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </button>
         </div>
+      </div>
 
         <!-- Filtros (derecha) -->
         <SCard variant="bordered" padding="lg">
@@ -425,8 +479,8 @@ function volverAConfigurar() {
                 :disabled="auth.isBibliotecario"
                 class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-slate-50 disabled:text-slate-400"
               >
-                <option value="">Todas las bibliotecas</option>
-                <option v-for="b in bibliotecas" :key="b.id" :value="b.id">{{ b.nombre }}</option>
+                <option :value="null">Todas las bibliotecas</option>
+                <option v-for="b in bibliotecas" :key="b.id_biblioteca" :value="b.id_biblioteca">{{ b.nombre }}</option>
               </select>
               <p v-if="auth.isBibliotecario" class="text-xs text-slate-400 mt-1">
                 Solo puedes ver tu biblioteca asignada.
@@ -809,10 +863,18 @@ function volverAConfigurar() {
       <div class="mt-5 flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
         <i class="ti ti-info-circle text-slate-400 text-base shrink-0" aria-hidden="true"/>
         <p class="text-xs text-slate-500">
-          Esta es una <strong class="text-slate-700 font-medium">vista previa</strong> de los datos. Usa el botón <strong class="text-slate-700 font-medium">Descargar CSV</strong> para exportar todos los registros.
+          Esta es una <strong class="text-slate-700 font-medium">vista previa</strong> de los datos.
+          Usa <strong class="text-slate-700 font-medium">Ver PDF</strong> para previsualizar y descargar en PDF,
+          o <strong class="text-slate-700 font-medium">Descargar CSV</strong> para exportar todos los registros.
         </p>
       </div>
     </template>
-
+    <!-- ─── Modal PDF ─────────────────────────────────────────────────────────── -->
+    <ReportePdfModal
+      v-model="mostrarModalPdf"
+      :tipo="form.tipo"
+      :datos="datosPdf"
+      :titulo-biblioteca="tituloBibliotecaActiva"
+    />
   </div>
 </template>
