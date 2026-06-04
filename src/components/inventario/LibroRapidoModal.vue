@@ -471,6 +471,7 @@ async function guardar() {
     }
     errorGuardar.value = err?.response?.data?.message
       ?? (e instanceof Error ? e.message : 'Error al guardar')
+    erroresLibro.isbn = err?.response?.data?.message
   } finally {
     guardando.value = false
   }

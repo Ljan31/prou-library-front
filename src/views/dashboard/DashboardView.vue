@@ -135,7 +135,7 @@ const quickLinks = computed(() => {
     { label: 'Catálogo', to: '/catalogo', icon: BookIcon, desc: 'Libros y ejemplares' }
   ]
   if (auth.isBibliotecario) return [
-    { label: 'Nuevo préstamo', to: '/prestamos/nuevo', icon: PlusIcon, desc: 'Registrar préstamo' },
+    { label: 'Nuevo préstamo', to: '/prestamos', icon: PlusIcon, desc: 'Registrar préstamo' },
     { label: 'Devoluciones', to: '/devoluciones', icon: ReturnIcon, desc: 'Procesar devolución' },
     { label: 'Inventario', to: '/inventario', icon: BoxIcon, desc: 'Gestionar ejemplares' },
     { label: 'Reportes', to: '/reportes', icon: ChartIcon, desc: 'Ver estadísticas' }
