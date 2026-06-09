@@ -1,3 +1,4 @@
+
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import {
@@ -109,8 +110,17 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
       bibliotecas.value.unshift(res.data);
       uiStore.toast.success("Biblioteca creada", res.message);
       return true;
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al crear biblioteca";
+    } catch (e: any) {
+      let msg = "Error al crear biblioteca";
+
+      if (e.response) {
+        // e.response.data podría contener el mensaje del backend
+        msg = e.response.data?.message || msg;
+        console.log("Backend error payload:", e.response.data);
+      } else if (e.message) {
+        msg = e.message;
+      }
+
       uiStore.toast.error("Error", msg);
       return false;
     } finally {
@@ -130,8 +140,17 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
       if (idx !== -1) bibliotecas.value[idx] = res.data;
       uiStore.toast.success("Biblioteca actualizada", res.message);
       return true;
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al actualizar";
+    } catch (e: any) {
+      let msg = "Error al crear biblioteca";
+
+      if (e.response) {
+        // e.response.data podría contener el mensaje del backend
+        msg = e.response.data?.message || msg;
+        console.log("Backend error payload:", e.response.data);
+      } else if (e.message) {
+        msg = e.message;
+      }
+
       uiStore.toast.error("Error", msg);
       return false;
     } finally {
@@ -178,7 +197,16 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
       uiStore.toast.success("Carrera creada", res.message);
       return true;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al crear carrera";
+      let msg = "No se pudo completar el registro";
+      console.log(e);
+      if (typeof e === "object" && e !== null && "response" in e) {
+        const err = e as any;
+        msg = err.response?.data?.message || msg;
+        // console.log("BACKEND 👉", err.response?.data)
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+      // const msg = e instanceof Error ? e.message : "Error al eliminar";
       uiStore.toast.error("Error", msg);
       return false;
     } finally {
@@ -198,7 +226,16 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
       uiStore.toast.success("Carrera actualizada", res.message);
       return true;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al actualizar";
+      let msg = "No se pudo completar el registro";
+      console.log(e);
+      if (typeof e === "object" && e !== null && "response" in e) {
+        const err = e as any;
+        msg = err.response?.data?.message || msg;
+        // console.log("BACKEND 👉", err.response?.data)
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+      // const msg = e instanceof Error ? e.message : "Error al eliminar";
       uiStore.toast.error("Error", msg);
       return false;
     } finally {
@@ -214,13 +251,23 @@ export const useBibliotecasStore = defineStore("bibliotecas", () => {
       uiStore.toast.success("Carrera eliminada", res.message);
       return true;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al eliminar";
+      let msg = "No se pudo completar el registro de eliminar";
+      console.log(e);
+      if (typeof e === "object" && e !== null && "response" in e) {
+        const err = e as any;
+        msg = err.response?.data?.message || msg;
+        // console.log("BACKEND 👉", err.response?.data)
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+      // const msg = e instanceof Error ? e.message : "Error al eliminar";
       uiStore.toast.error("Error", msg);
       return false;
     } finally {
       loadingCarreras.value = false;
     }
   }
+
 
   return {
     // State
