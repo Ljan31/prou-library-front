@@ -9,7 +9,7 @@ import BibliotecaFormModal from '@/components/bibliotecas/BibliotecaFormModal.vu
 import CarreraFormModal from '@/components/bibliotecas/CarreraFormModal.vue'
 import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
 import ConfiguracionPrestamoModal from '@/components/bibliotecas/ConfiguracionPrestamoModal.vue'
-
+import BibliotecaEncargadosModal from './BibliotecaEncargadosModal.vue'
 // ─── Stores ───────────────────────────────────────────────────────────────
 const store = useBibliotecasStore()
 const authStore = useAuthStore()
@@ -64,11 +64,11 @@ const showDelModal = ref(false)
 const delTarget = ref<{ type: 'bib' | 'car'; id: number; name: string } | null>(null)
 
 const showConfigModal = ref(false)
-const configBiblioteca = ref<{ id: number; nombre: string } | null>(null)
+const configBiblioteca = ref<{ id: number; nombre: string;   encargados: any[]} | null>(null)
 function openConfigModal(bib: Biblioteca) {
   console.log('clicl config')
   console.log(bib)
-  configBiblioteca.value = { id: bib.id_biblioteca, nombre: bib.nombre }
+  configBiblioteca.value = { id: bib.id_biblioteca, nombre: bib.nombre,   encargados: bib.encargados}
   showConfigModal.value = true
 }
 
@@ -108,6 +108,13 @@ function estadoColor(estado: string) {
   return estado === 'ACTIVA'
     ? 'bg-emerald-100 text-emerald-700'
     : 'bg-gray-100 text-gray-500'
+}
+const showEncargadosModal = ref(false)
+const bibliotecaEncargados = ref<Biblioteca | null>(null)
+
+function openEncargadosModal(bib: Biblioteca) {
+  bibliotecaEncargados.value = bib
+  showEncargadosModal.value = true
 }
 </script>
 
@@ -321,6 +328,27 @@ function estadoColor(estado: string) {
                   d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
+            <button
+  @click="openEncargadosModal(bib)"
+  class="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+  title="Ver encargados"
+>
+  <svg
+    class="w-3.5 h-3.5"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m4-8a4 4 0 100-8 4 4 0 000 8z"
+    />
+  </svg>
+
+  Encargados
+</button>
             <button v-if="authStore.isAdmin" @click="confirmDelete('bib', bib.id_biblioteca, bib.nombre)"
               class="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -449,5 +477,10 @@ function estadoColor(estado: string) {
       @confirm="executeDelete" />
     <ConfiguracionPrestamoModal v-if="configBiblioteca" v-model="showConfigModal" :biblioteca-id="configBiblioteca.id"
       :nombre-bib="configBiblioteca.nombre" :key="configBiblioteca.id" />
+      <BibliotecaEncargadosModal
+  v-if="bibliotecaEncargados"
+  v-model="showEncargadosModal"
+  :biblioteca="bibliotecaEncargados"
+/>
   </div>
 </template>
