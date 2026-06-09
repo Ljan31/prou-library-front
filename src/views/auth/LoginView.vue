@@ -31,6 +31,7 @@ async function handleLogin() {
     const redirect = route.query.redirect as string | undefined
     router.push(redirect ?? '/dashboard')
   } else {
+    console.log('desde login', ok)
     ui.toast.error('Error de acceso', auth.error ?? 'Credenciales incorrectas')
   }
 }
@@ -140,7 +141,7 @@ async function handleLogin() {
             </div>
 
             <!-- Error alert -->
-            <Transition name="slide-up">
+            <!-- <Transition name="slide-up">
               <div v-if="auth.error"
                 class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                 <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -150,7 +151,7 @@ async function handleLogin() {
                 </svg>
                 {{ auth.error }}
               </div>
-            </Transition>
+            </Transition> -->
 
             <!-- Submit -->
             <button type="submit" :disabled="auth.loading" class="w-full h-10 flex items-center justify-center gap-2 text-sm font-semibold
