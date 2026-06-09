@@ -206,7 +206,7 @@ async function verDetalle(s: Solicitud) {
     tasks.push(
       Promise.all([
         api.get(`/sanciones/usuario/ci/${s.ci}/estado`),
-        api.get(`/prestamos/estado-usuario/${s.ci}`),
+        api.get(`/prestamos/estado-usuario/${targetBibliotecaId.value}/${s.ci}`),
       ]).then(([sancionRes, prestamosRes]) => {
         sancionSolicitante.value = sancionRes.data.data ?? sancionRes.data
         prestamosSolicitante.value = prestamosRes.data.data ?? prestamosRes.data
@@ -984,83 +984,88 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                 </div>
 
                 <!-- Botón Aprobar — deshabilitado si tiene suspensión o préstamos pendientes -->
-                <button
-                  @click="aprobarSolicitud(solicitudSeleccionada.id)"
-                  :disabled="aprobando || (solicitanteTieneSuspension || solicitanteTienePrestamos)"
-                  :title="solicitanteTieneSuspension ? 'No se puede aprobar: tiene suspensión activa'
-                    : solicitanteTienePrestamos ? 'No se puede aprobar: tiene préstamos sin devolver'
-                    : 'Aprobar solicitud'"
-                  :class="['w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all',
-                    aprobando || solicitanteTieneSuspension || solicitanteTienePrestamos
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200']"
-                >
-                  <svg v-if="aprobando" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  <svg v-else-if="solicitanteTieneSuspension || solicitanteTienePrestamos" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                  </svg>
-                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                  {{ aprobando ? 'Aprobando...'
-                    : solicitanteTieneSuspension ? 'No disponible (suspensión activa)'
-                    : solicitanteTienePrestamos ? 'No disponible (préstamos pendientes)'
-                    : 'Aprobar solicitud' }}
-                </button>
+                 <div v-if="!isAdmin">
 
-                <!-- Rechazar: toggle form -->
-                <div v-if="!showRechazoForm">
-                  <button
-                    @click="() => {
-                      showRechazoForm = true
-                      // Pre-llenar motivo si tiene problemas
-                      if (solicitanteTieneSuspension && solicitanteTienePrestamos)
-                        motivoRechazo = 'Cuenta con suspensión activa y préstamos sin devolver.'
-                      else if (solicitanteTieneSuspension)
-                        motivoRechazo = 'Cuenta con suspensión activa' + (sancionSolicitante?.fechaFinProxima ? ` hasta el ${formatDate(sancionSolicitante.fechaFinProxima)}.` : '.')
-                      else if (solicitanteTienePrestamos)
-                        motivoRechazo = `Tiene ${(prestamosSolicitante?.prestamosActivos ?? 0) + (prestamosSolicitante?.prestamosVencidos ?? 0)} préstamo(s) pendiente(s) sin devolver.`
-                    }"
-                    class="w-full flex items-center justify-center gap-2 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-xl transition-all"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                    Rechazar solicitud
-                  </button>
-                </div>
-
-                <!-- Form de rechazo -->
-                <div v-else class="space-y-2">
-                  <label class="block text-xs font-medium text-red-600 mb-1">Motivo del rechazo <span class="text-red-400">*</span></label>
-                  <textarea
-                    v-model="motivoRechazo"
-                    rows="2"
-                    placeholder="Ej. Tiene préstamos activos sin devolver, suspensión vigente..."
-                    class="w-full px-3 py-2 text-xs border border-red-200 bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 transition-all resize-none placeholder:text-red-300"
-                  />
-                  <div class="flex gap-2">
-                    <button
-                      @click="rechazarSolicitud(solicitudSeleccionada.id)"
-                      :disabled="rechazando || !motivoRechazo.trim()"
-                      class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-semibold rounded-lg transition-all"
-                    >
-                      <svg v-if="rechazando" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                      </svg>
-                      {{ rechazando ? 'Rechazando...' : 'Confirmar rechazo' }}
-                    </button>
-                    <button @click="showRechazoForm = false; motivoRechazo = ''"
-                      class="px-3 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-medium rounded-lg transition-all">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
+                   <button
+                     @click="aprobarSolicitud(solicitudSeleccionada.id)"
+                     :disabled="aprobando || isAdmin || (solicitanteTieneSuspension || solicitanteTienePrestamos)"
+                     :title="
+                     isAdmin ? 'Los administradores no pueden aprobar solicitudes': solicitanteTieneSuspension ? 'No se puede aprobar: tiene suspensión activa'
+                       : solicitanteTienePrestamos ? 'No se puede aprobar: tiene préstamos sin devolver'
+                       : 'Aprobar solicitud'"
+                     :class="['w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all',
+                       aprobando || isAdmin || solicitanteTieneSuspension || solicitanteTienePrestamos
+                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                         : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200']"
+                   >
+                     <svg v-if="aprobando" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                     </svg>
+                     <svg v-else-if="solicitanteTieneSuspension || solicitanteTienePrestamos" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                         d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                     </svg>
+                     <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                     </svg>
+                     {{ aprobando ? 'Aprobando...'
+                     : isAdmin ? 'Solo bibliotecarios pueden aprobar'
+                       : solicitanteTieneSuspension ? 'No disponible (suspensión activa)'
+                       : solicitanteTienePrestamos ? 'No disponible (préstamos pendientes)'
+                       : 'Aprobar solicitud' }}
+                   </button>
+   
+                   <!-- Rechazar: toggle form -->
+                   <div v-if="!showRechazoForm">
+                     <button
+                       @click="() => {
+                         showRechazoForm = true
+                         // Pre-llenar motivo si tiene problemas
+                         if (solicitanteTieneSuspension && solicitanteTienePrestamos)
+                           motivoRechazo = 'Cuenta con suspensión activa y préstamos sin devolver.'
+                         else if (solicitanteTieneSuspension)
+                           motivoRechazo = 'Cuenta con suspensión activa' + (sancionSolicitante?.fechaFinProxima ? ` hasta el ${formatDate(sancionSolicitante.fechaFinProxima)}.` : '.')
+                         else if (solicitanteTienePrestamos)
+                           motivoRechazo = `Tiene ${(prestamosSolicitante?.prestamosActivos ?? 0) + (prestamosSolicitante?.prestamosVencidos ?? 0)} préstamo(s) pendiente(s) sin devolver.`
+                       }"
+                       class="w-full flex items-center justify-center gap-2 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-xl transition-all"
+                     >
+                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                       </svg>
+                       Rechazar solicitud
+                     </button>
+                   </div>
+   
+                   <!-- Form de rechazo -->
+                   <div v-else class="space-y-2">
+                     <label class="block text-xs font-medium text-red-600 mb-1">Motivo del rechazo <span class="text-red-400">*</span></label>
+                     <textarea
+                       v-model="motivoRechazo"
+                       rows="2"
+                       placeholder="Ej. Tiene préstamos activos sin devolver, suspensión vigente..."
+                       class="w-full px-3 py-2 text-xs border border-red-200 bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 transition-all resize-none placeholder:text-red-300"
+                     />
+                     <div class="flex gap-2">
+                       <button
+                         @click="rechazarSolicitud(solicitudSeleccionada.id)"
+                         :disabled="rechazando || !motivoRechazo.trim()"
+                         class="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-semibold rounded-lg transition-all"
+                       >
+                         <svg v-if="rechazando" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                         </svg>
+                         {{ rechazando ? 'Rechazando...' : 'Confirmar rechazo' }}
+                       </button>
+                       <button @click="showRechazoForm = false; motivoRechazo = ''"
+                         class="px-3 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-medium rounded-lg transition-all">
+                         Cancelar
+                       </button>
+                     </div>
+                   </div>
+                 </div>
               </div>
 
               <!-- Si está APROBADA: mostrar botón para generar el certificado (si tiene usuarioId) -->
