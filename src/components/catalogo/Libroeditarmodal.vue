@@ -465,7 +465,7 @@ const categoriaActual = computed(() =>
           <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">
             Título <span class="text-red-400">*</span>
           </label>
-          <input v-model="formInfo.titulo" type="text"
+          <input v-model="formInfo.titulo" type="text" maxlength="100" minlength="3"
             class="w-full text-sm rounded-xl border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="erroresInfo.titulo ? 'border-red-400 bg-red-50' : 'border-slate-200'" />
           <p v-if="erroresInfo.titulo" class="text-xs text-red-500 mt-1">{{ erroresInfo.titulo }}</p>
@@ -495,7 +495,7 @@ const categoriaActual = computed(() =>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            <input v-model="busquedaAutor" type="text" placeholder="Buscar o crear autor..."
+            <input v-model="busquedaAutor" type="text" placeholder="Buscar o crear autor..." maxlength="50"
               @focus="mostrarDropdownAutor = busquedaAutor.length > 0"
               @blur="cerrarDropdownAutor"
               class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" />

@@ -115,6 +115,11 @@ function close() { emit('update:modelValue', false) }
 function validate(): boolean {
   Object.keys(errors).forEach(k => delete errors[k])
   if (!form.nombre.trim()) errors.nombre = 'Requerido'
+    if (!form.ci.trim()) {
+    errors.ci = 'Requerido'
+  } else if (!/^\d{5,20}$/.test(form.ci)) {
+    errors.ci = 'Debe contener entre 5 y 10 dígitos'
+  }
   if (!form.apellido_pat.trim()) errors.apellido_pat = 'Requerido'
   if (isAdmin.value) {
     if (!form.email.trim()) errors.email = 'Requerido'
@@ -142,7 +147,8 @@ async function handleEdit() {
     emit('updated', updated)
     ui.toast.success('Usuario actualizado', updated.persona?.nombreCompleto ?? updated.username)
   } catch (e: unknown) {
-    ui.toast.error('Error', e instanceof Error ? e.message : 'No se pudo actualizar')
+     const message = e?.response?.data?.message || 'No se pudo actualizar';
+     ui.toast.error('Error', message);
   } finally { loading.value = false }
 }
 
@@ -200,6 +206,7 @@ async function copyTempPassword() {
     setTimeout(() => { tempPasswordCopied.value = false }, 5000)
   } catch { /* silent */ }
 }
+
 </script>
 
 <template>
@@ -233,7 +240,7 @@ async function copyTempPassword() {
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Nombre <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.nombre" type="text"
+                <input v-model="form.nombre" type="text" maxlength="20"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.nombre ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                   @input="delete errors.nombre" />
@@ -242,7 +249,7 @@ async function copyTempPassword() {
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Ap. Paterno <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.apellido_pat" type="text"
+                <input v-model="form.apellido_pat" type="text" maxlength="20"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.apellido_pat ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                   @input="delete errors.apellido_pat" />
@@ -250,12 +257,14 @@ async function copyTempPassword() {
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Ap. Materno</label>
-                <input v-model="form.apellido_mat" type="text"
+                <input v-model="form.apellido_mat" type="text" maxlength="20"
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Celular</label>
-                <input v-model="form.celular" type="text"
+                <input v-model="form.celular" type="text" maxlength="10"  @input="
+                      form.celular = form.celular.replace(/\D/g, '').slice(0, 10);
+                    "
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
                 <!-- CI — editable solo por admin, read-only para otros -->
@@ -269,12 +278,15 @@ async function copyTempPassword() {
                   v-model="form.ci"
                   type="text"
                   :readonly="!isAdmin"
+                  @input="
+                      form.ci = form.ci.replace(/\D/g, '').slice(0, 10);
+                      delete errors.ci
+                    "
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
                   :class="[
                     !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
                     errors.ci ? 'border-red-300 bg-red-50' : ''
                   ]"
-                  @input="delete errors.ci"
                 />
                 <p v-if="errors.ci" class="text-xs text-red-500 mt-0.5">{{ errors.ci }}</p>
               </div>
@@ -288,7 +300,7 @@ async function copyTempPassword() {
                 <input
                   v-model="form.email"
                   type="email"
-                  :readonly="!isAdmin"
+                  :readonly="!isAdmin" maxlength="35"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
                   :class="[
                     !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',

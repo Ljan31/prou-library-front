@@ -335,7 +335,7 @@ const passwordStrength = computed(() => {
                     <label class="block text-xs font-medium text-slate-300 mb-1">
                       Nombre de usuario <span class="text-red-400">*</span>
                     </label>
-                    <input v-model="account.username" type="text" placeholder="ej. maria.lopez" autocomplete="username"
+                    <input v-model="account.username" type="text" placeholder="ej. maria.lopez" autocomplete="username" minlength="4" maxlength="15"
                       class="w-full h-10 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                       :class="errAccount.username ? 'border-red-500/60' : 'border-white/10'"
                       @input="delete errAccount.username" />
@@ -348,7 +348,7 @@ const passwordStrength = computed(() => {
                     <label class="block text-xs font-medium text-slate-300 mb-1">
                       Contraseña <span class="text-red-400">*</span>
                     </label>
-                    <input v-model="account.password" type="password" placeholder="Mínimo 6 caracteres"
+                    <input v-model="account.password" type="password" placeholder="Mínimo 6 caracteres"  minlength="6" maxlength="20"
                       autocomplete="new-password"
                       class="w-full h-10 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                       :class="errAccount.password ? 'border-red-500/60' : 'border-white/10'"
@@ -372,7 +372,7 @@ const passwordStrength = computed(() => {
                       Confirmar contraseña <span class="text-red-400">*</span>
                     </label>
                     <input v-model="account.confirmPassword" type="password" placeholder="Repite tu contraseña"
-                      autocomplete="new-password"
+                      autocomplete="new-password"  minlength="6" maxlength="20"
                       class="w-full h-10 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                       :class="errAccount.confirmPassword ? 'border-red-500/60' : 'border-white/10'"
                       @input="delete errAccount.confirmPassword" />
@@ -393,7 +393,7 @@ const passwordStrength = computed(() => {
                     <div>
                       <label class="block text-xs font-medium text-slate-300 mb-1">Nombre <span
                           class="text-red-400">*</span></label>
-                      <input v-model="persona.nombre" type="text" placeholder="Carlos"
+                      <input v-model="persona.nombre" type="text" placeholder="Carlos" maxlength="20"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.nombre ? 'border-red-500/60' : 'border-white/10'"
                         @input="delete errPersona.nombre" />
@@ -404,10 +404,13 @@ const passwordStrength = computed(() => {
                     <div>
                       <label class="block text-xs font-medium text-slate-300 mb-1">CI <span
                           class="text-red-400">*</span></label>
-                      <input v-model="persona.ci" type="text" placeholder="7564823"
+                      <input v-model="persona.ci" type="text" placeholder="7564823" inputmode="numeric" maxlength="10"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.ci ? 'border-red-500/60' : 'border-white/10'"
-                        @input="delete errPersona.ci" />
+                         @input="
+                            persona.ci = persona.ci.replace(/\D/g, '').slice(0, 10);
+                            delete errPersona.ci;
+                          " />
                       <p v-if="errPersona.ci" class="text-xs text-red-400 mt-0.5">{{ errPersona.ci }}</p>
                     </div>
 
@@ -415,7 +418,7 @@ const passwordStrength = computed(() => {
                     <div>
                       <label class="block text-xs font-medium text-slate-300 mb-1">Ap. Paterno <span
                           class="text-red-400">*</span></label>
-                      <input v-model="persona.apellido_pat" type="text" placeholder="Ramos"
+                      <input v-model="persona.apellido_pat" type="text" placeholder="Ramos" maxlength="25"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.apellido_pat ? 'border-red-500/60' : 'border-white/10'"
                         @input="delete errPersona.apellido_pat" />
@@ -426,7 +429,7 @@ const passwordStrength = computed(() => {
                     <!-- Apellido materno -->
                     <div>
                       <label class="block text-xs font-medium text-slate-300 mb-1">Ap. Materno</label>
-                      <input v-model="persona.apellido_mat" type="text" placeholder="Vargas"
+                      <input v-model="persona.apellido_mat" type="text" placeholder="Vargas" maxlength="25"
                         class="w-full h-9 px-3 text-sm rounded-lg border border-white/10 text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50" />
                     </div>
 
@@ -434,7 +437,7 @@ const passwordStrength = computed(() => {
                     <div class="col-span-2">
                       <label class="block text-xs font-medium text-slate-300 mb-1">Email institucional <span
                           class="text-red-400">*</span></label>
-                      <input v-model="persona.email" type="email" placeholder="carlos.ramos@estudiante.edu"
+                      <input v-model="persona.email" type="email" placeholder="carlos.ramos@estudiante.edu" maxlength="30"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.email ? 'border-red-500/60' : 'border-white/10'"
                         @input="delete errPersona.email" />
@@ -444,7 +447,11 @@ const passwordStrength = computed(() => {
                     <!-- Celular -->
                     <div class="col-span-2">
                       <label class="block text-xs font-medium text-slate-300 mb-1">Celular</label>
-                      <input v-model="persona.celular" type="text" placeholder="73456789"
+                      <input v-model="persona.celular" type="text"
+                        inputmode="numeric"
+                        maxlength="15"
+                        placeholder="73456789"
+                        @input="persona.celular = persona.celular.replace(/\D/g, '').slice(0, 15)"
                         class="w-full h-9 px-3 text-sm rounded-lg border border-white/10 text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50" />
                     </div>
                   </div>
@@ -496,7 +503,10 @@ const passwordStrength = computed(() => {
                       </div>
 
                       <div class="flex gap-2">
-                        <input v-model="pickerMatricula" type="text" placeholder="Matrícula (opcional)"
+                        <input v-model="pickerMatricula" type="text" placeholder="Matrícula (opcional)" 
+                          inputmode="numeric"
+                          maxlength="15"
+                          @input="pickerMatricula = pickerMatricula.replace(/\D/g, '').slice(0, 15)"
                           class="flex-1 h-9 px-3 text-sm rounded-lg border border-white/10 bg-white/6 text-white placeholder:text-slate-500 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50" />
                         <button
                           class="h-9 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors disabled:opacity-50 shrink-0"

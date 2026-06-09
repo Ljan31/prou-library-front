@@ -88,15 +88,73 @@ function removeCarrera(id: number) { form.carreras = form.carreras.filter(c => c
 // separately via /bibliotecas/{id}/encargados. Here it's only a convenience field.
 function validate(): boolean {
   Object.keys(errors).forEach(k => delete errors[k])
-  if (!form.username.trim()) errors.username = 'Requerido'
-  if (!form.password) errors.password = 'Requerido'
-  else if (form.password.length < 8) errors.password = 'Mínimo 8 caracteres'
-  if (!form.nombre.trim()) errors.nombre = 'Requerido'
-  if (!form.apellido_pat.trim()) errors.apellido_pat = 'Requerido'
-  if (!form.ci.trim() || isNaN(Number(form.ci))) errors.ci = 'CI numérico requerido'
-  if (!form.email.trim()) errors.email = 'Requerido'
-  if (!form.roleId) errors.roleId = 'Selecciona un rol'
-  // biblioteca is optional — do NOT add a required error here
+   // Username
+  if (!form.username.trim()) {
+    errors.username = 'Requerido'
+  } else if (form.username.length < 4) {
+    errors.username = 'Mínimo 4 caracteres'
+  } else if (form.username.length > 30) {
+    errors.username = 'Máximo 30 caracteres'
+  }
+
+  // Password
+  if (!form.password) {
+    errors.password = 'Requerido'
+  } else if (form.password.length < 8) {
+    errors.password = 'Mínimo 8 caracteres'
+  } else if (form.password.length > 64) {
+    errors.password = 'Máximo 64 caracteres'
+  }
+
+  // Nombre
+  if (!form.nombre.trim()) {
+    errors.nombre = 'Requerido'
+  } else if (form.nombre.length < 2) {
+    errors.nombre = 'Mínimo 2 caracteres'
+  } else if (form.nombre.length > 50) {
+    errors.nombre = 'Máximo 50 caracteres'
+  }
+
+  // Apellido paterno
+  if (!form.apellido_pat.trim()) {
+    errors.apellido_pat = 'Requerido'
+  } else if (form.apellido_pat.length < 2) {
+    errors.apellido_pat = 'Mínimo 2 caracteres'
+  } else if (form.apellido_pat.length > 50) {
+    errors.apellido_pat = 'Máximo 50 caracteres'
+  }
+
+  // Apellido materno
+  if (form.apellido_mat && form.apellido_mat.length > 50) {
+    errors.apellido_mat = 'Máximo 50 caracteres'
+  }
+
+  // CI
+  if (!form.ci.trim()) {
+    errors.ci = 'Requerido'
+  } else if (!/^\d{5,20}$/.test(form.ci)) {
+    errors.ci = 'Debe contener entre 5 y 20 dígitos'
+  }
+
+  // Email
+  if (!form.email.trim()) {
+    errors.email = 'Requerido'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    errors.email = 'Correo inválido'
+  } else if (form.email.length > 100) {
+    errors.email = 'Máximo 100 caracteres'
+  }
+
+  // Celular
+  if (form.celular && !/^[0-9]{7,15}$/.test(form.celular)) {
+    errors.celular = 'Debe contener entre 7 y 15 dígitos'
+  }
+
+  // Rol
+  if (!form.roleId) {
+    errors.roleId = 'Selecciona un rol'
+  }
+
   return Object.keys(errors).length === 0
 }
 
@@ -239,7 +297,7 @@ async function handleCreate() {
                   <label class="block text-xs font-medium text-slate-600 mb-1">
                     Username <span class="text-red-500">*</span>
                   </label>
-                  <input v-model="form.username" type="text" placeholder="nombre.apellido"
+                  <input v-model="form.username" type="text" placeholder="nombre.apellido" minlength="4" maxlength="15"
                     class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                     :class="errors.username ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                     @input="delete errors.username" />
@@ -249,7 +307,7 @@ async function handleCreate() {
                   <label class="block text-xs font-medium text-slate-600 mb-1">
                     Contraseña <span class="text-red-500">*</span>
                   </label>
-                  <input v-model="form.password" type="password" placeholder="Mínimo 8 caracteres"
+                  <input v-model="form.password" type="password" placeholder="Mínimo 8 caracteres"   minlength="8" maxlength="20"
                     class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                     :class="errors.password ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                     @input="delete errors.password" />
@@ -266,7 +324,7 @@ async function handleCreate() {
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Nombre <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.nombre" type="text" placeholder="Nombre"
+                <input v-model="form.nombre" type="text" placeholder="Nombre"  maxlength="25"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.nombre ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                   @input="delete errors.nombre" />
@@ -275,7 +333,7 @@ async function handleCreate() {
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Ap. Paterno <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.apellido_pat" type="text" placeholder="Ap. Paterno"
+                <input v-model="form.apellido_pat" type="text" placeholder="Ap. Paterno" maxlength="25"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.apellido_pat ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                   @input="delete errors.apellido_pat" />
@@ -283,22 +341,25 @@ async function handleCreate() {
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Ap. Materno</label>
-                <input v-model="form.apellido_mat" type="text" placeholder="Ap. Materno"
+                <input v-model="form.apellido_mat" type="text" placeholder="Ap. Materno" maxlength="25"
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">CI <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.ci" type="text" placeholder="Número de CI"
+                <input v-model="form.ci" type="text" placeholder="Número de CI" inputmode="numeric" maxlength="10"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.ci ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
-                  @input="delete errors.ci" />
+                    @input="
+                      form.ci = form.ci.replace(/\D/g, '').slice(0, 10);
+                      delete errors.ci;
+                    " />
                 <p v-if="errors.ci" class="text-xs text-red-500 mt-0.5">{{ errors.ci }}</p>
               </div>
               <div class="col-span-2">
                 <label class="block text-xs font-medium text-slate-600 mb-1">Email <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.email" type="email" placeholder="email@dominio.com"
+                <input v-model="form.email" type="email" placeholder="email@dominio.com" maxlength="20"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.email ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                   @input="delete errors.email" />
@@ -306,7 +367,7 @@ async function handleCreate() {
               </div>
               <div class="col-span-2">
                 <label class="block text-xs font-medium text-slate-600 mb-1">Celular</label>
-                <input v-model="form.celular" type="text" placeholder="7XXXXXXX"
+                <input v-model="form.celular" type="text" placeholder="7XXXXXXX" maxlength="15" inputmode="numeric" @input="form.celular = form.celular.replace(/\D/g, '').slice(0, 15)"
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
             </div>
@@ -368,7 +429,7 @@ async function handleCreate() {
                     {{ c.nombre_carrera }}
                   </option>
                 </select>
-                <input v-model="form._pickerMatricula" type="text" placeholder="Matrícula"
+                <input v-model="form._pickerMatricula" type="text" placeholder="Matrícula"  maxlength="10"
                   class="w-28 h-9 px-2 text-sm rounded-lg border border-sky-200 bg-white text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400" />
                 <button
                   class="h-9 px-3 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-500 transition-colors disabled:opacity-40 shrink-0"

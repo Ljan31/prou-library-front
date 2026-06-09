@@ -88,7 +88,7 @@ function close() { emit('update:modelValue', false) }
               <label class="block text-sm font-medium text-gray-700 mb-1">
                 Nombre de la Carrera <span class="text-red-500">*</span>
               </label>
-              <input v-model="form.nombre_carrera" type="text" placeholder="Ej: Filosofía"
+              <input v-model="form.nombre_carrera" type="text" placeholder="Ej: Filosofía" maxlength="30"
                 class="w-full px-3 py-2 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 :class="errors.nombre ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-indigo-400'" />
               <p v-if="errors.nombre" class="mt-1 text-xs text-red-500">{{ errors.nombre }}</p>
@@ -98,7 +98,7 @@ function close() { emit('update:modelValue', false) }
               <label class="block text-sm font-medium text-gray-700 mb-1">
                 Código <span class="text-red-500">*</span>
               </label>
-              <input v-model="form.codigo_carrera" type="text" placeholder="Ej: cf123-2026"
+              <input v-model="form.codigo_carrera" type="text" placeholder="Ej: cf123-2026" maxlength="10"
                 class="w-full px-3 py-2 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 :class="errors.codigo ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-indigo-400'" />
               <p v-if="errors.codigo" class="mt-1 text-xs text-red-500">{{ errors.codigo }}</p>

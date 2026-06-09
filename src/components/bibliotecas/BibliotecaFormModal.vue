@@ -91,11 +91,13 @@ async function submit() {
   if (!validate()) return
   submitting.value = true
   let ok = false
+  console.log('antes de enviar')
   if (isEdit.value && props.editing) {
     ok = await store.updateBiblioteca(props.editing.id_biblioteca, form.value, logoFile.value)
   } else {
     ok = await store.createBiblioteca(form.value, logoFile.value)
   }
+      console.log("✔ resultado:", ok);
   submitting.value = false
   if (ok) {
     emit('saved')
@@ -148,7 +150,7 @@ function close() {
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                   Nombre <span class="text-red-500">*</span>
                 </label>
-                <input v-model="form.nombre" type="text" placeholder="Ej: Biblioteca Central FHCE"
+                <input v-model="form.nombre" type="text" placeholder="Ej: Biblioteca Central FHCE"  maxlength="30"
                   class="w-full px-3 py-2 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
                   :class="errors.nombre ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-primary-400'" />
                 <p v-if="errors.nombre" class="mt-1 text-xs text-red-500">
@@ -241,7 +243,7 @@ function close() {
             <!-- Dirección -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-              <input v-model="form.direccion" type="text" placeholder="Av. ..."
+              <input v-model="form.direccion" type="text" placeholder="Av. ..." maxlength="50"
                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-400" />
             </div>
 
@@ -249,12 +251,16 @@ function close() {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                <input v-model="form.telefono" type="text" placeholder="591..."
+                <input v-model="form.telefono" type="text"
+                  inputmode="numeric"
+                  maxlength="15"
+                  placeholder="73456789"
+                  @input="form.telefono = form.telefono.replace(/\D/g, '').slice(0, 8)"
                   class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-400" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input v-model="form.email" type="email" placeholder="bib@fhce.edu"
+                <input v-model="form.email" type="email" placeholder="bib@fhce.edu" maxlength="30"
                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   :class="errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-primary-400'" />
                 <p v-if="errors.email" class="mt-1 text-xs text-red-500">{{ errors.email }}</p>
@@ -264,7 +270,7 @@ function close() {
             <!-- Horario -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Horario de Atención</label>
-              <input v-model="form.horario_atencion" type="text" placeholder="Lunes a Viernes 8:00 - 18:00"
+              <input v-model="form.horario_atencion" type="text" placeholder="Lunes a Viernes 8:00 - 18:00" maxlength="30"
                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-400" />
             </div>
           </div>

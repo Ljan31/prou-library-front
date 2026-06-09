@@ -567,7 +567,8 @@ const ocultarCategorias = () => {
             <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Título <span class="text-red-400">*</span>
             </label>
-            <input v-model="libro.titulo" rows="3" placeholder="Ej. BIO-BIBLIOGRAFÍA BOLIVIANA 2000" class="w-full text-sm rounded-xl border px-4 py-2.5
+            <input maxlength="100" minlength="3"
+            v-model="libro.titulo" rows="3" placeholder="Ej. BIO-BIBLIOGRAFÍA BOLIVIANA 2000" class="w-full text-sm rounded-xl border px-4 py-2.5 
          focus:outline-none focus:ring-2 focus:ring-indigo-500
          transition-shadow resize-none" :class="erroresLibro.titulo
           ? 'border-red-400 bg-red-50'
@@ -664,7 +665,7 @@ const ocultarCategorias = () => {
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 <input v-model="busquedaAutor" type="text" placeholder="Buscar autor o escribir nombre nuevo..."
-                  @focus="showDropAutor = busquedaAutor.length > 0" @blur="cerrarDropdownAutor"
+                  @focus="showDropAutor = busquedaAutor.length > 0" @blur="cerrarDropdownAutor"   maxlength="50"
                   class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
               </div>
 
@@ -858,24 +859,26 @@ const ocultarCategorias = () => {
                 Clasificación decimal
                 <span class="text-slate-400">(Dewey)</span>
               </label>
-              <input v-model="ej.clasificacionDecimal" type="text" placeholder="Ej. 989.506"
+              <input v-model="ej.clasificacionDecimal" type="text" placeholder="Ej. 989.506" maxlength="10"
                 class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div>
               <label class="block text-xs text-slate-500 mb-1">Cutter autor</label>
-              <input v-model="ej.cutterAutor" type="text" placeholder="Ej. REY"
+              <input v-model="ej.cutterAutor" type="text" placeholder="Ej. REY" maxlength="10"
                 class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <p class="text-xs text-slate-400 mt-1">Auto: 3 letras del apellido</p>
             </div>
             <div>
               <label class="block text-xs text-slate-500 mb-1">Cutter título</label>
-              <input v-model="ej.cutterTitulo" type="text" placeholder="Ej. izq"
+              <input v-model="ej.cutterTitulo" type="text" placeholder="Ej. izq" maxlength="10"
                 class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <p class="text-xs text-slate-400 mt-1">Auto: 3 letras del título</p>
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">ISBN</label>
-              <input v-model="edicion.isbn" type="text" placeholder="978-…" class="w-full text-sm font-mono rounded-xl border px-3 py-2.5
+              <input v-model="edicion.isbn" 
+                maxlength="17"
+                minlength="10" type="text" placeholder="978-…" class="w-full text-sm font-mono rounded-xl border px-3 py-2.5
            focus:outline-none focus:ring-2 transition-shadow" :class="erroresLibro.isbn
             ? 'border-red-400 bg-red-50 focus:ring-red-500'
             : 'border-slate-200 focus:ring-indigo-500'" />

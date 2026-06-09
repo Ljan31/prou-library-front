@@ -239,7 +239,7 @@ async function guardar() {
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">ISBN *</label>
-          <input v-model="form.isbn" type="text" placeholder="978-0-262-03384-8"
+          <input v-model="form.isbn" type="text" placeholder="978-0-262-03384-8" maxlength="17" minlength="10"
             class="w-full text-sm rounded-lg border px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.isbn ? 'border-red-400' : 'border-slate-200'" />
           <p v-if="errores.isbn" class="text-xs text-red-500 mt-1">{{ errores.isbn }}</p>
@@ -247,7 +247,7 @@ async function guardar() {
 
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">Editorial *</label>
-          <input v-model="form.editorial" type="text" placeholder="MIT Press"
+          <input v-model="form.editorial" type="text" placeholder="MIT Press" maxlength="50"
             class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.editorial ? 'border-red-400' : 'border-slate-200'" />
           <p v-if="errores.editorial" class="text-xs text-red-500 mt-1">{{ errores.editorial }}</p>
@@ -267,11 +267,6 @@ async function guardar() {
             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
 
-        <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Páginas</label>
-          <input v-model.number="form.numeroPaginas" type="number" placeholder="450"
-            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
       </div>
 
       <p v-if="errorGeneral" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">

@@ -384,19 +384,19 @@ async function guardar() {
         <div class="grid grid-cols-3 gap-2.5">
           <div>
             <label class="block text-xs text-slate-500 mb-1">Clasificación decimal</label>
-            <input v-model="form.clasificacionDecimal" type="text"
+            <input v-model="form.clasificacionDecimal" type="text" maxlength="10"
               placeholder="Ej. 989.506"
               class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">Cutter autor</label>
-            <input v-model="form.cutterAutor" type="text"
+            <input v-model="form.cutterAutor" type="text" maxlength="10"
               placeholder="Ej. REY"
               class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">Cutter título</label>
-            <input v-model="form.cutterTitulo" type="text"
+            <input v-model="form.cutterTitulo" type="text" maxlength="10"
               placeholder="Ej. izq"
               class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
           </div>
@@ -433,11 +433,11 @@ async function guardar() {
           <p v-if="errores.codigoEjemplar" class="text-xs text-red-500 mt-1">{{ errores.codigoEjemplar }}</p>
           <p class="text-xs text-slate-400 mt-0.5">Debe ser único</p>
         </div> -->
-        <div>
+        <!-- <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Código topográfico</label>
-          <input v-model="form.codigoTopografico" type="text" placeholder="004.1 C676"
+          <input v-model="form.codigoTopografico" type="text" placeholder="004.1 C676" maxlength="15"
             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
+        </div> -->
 
            <!-- Ubicación física -->
         <div>
@@ -446,7 +446,7 @@ async function guardar() {
           </label>
 
           <input
-            v-model="form.ubicacionFisica"
+            v-model="form.ubicacionFisica" maxlength="20"
             type="text"
             placeholder="Estante B-2, Fila 1"
             class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
