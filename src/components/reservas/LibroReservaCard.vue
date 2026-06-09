@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { LibroPublico } from '@/types/reservas'
+import { useAuthStore } from '@/stores/auth.store'
 import { primeraPortada, primeraEditorial, primerIsbn } from '@/utils/catalogo'
+const auth = useAuthStore()
 interface Props {
   libro: LibroPublico
   yaReservado?: boolean
   vista?: 'grid' | 'lista'
 }
-
 const props = withDefaults(defineProps<Props>(), {
   yaReservado: false,
   vista: 'grid'
@@ -94,7 +95,7 @@ import { computed } from 'vue'
         {{libro.autores?.map(a => a.nombre).join(', ') || 'Sin autores'}}
       </p>
 
-      <button :disabled="yaReservado" :class="[
+      <button v-if="auth.isEstudiante || !auth.isAuthenticated" :disabled="yaReservado" :class="[
         'mt-3 w-full text-xs font-medium py-2 rounded-lg transition-colors',
         yaReservado
           ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
