@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { authService, type LoginCredentials } from "@/services/auth.service";
@@ -141,9 +142,21 @@ export const useAuthStore = defineStore("auth", () => {
       };
       return true;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error de autenticación";
+      let msg = 'Error de autenticación';
+
+      if (axios.isAxiosError(err)) {
+        msg =
+          err.response?.data?.message ||
+          err.message ||
+          msg;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+
       error.value = msg;
-      clearSession();
+      console.log(error.value)
+      // clearSession();
+
       return false;
     } finally {
       loading.value = false;

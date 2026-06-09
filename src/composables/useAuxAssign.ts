@@ -3,6 +3,7 @@
  * Soporta: estudiantes como auxiliares (con filtro por carrera)
  *          y bibliotecarios como encargados (sin filtro de carrera).
  */
+import axios from "axios";
 import { ref, watch } from "vue";
 import { useUiStore } from "@/stores/ui.store";
 import { useUsers } from "@/composables/useUsers";
@@ -183,19 +184,35 @@ export function useAuxAssign() {
       auxResolucionPreview.value = "";
       return true;
     } catch (e: unknown) {
-      const msg =
-        e instanceof Error ? e.message : "No se pudo asignar como encargado";
+      let msg = "No se pudo asignar como encargado";
+
+      if (axios.isAxiosError(e)) {
+        msg =
+          e.response?.data?.message ||
+          e.response?.data?.error ||
+          e.message;
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+
       const lower = msg.toLowerCase();
+
       if (
         lower.includes("duplicado") ||
         lower.includes("ya está") ||
         lower.includes("already") ||
         lower.includes("ya es encargado")
       ) {
-        auxError.value = `${user.persona?.nombreCompleto ?? user.username} ya es encargado de esta biblioteca`;
-      } else {
-        auxError.value = msg;
+        msg = `${user.persona?.nombreCompleto ?? user.username} ya es encargado de esta biblioteca`;
       }
+
+      auxError.value = msg;
+
+      ui.toast.error(
+        "Error al asignar encargado",
+        msg,
+      );
+
       return false;
     } finally {
       auxLoading.value = false;
