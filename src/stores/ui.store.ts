@@ -42,10 +42,24 @@ export const useUiStore = defineStore("ui", () => {
   const toasts = ref<Toast[]>([]);
 
   function addToast(toast: Omit<Toast, "id">) {
-    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    toasts.value.push({ ...toast, id });
+    // const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    // toasts.value.push({ ...toast, id });
 
-    setTimeout(() => removeToast(id), toast.duration);
+    // setTimeout(() => removeToast(id), toast.duration);
+    const existing = toasts.value.find(
+      t =>
+        t.type === toast.type &&
+        t.title === toast.title &&
+        t.message === toast.message
+    )
+
+    if (existing) return
+
+    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2)}`
+
+    toasts.value.push({ ...toast, id })
+
+    setTimeout(() => removeToast(id), toast.duration)
   }
 
   function removeToast(id: string) {
