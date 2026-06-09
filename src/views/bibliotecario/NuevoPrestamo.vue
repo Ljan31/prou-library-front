@@ -58,6 +58,7 @@ interface EstadoSancion {
 interface UsuarioResult {
   id_usuario: number
   username: string
+  enabled: boolean
   persona: {
     nombreCompleto: string
     ci: number | string
@@ -191,7 +192,9 @@ async function searchUsers(q: string) {
     userLoading.value = false
   }
 }
-
+const usuarioInhabilitado = computed(() =>
+  selectedUser.value?.enabled === false
+)
 async function selectUser(u: UsuarioResult) {
   selectedUser.value = u
   userQuery.value = u.persona.nombreCompleto
@@ -200,6 +203,7 @@ async function selectUser(u: UsuarioResult) {
   // Verificar sanciones inmediatamente
   sancionLoading.value = true
   try {
+    console.log('user',u)
     const { data } = await api.get(`/sanciones/usuario/${u.id_usuario}/estado`)
     sancionEstado.value = data?.data ?? data
     // console.log("✅ Data final procesada:", sancionEstado.value)
@@ -227,14 +231,22 @@ function highlight(text: string, query: string): string {
 const usuarioSancionado = computed(() => sancionEstado.value?.tieneDeudaPendiente === true)
 // const usuarioSancionado = computed(() => sancionEstado.value?.tieneSuspensionVigente === true)
 const usuarioBloqueado = computed(() => {
-  if (!sancionEstado.value) return false
+  // if (!sancionEstado.value) return false
 
-  return (
-    sancionEstado.value.tieneSuspensionVigente === true ||
-    sancionEstado.value.tieneDeudaPendiente === true
-  )
+  // return (
+  //   sancionEstado.value.tieneSuspensionVigente === true ||
+  //   sancionEstado.value.tieneDeudaPendiente === true
+  // )
+  const bloqueadoPorSancion =
+    sancionEstado.value?.tieneSuspensionVigente === true ||
+    sancionEstado.value?.tieneDeudaPendiente === true
+
+  return bloqueadoPorSancion || usuarioInhabilitado.value
 })
 const mensajeSancion = computed(() => {
+  if (usuarioInhabilitado.value) {
+    return 'Usuario inhabilitado'
+  }
   if (!sancionEstado.value) return ''
 
   const tieneSuspension = sancionEstado.value.tieneSuspensionVigente
