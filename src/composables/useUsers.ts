@@ -2,6 +2,7 @@
  * useUsers — estado y lógica compartida del módulo de usuarios.
  * Estado singleton a nivel de módulo para evitar prop-drilling.
  */
+import axios from "axios";
 import { ref, computed } from "vue";
 import { userService } from "@/services/user.service";
 import { carreraService } from "@/services/estudiante.service";
@@ -23,7 +24,7 @@ const allCarreras = ref<
 const allBibliotecas = ref<BibliotecaResponse[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
-
+const deletingId = ref<number | null>(null);
 // ─── Response unwrappers ──────────────────────────────────────────────────
 /** Extrae un array de cualquier forma de respuesta del backend */
 export function unwrapList<T>(data: unknown): T[] {
@@ -176,6 +177,34 @@ export function useUsers() {
     }
   }
 
+  async function deleteUser(id: number) {
+    deletingId.value = id;
+
+    try {
+      await userService.delete(id);
+
+      users.value = users.value.filter(
+        (u) => u.id_usuario !== id
+      );
+
+      ui.toast.success("Usuario eliminado", "Se eliminó correctamente");
+    } catch (e: unknown) {
+      if (axios.isAxiosError(e)) {
+        const message =
+          e.response?.data?.message ?? "No se pudo eliminar el usuario";
+
+        ui.toast.error("No permitido", message);
+      } else {
+        ui.toast.error(
+          "Error",
+          "No se pudo eliminar el usuario"
+        );
+      }
+    } finally {
+      deletingId.value = null;
+    }
+  }
+
   // ── Patch / add user in list ──────────────────────────────────────────────
   function patchUser(updated: UserResponse) {
     if (!isValidUser(updated)) return;
@@ -268,5 +297,7 @@ export function useUsers() {
     patchUser,
     addUser,
     roleNameForId,
+    deleteUser,
+    deletingId,
   };
 }
