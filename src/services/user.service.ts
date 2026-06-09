@@ -108,4 +108,7 @@ export const userService = {
   adminResetPassword(id: number): Promise<AxiosResponse<{ data: AdminResetPasswordResponse }>> {
     return api.put(`/users/${id}/reset-password`)
   },
+  delete(id: number): Promise<AxiosResponse<void>> {
+    return api.delete(`/users/${id}`)
+  },
 };

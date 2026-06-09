@@ -9,6 +9,7 @@ import type { UserResponse } from '@/services/user.service'
 import UserDetailPanel from '@/components/users/UserDetailPanel.vue'
 import UserEditModal from '@/components/users/UserEditModal.vue'
 import UserCreateModal from '@/components/users/UserCreateModal.vue'
+import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
 
 const ui = useUiStore()
 const { isAdmin } = usePermissions()
@@ -17,7 +18,8 @@ const {
   users, roles, allCarreras, allBibliotecas,
   loading, error, togglingId, stats,
   fetchUsers, fetchRoles, loadAllCarreras, loadBibliotecas,
-  toggleEnabled, patchUser, roleNameForId,
+  toggleEnabled, patchUser, roleNameForId,   deleteUser,  
+  deletingId ,
 } = useUsers()
 
 onMounted(() => {
@@ -91,6 +93,32 @@ const showCreateModal = ref(false)
 
 function onUserCreated(newUser: UserResponse) {
   users.value.unshift(newUser)
+  fetchUsers("", "")
+  
+}
+
+const showDeleteModal = ref(false)
+const userToDelete = ref<UserResponse | null>(null)
+function openDeleteModal(user: UserResponse) {
+  if (user.roles?.some(r => r.name === 'ROLE_ADMIN')) {
+    ui.toast.error("No permitido", "No se puede eliminar un administrador")
+  return
+}
+  userToDelete.value = user
+  showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+  if (!userToDelete.value) return
+
+  await deleteUser(userToDelete.value.id_usuario)
+
+  if (selectedUser.value?.id_usuario === userToDelete.value.id_usuario) {
+    selectedUser.value = null
+  }
+
+  showDeleteModal.value = false
+  userToDelete.value = null
 }
 </script>
 
@@ -266,7 +294,7 @@ function onUserCreated(newUser: UserResponse) {
                     :class="user.enabled
                       ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
                       : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'"
-                    :disabled="togglingId === user.id_usuario" @click.stop="toggleEnabled(user)">
+                    :disabled="togglingId === user.id_usuario" >
                     <span class="w-1.5 h-1.5 rounded-full" :class="user.enabled ? 'bg-emerald-500' : 'bg-red-500'" />
                     <svg v-if="togglingId === user.id_usuario" class="w-3 h-3 animate-spin" fill="none"
                       viewBox="0 0 24 24">
@@ -291,6 +319,16 @@ function onUserCreated(newUser: UserResponse) {
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
+                  <button
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Eliminar"
+                    @click="openDeleteModal(user)"
+                  >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 6h18M8 6V4h8v2m-9 0v14a2 2 0 002 2h6a2 2 0 002-2V6"
                         stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </button>
@@ -325,6 +363,12 @@ function onUserCreated(newUser: UserResponse) {
     <UserEditModal v-model="showEditModal" :user="editingUser" @updated="onUserUpdated" />
 
     <UserCreateModal v-model="showCreateModal" @created="onUserCreated" />
-
+    <DeleteConfirmModal
+      v-model="showDeleteModal"
+      title="Eliminar usuario"
+      :message="`¿Eliminar a ${userToDelete?.username}? Esta acción no se puede deshacer.`"
+      :loading="deletingId === userToDelete?.id_usuario"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
