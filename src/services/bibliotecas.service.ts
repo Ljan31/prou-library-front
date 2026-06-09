@@ -126,7 +126,9 @@ export const bibliotecasService = {
     logoFile?: File | null,
   ): Promise<ApiResponse<Biblioteca>> {
     const fd = buildFormData(payload, logoFile);
-    return api.post("/bibliotecas", fd).then((r) => r.data);
+    return api.post("/bibliotecas", fd).then((r) => {
+      return r.data;
+    });
   },
 
   update(

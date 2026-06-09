@@ -88,20 +88,20 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
   },
   // Para Admin y Bibliotecario:
-  {
-    label: "Sanciones",
-    to: "/sanciones",
-    icon: "document-check",
-    roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
-  },
+  // {
+  //   label: "Sanciones",
+  //   to: "/sanciones",
+  //   icon: "document-check",
+  //   roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+  // },
 
-  // Para Estudiante:
-  {
-    label: "Mis Sanciones",
-    to: "/mis-sanciones",
-    icon: "document-check",
-    roles: ["ROLE_ESTUDIANTE"],
-  },
+  // // Para Estudiante:
+  // {
+  //   label: "Mis Sanciones",
+  //   to: "/mis-sanciones",
+  //   icon: "document-check",
+  //   roles: ["ROLE_ESTUDIANTE"],
+  // },
   // {
   //   label: 'Solicitudes',
   //   to: '/solicitudes-certificado',
