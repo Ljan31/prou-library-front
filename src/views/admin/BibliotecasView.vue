@@ -328,27 +328,27 @@ function openEncargadosModal(bib: Biblioteca) {
                   d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
-            <button
-  @click="openEncargadosModal(bib)"
-  class="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-  title="Ver encargados"
->
-  <svg
-    class="w-3.5 h-3.5"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      stroke-width="2"
-      d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m4-8a4 4 0 100-8 4 4 0 000 8z"
-    />
-  </svg>
+            <!-- <button
+              @click="openEncargadosModal(bib)"
+              class="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              title="Ver encargados"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m4-8a4 4 0 100-8 4 4 0 000 8z"
+                />
+              </svg>
 
-  Encargados
-</button>
+              Encargados
+            </button> -->
             <button v-if="authStore.isAdmin" @click="confirmDelete('bib', bib.id_biblioteca, bib.nombre)"
               class="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

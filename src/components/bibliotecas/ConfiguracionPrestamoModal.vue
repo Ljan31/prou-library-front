@@ -702,7 +702,7 @@ function toggleRequisito(req: string) {
                         <label class="block text-xs font-medium text-gray-600 mb-1">Nombre <span class="text-red-500">*</span></label>
                         <input
                           v-model="razonForm.nombre"
-                          type="text"
+                          type="text" maxlength="25"
                           placeholder="Ej: Egreso, Postgrado, Trámite..."
                           class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                           :class="razonErrors.nombre ? 'border-red-400 bg-red-50' : 'border-gray-300'"
@@ -715,7 +715,7 @@ function toggleRequisito(req: string) {
                         <label class="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
                         <input
                           v-model="razonForm.descripcion"
-                          type="text"
+                          type="text" maxlength="100"
                           placeholder="Descripción breve..."
                           class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                         />
