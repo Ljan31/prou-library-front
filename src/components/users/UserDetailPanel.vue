@@ -39,7 +39,7 @@ const isBibliotecario = computed(() =>
   props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false
 )
 const canManageAux = computed(() => {
-  if (isEstudiante.value && isStaff.value) return true
+  // if (isEstudiante.value && isStaff.value) return true
   if (isBibliotecario.value && isAdmin.value) return true
   return false
 })
