@@ -123,27 +123,27 @@ const routes: RouteRecordRaw[] = [
         name: "inventario",
         component: () => import("@/views/bibliotecario/InventarioView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
           title: "Inventario",
           breadcrumb: "Inventario",
         },
       },
-      {
-        path: "nuevo-ejemplar", // /inventario/nuevo-ejemplar
-        name: "inventario-nuevo-ejemplar",
-        component: () => import("@/views/bibliotecario/NuevoEjemplarView.vue"),
-        meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
-          title: "Nuevo ejemplar",
-          breadcrumb: "Nuevo ejemplar",
-        },
-      },
+      // {
+      //   path: "nuevo-ejemplar", // /inventario/nuevo-ejemplar
+      //   name: "inventario-nuevo-ejemplar",
+      //   component: () => import("@/views/bibliotecario/NuevoEjemplarView.vue"),
+      //   meta: {
+      //     roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+      //     title: "Nuevo ejemplar",
+      //     breadcrumb: "Nuevo ejemplar",
+      //   },
+      // },
       {
         path: "prestamos",
         name: "prestamos",
         component: () => import("@/views/bibliotecario/PrestamosView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", 'ROLE_AUXILIAR'],
           title: "Préstamos",
           breadcrumb: "Préstamos",
         },
@@ -153,7 +153,7 @@ const routes: RouteRecordRaw[] = [
         name: "devoluciones",
         component: () => import("@/views/bibliotecario/DevolucionesView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
           title: "Devoluciones",
           breadcrumb: "Devoluciones",
         },

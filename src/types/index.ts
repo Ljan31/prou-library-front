@@ -1,6 +1,6 @@
 // ─── Auth & User Types ─────────────────────────────────────────────────────
 
-export type RoleKey = "ROLE_ADMIN" | "ROLE_BIBLIOTECARIO" | "ROLE_ESTUDIANTE";
+export type RoleKey = "ROLE_ADMIN" | "ROLE_BIBLIOTECARIO" | "ROLE_ESTUDIANTE" | "ROLE_AUXILIAR";
 
 export interface Persona {
   id_persona: number;

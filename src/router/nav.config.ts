@@ -4,8 +4,9 @@ const ALL_ROLES: RoleKey[] = [
   "ROLE_ADMIN",
   "ROLE_BIBLIOTECARIO",
   "ROLE_ESTUDIANTE",
+  "ROLE_AUXILIAR",
 ];
-const STAFF_ROLES: RoleKey[] = ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"];
+const STAFF_ROLES: RoleKey[] = ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"];
 
 export const NAV_ITEMS: NavItem[] = [
   {

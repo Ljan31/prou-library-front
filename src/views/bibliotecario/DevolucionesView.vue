@@ -27,7 +27,7 @@ onMounted(() => {
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Prestamo {
   id_prestamo: number
-  estadoPrestamo: 'ACTIVO' | 'RENOVADO' | 'DEVUELTO'
+  estadoPrestamo: 'ACTIVO' | 'RENOVADO' | 'DEVUELTO' | 'VENCIDO'
   vencido: boolean
   condicionEntrega?: string
   renovaciones?: number
@@ -96,7 +96,8 @@ async function fetchPendientes() {
       // 🔹 ADMIN
       urls = [
         '/prestamos/estado/ACTIVO',
-        '/prestamos/estado/RENOVADO'
+        '/prestamos/estado/RENOVADO',
+        '/prestamos/estado/VENCIDO',
       ]
     } else if (esBiblio) {
       // 🔹 BIBLIOTECARIO / AUXILIAR
@@ -107,7 +108,8 @@ async function fetchPendientes() {
 
       urls = [
         `/prestamos/biblioteca/${bibliotecaId}?estado=ACTIVO`,
-        `/prestamos/biblioteca/${bibliotecaId}?estado=RENOVADO`
+        `/prestamos/biblioteca/${bibliotecaId}?estado=RENOVADO`,
+        `/prestamos/biblioteca/${bibliotecaId}?estado=VENCIDO`
       ]
     }
 
@@ -130,6 +132,7 @@ async function fetchPendientes() {
 }
 const pendientesFiltrados = computed(() => {
   const q = searchLocal.value.toLowerCase()
+  console.log('pendienes filtrados', q)
   if (!q) return pendientes.value
   return pendientes.value.filter(p => {
     const titulo = p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? ''
@@ -448,6 +451,16 @@ async function confirmarSancion() {
   } finally { sancionLoading2.value = false }
 }
 
+function getPrestamoCardClass(p: Prestamo) {
+  if (p.vencido || p.estadoPrestamo === 'VENCIDO') {
+    return 'bg-red-50 border-l-4 border-l-red-500 hover:bg-red-100'
+  }
+
+  return prestamoSeleccionado.value?.id_prestamo === p.id_prestamo
+    ? 'bg-indigo-50 border-l-4 border-l-indigo-500'
+    : ''
+}
+
 </script>
 
 <template>
@@ -514,7 +527,7 @@ async function confirmarSancion() {
           <div v-else class="divide-y divide-slate-50 max-h-[520px] overflow-y-auto">
             <button v-for="p in pendientesFiltrados" :key="p.id_prestamo" @click="seleccionarPrestamo(p)"
               :class="['w-full px-5 py-3.5 text-left transition-all hover:bg-slate-50',
-                prestamoSeleccionado?.id_prestamo === p.id_prestamo ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : '']">
+                getPrestamoCardClass(p)]">
               <div class="flex items-start gap-3">
                 <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="getUrl(p.ejemplar.edicion.imagenPortada)"
                   alt="portada"
@@ -698,7 +711,12 @@ async function confirmarSancion() {
         <div v-else class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
           <!-- Header con info del préstamo -->
-          <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+          <div :class="[
+            'px-6 py-4 border-b',
+            prestamoSeleccionado?.vencido
+              ? 'bg-red-50 border-red-200'
+              : 'bg-slate-50 border-slate-100'
+          ]">
             <div class="flex items-start gap-4">
               <img v-if="prestamoSeleccionado.ejemplar?.edicion?.imagenPortada"
                 :src="getUrl(prestamoSeleccionado.ejemplar.edicion.imagenPortada)" alt="portada"
@@ -735,8 +753,12 @@ async function confirmarSancion() {
             </div>
           </div>
 
-          <div class="p-6 space-y-6">
-
+          <div  :class="[
+            'p-6 space-y-6',
+            prestamoSeleccionado?.vencido
+              ? 'bg-red-50/30'
+              : ''
+          ]">
             <!-- ═══ BLOQUE DE SANCIONES ACTIVAS ═══════════════════════════ -->
             <div v-if="sancionLoading"
               class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl text-sm text-slate-500">
