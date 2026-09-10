@@ -513,8 +513,8 @@ function toggleRequisito(req: string) {
                         { label: 'Días máximos', value: fmt(config?.diasPrestamoMax, ' días') },
                         { label: 'Renovaciones', value: fmt(config?.renovacionesMax) },
                         { label: 'Ejemplares máx.', value: fmt(config?.ejemplaresMaxDomicilio) },
-                        { label: 'Multa/día', value: fmtCurrency(config?.multaPorDia) },
-                        { label: 'Días máx. multa', value: fmt(config?.multaMaxDias, ' días') },
+                        // { label: 'Multa/día', value: fmtCurrency(config?.multaPorDia) },
+                        // { label: 'Días máx. multa', value: fmt(config?.multaMaxDias, ' días') },
                         { label: 'Días suspensión', value: fmt(config?.diasSuspension, ' días') },
                         { label: 'Días de reserva', value: fmt(config?.diasReserva, ' días') },
                       ]" :key="stat.label" class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
@@ -602,23 +602,23 @@ function toggleRequisito(req: string) {
                       </div>
     
                       <!-- multaPorDia -->
-                      <div>
+                      <!-- <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Multa por día (Bs)</label>
                         <input v-model.number="form.multaPorDia" type="number" min="0" step="0.50"
                           class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                           :class="errors.multaPorDia ? 'border-red-400 bg-red-50' : 'border-gray-300'" />
                         <p v-if="errors.multaPorDia" class="mt-1 text-xs text-red-500">{{ errors.multaPorDia }}</p>
-                      </div>
+                      </div> -->
     
                       <!-- multaMaxDias -->
-                      <div>
+                      <!-- <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Días máx. multa</label>
                         <div class="relative">
                           <input v-model.number="form.multaMaxDias" type="number" min="1"
                             class="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                           <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">días</span>
                         </div>
-                      </div>
+                      </div> -->
     
                       <!-- diasSuspension -->
                       <div>
