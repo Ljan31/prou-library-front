@@ -54,6 +54,7 @@ export interface Ejemplar {
   fechaAdquisicion?: string;
   precioCompra?: number;
   observaciones?: string;
+  autores?: string;
   edicion?: {
     idEdicion: number;
     isbn: string;
@@ -61,6 +62,7 @@ export interface Ejemplar {
     anoPublicacion?: number;
     idLibro?: number;
     titulo?: string;
+    idioma?: string;
   };
   biblioteca?: {
     idBiblioteca: number;

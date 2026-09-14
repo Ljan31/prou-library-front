@@ -160,6 +160,7 @@ const opcionesEstado = [
 ]
 
 const ejemplaresFiltrados = computed(() => {
+  console.log('todos', todos.value);
   let lista = todos.value
   if (busqueda.value.trim()) {
     const q = busqueda.value.toLowerCase()
@@ -234,6 +235,11 @@ interface LibroAgrupado {
   idLibro: number
   titulo: string
   autores: string
+  idioma: string
+  codigoTopograficoConcat: string
+  clasificacionDecimal: string
+  cutterAutor: string
+  cutterTitulo: string
   isbn: string          // primer ISBN
   categoria: string
   imagenPortada: string
@@ -254,10 +260,14 @@ const librosAgrupados = computed<LibroAgrupado[]>(() => {
     if (!mapa.has(idLibro)) {
       mapa.set(idLibro, {
         idLibro,
-        titulo: ej.edicion?.titulo ?? '—',
-        autores: (ej.edicion as any)?.autores?.map((a: any) => a.nombre).join(', ')
-          ?? (ej.edicion as any)?.autorTexto ?? '—',
-        isbn: ej.edicion?.isbn ?? '—',
+        titulo: ej.edicion?.titulo ?? '—titulo-',
+        autores: ej.autores ?? '—sin autor(es)-',
+        isbn: ej.edicion?.isbn ?? '—isbn-',
+        idioma: ej.edicion?.idioma ?? '-s/n',
+        codigoTopograficoConcat: ej.codigoTopograficoConcat ?? '-s/c-',
+        clasificacionDecimal: ej.clasificacionDecimal ?? '-',
+        cutterAutor: ej.cutterAutor ?? '-',
+        cutterTitulo: ej.cutterTitulo ?? '-',
         categoria: (ej.edicion as any)?.categoria?.nombreCategoria ?? '',
         imagenPortada: ej.edicion?.imagenPortada ?? '',
         total: 0,
@@ -1215,7 +1225,7 @@ function disponibilidadColor(disponibles: number, total: number) {
                   <th
                     class="w-[150px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
                   >
-                    ISBN
+                    Codigo
                   </th>
 
                   <!-- Bibliotecas -->
@@ -1246,7 +1256,12 @@ function disponibilidadColor(disponibles: number, total: number) {
                     aria-label="Expandir"
                   >
                   </th>
-
+                  <!-- Acciones -->
+                  <th
+                    class="w-[100px] px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                  >
+                    Acciones
+                  </th>
                 </tr>
 
               </thead>
@@ -1297,19 +1312,30 @@ function disponibilidadColor(disponibles: number, total: number) {
                           class="w-10 h-14 rounded-md border border-slate-200 bg-gradient-to-br from-indigo-50 to-slate-100 flex items-center justify-center"
                         >
 
-                          <svg
-                            class="w-5 h-5 text-slate-300"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
+                           <svg
+                              class="w-5 h-5 text-slate-300"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
                               stroke-width="1.5"
-                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5"
-                            />
-                          </svg>
+                              aria-hidden="true"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M4.5 5.5A2.5 2.5 0 0 1 7 3h4.5v17H7a2.5 2.5 0 0 0-2.5 2.5v-17Z"
+                              />
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19.5 5.5A2.5 2.5 0 0 0 17 3h-5.5v17H17a2.5 2.5 0 0 1 2.5 2.5v-17Z"
+                              />
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M12 3v17"
+                              />
+                            </svg>
 
                         </div>
 
@@ -1399,23 +1425,43 @@ function disponibilidadColor(disponibles: number, total: number) {
                         ISBN
                     ────────────────────────────────────────── -->
 
-                    <td class="px-4 py-3">
+                   <td class="px-4 py-3">
+                    <div
+                      v-if="libro.clasificacionDecimal"
+                      class="flex flex-col leading-tight"
+                    >
+                      <!-- Clasificación -->
+                      <div class="flex items-baseline gap-1.5">
+                        <span
+                          v-if="libro.idioma"
+                          class="text-[12px] font-semibold uppercase text-indigo-500"
+                        >
+                          <!-- {{ libro.idioma }} -->
+                          {{ libro.idioma.charAt(0) }}
+                        </span>
 
+                        <span class="font-mono text-xs font-semibold text-slate-700">
+                          {{ libro.clasificacionDecimal }}
+                        </span>
+                      </div>
+
+                      <!-- Cutter -->
                       <span
-                        v-if="libro.isbn"
-                        class="inline-flex items-center px-2 py-1 rounded-md bg-slate-50 border border-slate-100 font-mono text-[11px] text-slate-500 whitespace-nowrap"
+                        v-if="libro.cutterAutor || libro.cutterTitulo"
+                        class="font-mono text-xs font-medium tracking-wide text-slate-600"
                       >
-                        {{ libro.isbn }}
+                        {{ libro.cutterAutor }}{{ libro.cutterTitulo }}
                       </span>
+                    </div>
 
-                      <span
-                        v-else
-                        class="text-slate-300"
-                      >
-                        —
-                      </span>
+                    <span
+                      v-else
+                      class="text-slate-300"
+                    >
+                      —
+                    </span>
+                  </td>
 
-                    </td>
 
 
                     <!-- ─────────────────────────────────────────
@@ -1597,6 +1643,92 @@ function disponibilidadColor(disponibles: number, total: number) {
                       </div>
 
                     </td>
+                    <!-- ─────────────────────────────────────────
+                        ACCIONES DEL LIBRO
+                    ────────────────────────────────────────── -->
+
+                    <td class="px-4 py-3">
+
+                      <div class="flex items-center justify-end gap-1">
+
+                        <!-- Editar libro -->
+
+                        <button
+                          @click.stop="abrirEditar(libro.ejemplares?.[0])"
+                          class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          title="Editar libro"
+                          aria-label="Editar libro"
+                        >
+
+                          <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5"
+                            />
+
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M18.5 3.5a2.121 2.121 0 013 3L12 16l-4 1 1-4 9.5-9.5z"
+                            />
+                          </svg>
+
+                        </button>
+
+
+                        <!-- Eliminar libro -->
+
+                        <button
+                          @click.stop="eliminarLibro(libro)"
+                          class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Eliminar libro"
+                          aria-label="Eliminar libro"
+                        >
+
+                          <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M3 6h18"
+                            />
+
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"
+                            />
+
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M19 6l-1 14a1 1 0 01-1 .93H7a1 1 0 01-1-.93L5 6"
+                            />
+
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M10 11v5M14 11v5"
+                            />
+                          </svg>
+
+                        </button>
+
+                      </div>
+
+                    </td>
 
                   </tr>
 
@@ -1610,7 +1742,7 @@ function disponibilidadColor(disponibles: number, total: number) {
                   >
 
                     <td
-                      :colspan="isAdmin ? 7 : 6"
+                      :colspan="isAdmin ? 8 : 7"
                       class="p-0"
                     >
 
@@ -1732,7 +1864,17 @@ function disponibilidadColor(disponibles: number, total: number) {
                                     <th
                                       class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
                                     >
-                                      Código topográfico
+                                      Editorial
+                                    </th>
+                                    <th
+                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                    >
+                                      Edicion
+                                    </th>
+                                    <th
+                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                    >
+                                      Año Publicación
                                     </th>
 
                                     <th
@@ -1812,15 +1954,53 @@ function disponibilidadColor(disponibles: number, total: number) {
                                     </td>
 
 
-                                    <!-- Topográfico -->
+                                    <!-- Editorial -->
 
                                     <td class="px-4 py-3">
 
                                       <span
-                                        v-if="ej.codigoTopografico"
+                                        v-if="ej.edicion?.editorial "
                                         class="font-mono text-xs text-slate-500"
                                       >
-                                        {{ ej.codigoTopografico }}
+                                        {{ ej.edicion?.editorial }}
+                                      </span>
+
+                                      <span
+                                        v-else
+                                        class="text-xs text-slate-300"
+                                      >
+                                        —
+                                      </span>
+
+                                    </td>
+                                    <!-- Edicion -->
+
+                                    <td class="px-4 py-3">
+
+                                      <span
+                                        v-if="ej.edicion?.editorial "
+                                        class="font-mono text-xs text-slate-500"
+                                      >
+                                        {{ ej.edicion?.edicion }}
+                                      </span>
+
+                                      <span
+                                        v-else
+                                        class="text-xs text-slate-300"
+                                      >
+                                        —
+                                      </span>
+
+                                    </td>
+                                    <!-- año publicacion -->
+
+                                    <td class="px-4 py-3">
+
+                                      <span
+                                        v-if="ej.edicion?.anoPublicacion "
+                                        class="font-mono text-xs text-slate-500"
+                                      >
+                                        {{ ej.edicion?.anoPublicacion }}
                                       </span>
 
                                       <span
