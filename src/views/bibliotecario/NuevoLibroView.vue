@@ -1,22 +1,5 @@
 <script setup lang="ts">
-/**
- * NuevoLibroView — Registro rápido de libro
- * ─────────────────────────────────────────────────────────────────────────────
- * Ruta sugerida : /catalogo/nuevo-libro
- * meta          : { roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO'] }
- *
- * Convierte LibroRapidoModal en una página completa con el mismo flujo de 3 pasos:
- *   Paso 1 — Libro     : título, autores, categoría, portada, PDF, código solicitar
- *   Paso 2 — Edición   : ISBN, editorial, año, páginas (todos opcionales)
- *   Paso 3 — Ejemplares: se registran N copias físicas con el endpoint /catalogo/lote
- *
- * Diferencias respecto al modal:
- *   · Sin BaseModal → layout propio con page-container + sticky footer
- *   · Sin props libroId / emit close|saved → usa useRouter para navegar
- *   · Modo edición se activa con query param ?libroId=123
- *   · Breadcrumbs se registran en onMounted via useUiStore
- * ─────────────────────────────────────────────────────────────────────────────
- */
+
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUiStore } from '@/stores/ui.store'
@@ -60,12 +43,6 @@ onMounted(async () => {
     cargandoInicial.value = false
   }
 })
-
-// ══════════════════════════════════════════════════════════════════════════
-// PASO ACTIVO  1 · 2 · 3
-// ══════════════════════════════════════════════════════════════════════════
-const paso = ref<1 | 2 | 3>(1)
-const pasoLabels = ['Libro', 'Edición', 'Ejemplares']
 
 // ══════════════════════════════════════════════════════════════════════════
 // DATOS AUXILIARES
@@ -338,20 +315,10 @@ function validarPaso3(): boolean {
   Object.keys(erroresEj).forEach(k => delete erroresEj[k])
   if (!ej.bibliotecaId) erroresEj.biblioteca = 'Selecciona una biblioteca'
   if (ej.cantidadEjemplares < 1) erroresEj.cantidad = 'Mínimo 1 ejemplar'
-  if (ej.cantidadEjemplares > 50) erroresEj.cantidad = 'Máximo 50 ejemplares por vez'
+  if (ej.cantidadEjemplares > 10) erroresEj.cantidad = 'Máximo 10 ejemplares'
   return !Object.keys(erroresEj).length
 }
 
-function siguiente() {
-  if (paso.value === 1 && !validarPaso1()) return
-  paso.value = (paso.value + 1) as 1 | 2 | 3
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-function anterior() {
-  paso.value = (paso.value - 1) as 1 | 2 | 3
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // GUARDAR — POST /catalogo/lote  ó  PUT /libros/:id
@@ -360,7 +327,7 @@ const guardando = ref(false)
 const errorGuardar = ref('')
 
 async function guardar() {
-  if (!validarPaso1()) { paso.value = 1; return }
+  if (!validarPaso1()) return 
   if (!validarPaso3()) return
   guardando.value = true; errorGuardar.value = ''
   try {
@@ -421,14 +388,13 @@ async function guardar() {
       ui.toast.success('Registrado', `"${libro.titulo}" y ${ej.cantidadEjemplares} ejemplar(es) creados`)
     }
 
-    router.push('/catalogo')
+    router.push('/inventario')
   } catch (e: unknown) {
     const err = e as any
     const msg = err?.response?.data?.message ?? (e instanceof Error ? e.message : 'Error al guardar')
     errorGuardar.value = msg
     if (msg?.includes('ISBN')) {
       erroresLibro.isbn = msg
-      paso.value = 2
     }
   } finally {
     guardando.value = false
@@ -444,7 +410,7 @@ function cancelar() {
   <div class="page-container max-w-4xl">
 
     <!-- ── Page header ──────────────────────────────────────────────────── -->
-    <div class="flex items-start justify-between mb-8">
+    <div class="flex items-start justify-between mb-4">
       <div class="flex items-center gap-4">
         <div class="w-11 h-11 rounded-2xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
           <svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -497,15 +463,11 @@ function cancelar() {
 
     <template v-else>
 
-      <!-- ══════════════════════════════════════════════════════════════════
-           PASO 1 — LIBRO
-      ═══════════════════════════════════════════════════════════════════ -->
-      <div v-if="paso === 1" class="space-y-4">
+      <div class="space-y-4">
 
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
 
           <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
-
             <!-- Título -->
             <div class="md:col-span-7">
               <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
@@ -516,67 +478,9 @@ function cancelar() {
                 class="w-full text-sm rounded-xl border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                 :class="erroresLibro.titulo ? 'border-red-400 bg-red-50' : 'border-slate-200'" />
               <p v-if="erroresLibro.titulo" class="text-xs text-red-500 mt-1">{{ erroresLibro.titulo }}</p>
-            </div>
-
-            <!-- Portada -->
-            <div class="md:col-span-2 flex flex-col items-start">
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                Portada <span class="text-slate-400 font-normal normal-case">(opcional)</span>
-              </label>
-              <label
-                class="relative block w-28 aspect-[3/4] rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-indigo-300 bg-slate-50 cursor-pointer group transition-colors">
-                <img v-if="portadaPreview" :src="portadaPreview" alt="Portada"
-                  class="absolute inset-0 w-full h-full object-cover" />
-                <div v-else class="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
-                  <svg class="w-7 h-7 text-slate-300 group-hover:text-indigo-400 transition-colors" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
-                  </svg>
-                  <span class="text-xs text-slate-400 text-center px-2 leading-tight">Subir portada</span>
-                </div>
-                <div v-if="portadaPreview" class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors" />
-                <input type="file" accept="image/*" class="sr-only" @change="onPortada" />
-              </label>
-              <button v-if="portadaPreview" @click="quitarPortada"
-                class="mt-1 text-xs text-red-400 hover:text-red-600 transition-colors">Quitar</button>
-            </div>
-
-            <!-- PDF -->
-            <div class="md:col-span-3">
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                PDF Digital <span class="text-slate-400 font-normal normal-case">(opcional)</span>
-              </label>
-              <div v-if="!pdfNombre"
-                class="flex items-center gap-3 p-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer"
-                @click="($refs.pdfRef as HTMLInputElement)?.click()">
-                <svg class="w-6 h-6 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                <div>
-                  <p class="text-sm text-slate-500 font-medium">Haz clic para subir</p>
-                  <p class="text-xs text-slate-400">PDF máx. 50MB</p>
-                </div>
-                <input ref="pdfRef" type="file" accept=".pdf" class="sr-only" @change="onPdf" />
-              </div>
-              <div v-else
-                class="flex items-center gap-3 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-                <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-                <span class="text-xs text-emerald-700 truncate flex-1">{{ pdfNombre }}</span>
-                <button @click="quitarPdf" class="text-emerald-400 hover:text-red-500 transition-colors flex-shrink-0">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <!-- Autores -->
-            <div class="md:col-span-7">
-              <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Autores</label>
+            
+             <!-- Autores -->
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide pt-4">Autores</label>
               <div v-if="autoresSeleccionados.length" class="flex flex-wrap gap-1.5 mb-2">
                 <span v-for="(autor, i) in autoresSeleccionados" :key="i"
                   :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
@@ -636,6 +540,64 @@ function cancelar() {
                 Los autores con <span class="text-amber-600 font-semibold">+</span> se crearán al guardar
               </p>
             </div>
+
+            <!-- Portada -->
+            <div class="md:col-span-2 flex flex-col items-start">
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                Portada <span class="text-slate-400 font-normal normal-case">(opcional)</span>
+              </label>
+              <label
+                class="relative block w-28 aspect-[3/4] rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-indigo-300 bg-slate-50 cursor-pointer group transition-colors">
+                <img v-if="portadaPreview" :src="portadaPreview" alt="Portada"
+                  class="absolute inset-0 w-full h-full object-cover" />
+                <div v-else class="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+                  <svg class="w-7 h-7 text-slate-300 group-hover:text-indigo-400 transition-colors" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+                  </svg>
+                  <span class="text-xs text-slate-400 text-center px-2 leading-tight">Subir portada</span>
+                </div>
+                <div v-if="portadaPreview" class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors" />
+                <input type="file" accept="image/*" class="sr-only" @change="onPortada" />
+              </label>
+              <button v-if="portadaPreview" @click="quitarPortada"
+                class="mt-1 text-xs text-red-400 hover:text-red-600 transition-colors">Quitar</button>
+            </div>
+
+            <!-- PDF -->
+            <div class="md:col-span-3">
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                PDF Digital <span class="text-slate-400 font-normal normal-case">(opcional)</span>
+              </label>
+              <div v-if="!pdfNombre"
+                class="flex items-center gap-3 p-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer"
+                @click="($refs.pdfRef as HTMLInputElement)?.click()">
+                <svg class="w-6 h-6 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <div>
+                  <p class="text-sm text-slate-500 font-medium">Haz clic para subir</p>
+                  <p class="text-xs text-slate-400">PDF máx. 50MB</p>
+                </div>
+                <input ref="pdfRef" type="file" accept=".pdf" class="sr-only" @change="onPdf" />
+              </div>
+              <div v-else
+                class="flex items-center gap-3 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span class="text-xs text-emerald-700 truncate flex-1">{{ pdfNombre }}</span>
+                <button @click="quitarPdf" class="text-emerald-400 hover:text-red-500 transition-colors flex-shrink-0">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+           
           </div>
 
           <!-- Categoría + Idioma + Año + Cantidad -->
@@ -812,159 +774,15 @@ function cancelar() {
         </div>
       </div>
 
-      <!-- ══════════════════════════════════════════════════════════════════
-           PASO 2 — EDICIÓN  (todo opcional)
-      ═══════════════════════════════════════════════════════════════════ -->
-      <div v-else-if="paso === 2" class="space-y-5">
-
-        <div class="flex items-start gap-2.5 px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl">
-          <svg class="w-4 h-4 text-sky-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p class="text-xs text-sky-700">
-            Todos los campos de esta sección son <strong>opcionales</strong>.
-            Puedes completarlos ahora o editarlos más adelante desde el catálogo.
-          </p>
-        </div>
-
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">ISBN</label>
-              <input v-model="edicion.isbn" type="text" placeholder="978-…"
-                class="w-full text-sm font-mono rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Editorial</label>
-              <input v-model="edicion.editorial" type="text" placeholder="Ej. Editorial Sudamericana"
-                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Año de publicación</label>
-              <input v-model.number="edicion.anoPublicacion" type="number" :min="1800"
-                :max="new Date().getFullYear() + 1"
-                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Nº de edición</label>
-              <input v-model="edicion.edicionTexto" type="text" placeholder="1ra, 2da…"
-                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div class="sm:col-span-2">
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Páginas</label>
-              <input v-model.number="edicion.numeroPaginas" type="number" placeholder="350"
-                class="w-full sm:w-40 text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ══════════════════════════════════════════════════════════════════
-           PASO 3 — EJEMPLARES
-      ═══════════════════════════════════════════════════════════════════ -->
-      <div v-else-if="paso === 3" class="space-y-5">
-
-        <!-- Resumen del libro -->
-        <div class="flex items-center gap-4 px-4 py-3 bg-white rounded-2xl border border-slate-200 shadow-sm">
-          <div class="w-10 h-14 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-            <img v-if="portadaPreview" :src="portadaPreview" alt="Portada" class="w-full h-full object-cover" />
-            <div v-else class="w-full h-full flex items-center justify-center">
-              <svg class="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" />
-              </svg>
-            </div>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold text-slate-900 truncate">{{ libro.titulo || '—' }}</p>
-            <p class="text-xs text-slate-500">
-              {{ autoresSeleccionados.map(a => a.nombre).join(', ') || 'Sin autores' }}
-              <template v-if="edicion.isbn"> · ISBN {{ edicion.isbn }}</template>
-            </p>
-          </div>
-          <div class="text-right flex-shrink-0">
-            <p class="text-sm font-semibold text-indigo-700">{{ ej.cantidadEjemplares }}</p>
-            <p class="text-xs text-slate-400">ejemplar(es)</p>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
-
-          <!-- Ubicación -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Ubicación física
-            </label>
-            <input v-model="ej.ubicacionFisica" type="text" placeholder="Estante B-2, Fila 1"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-
-          <!-- Estado + Fecha + Precio -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Estado inicial</label>
-              <select v-model="ej.estadoEjemplar"
-                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="DISPONIBLE">🟢 Disponible</option>
-                <option value="EN_REPARACION">🟣 En reparación</option>
-                <option value="DAÑADO">🟡 Dañado</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Fecha adquisición</label>
-              <input v-model="ej.fechaAdquisicion" type="date"
-                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Precio (Bs.)</label>
-              <input v-model.number="ej.precioCompra" type="number" step="0.01" placeholder="85.00"
-                class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-
-          <!-- Observaciones -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Observaciones</label>
-            <textarea v-model="ej.observaciones" rows="2" placeholder="Donación FHCE 2024…"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-          </div>
-
-          <p v-if="erroresEj.biblioteca" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-            {{ erroresEj.biblioteca }}
-          </p>
-          <p v-if="errorGuardar" class="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-xl">
-            {{ errorGuardar }}
-          </p>
-        </div>
-      </div>
-
     </template><!-- /v-else (no cargandoInicial) -->
 
     <!-- ── Barra de acciones sticky ────────────────────────────────────── -->
     <div class="sticky bottom-4 mt-6 flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl shadow-lg px-5 py-3">
 
-      <!-- Volver -->
-      <SButton v-if="paso > 1" variant="ghost" @click="anterior" class="mr-auto">
-        <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Volver
-      </SButton>
-
       <div class="flex items-center gap-2 ml-auto">
         <SButton variant="secondary" @click="cancelar">Cancelar</SButton>
 
-        <!-- Siguiente (pasos 1 y 2) -->
-        <SButton v-if="paso > 4 " @click="siguiente">
-          Siguiente
-          <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-        </SButton>
-
-        <!-- Guardar (paso 3) -->
-        <SButton v-else-if="paso === 1" variant="success" :loading="guardando" @click="guardar">
+        <SButton  variant="success" :loading="guardando" @click="guardar">
           <template v-if="!guardando">
             <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
