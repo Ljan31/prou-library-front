@@ -107,26 +107,35 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "inventario",
-        // children: [
-        //   {
-        //     path: "", // /inventario
-        //     name: "inventario",
-        //     component: () => import("@/views/bibliotecario/InventarioView.vue"),
-        //     meta: {
-        //       roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
-        //       title: "Inventario",
-        //       breadcrumb: "Inventario",
-        //     },
-        //   },
-
-        // ],
-        name: "inventario",
-        component: () => import("@/views/bibliotecario/InventarioView.vue"),
-        meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
-          title: "Inventario",
-          breadcrumb: "Inventario",
-        },
+        // name: "inventario",
+        // component: () => import("@/views/bibliotecario/InventarioView.vue"),
+        // meta: {
+        //   roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
+        //   title: "Inventario",
+        //   breadcrumb: "Inventario",
+        // },
+        children: [
+          {
+            path: '',                      // /inventario
+            name: 'inventario',
+            component: () => import('@/views/bibliotecario/InventarioView.vue'),
+            meta: {
+              roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO'],
+              title: 'Inventario',
+              breadcrumb: 'Inventario',
+            },
+          },
+          {
+            path: "new", // /inventario
+            name: "inv-new",
+            component: () => import("@/views/bibliotecario/NuevoLibroView.vue"),
+            meta: {
+              roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+              title: "Nuevo Libross",
+              breadcrumb: "New Books",
+            },
+          },
+        ],
       },
       // {
       //   path: "nuevo-ejemplar", // /inventario/nuevo-ejemplar

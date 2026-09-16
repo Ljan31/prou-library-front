@@ -336,7 +336,7 @@ export function useInventario() {
   }
 
   function irANuevoEjemplar() {
-    router.push('/nuevo-ejemplar')
+    router.push('/inventario/new')
   }
 
   function abrirCrear() {
