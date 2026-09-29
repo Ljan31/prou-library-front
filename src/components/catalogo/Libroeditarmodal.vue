@@ -109,6 +109,8 @@ async function cargarEjemplares() {
     const res = await api.get(`/ejemplares/libro/${props.libroId}`)
     const data = res.data?.data ?? res.data
     ejemplares.value = Array.isArray(data) ? data : []
+    console.log('cargar ejemplares')
+    console.log(ejemplares.value)
   } catch { ejemplares.value = [] }
 }
 
@@ -409,7 +411,7 @@ const categoriaActual = computed(() =>
 </script>
 
 <template>
-  <BaseModal title="Editar libro" size="xl" @close="emit('close')">
+  <BaseModal title="Editar libro Inventario" size="xl" @close="emit('close')">
 
     <!-- ── Cargando ──────────────────────────────────────────────────────── -->
     <div v-if="cargando" class="flex flex-col items-center gap-3 py-12">
@@ -673,10 +675,57 @@ const categoriaActual = computed(() =>
               filtroEdicionId === 'todos' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']">
             Todos ({{ ejemplares.length }})
           </button>
-          <button v-for="ed in ediciones" :key="ed.idEdicion" @click="filtroEdicionId = ed.idEdicion"
+          <!-- <button v-for="ed in ediciones" :key="ed.idEdicion" @click="filtroEdicionId = ed.idEdicion"
             :class="['px-3 py-1.5 text-xs rounded-full font-medium font-mono transition-colors',
               filtroEdicionId === ed.idEdicion ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']">
-            {{ ed.isbn }}
+            {{ ed.editorial }} {{ed.edicion}} {{ed.anoPublicacion}}
+          </button> -->
+          <!-- Ediciones -->
+          <button
+            v-for="ed in ediciones"
+            :key="ed.idEdicion"
+            @click="filtroEdicionId = ed.idEdicion"
+            :class="[
+              'flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all',
+              filtroEdicionId === ed.idEdicion
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50'
+            ]"
+          >
+
+            <!-- Número de edición -->
+            <span class="font-semibold">
+              {{ ed.edicion || 'Edición' }}
+            </span>
+
+            <!-- Separador -->
+            <span
+              :class="[
+                'w-px h-4',
+                filtroEdicionId === ed.idEdicion
+                  ? 'bg-white/30'
+                  : 'bg-slate-200'
+              ]"
+            ></span>
+
+            <!-- Información -->
+            <span class="flex flex-col min-w-0">
+              <span class="text-[11px] font-medium truncate max-w-[140px]">
+                {{ ed.editorial || 'Sin editorial' }}
+              </span>
+
+              <span
+                :class="[
+                  'text-[10px]',
+                  filtroEdicionId === ed.idEdicion
+                    ? 'text-indigo-100'
+                    : 'text-slate-400'
+                ]"
+              >
+                {{ ed.anoPublicacion }}
+              </span>
+            </span>
+
           </button>
         </div>
 
@@ -856,7 +905,7 @@ const categoriaActual = computed(() =>
     <EjemplarFormModal v-if="subModal === 'ejemplar-form'" :ejemplar="ejemplarEditando" :ediciones="ediciones"
       :libro="libroRaw"
       :edicion-id-inicial="edicionIdParaEjemplar ?? undefined" @close="cerrar" @saved="onEjemplarGuardado" />
-
+    
     <EjemplarEstadoModal v-if="subModal === 'estado' && ejemplarSeleccionado" :ejemplar="ejemplarSeleccionado"
       @close="cerrar" @saved="onEjemplarGuardado" />
 

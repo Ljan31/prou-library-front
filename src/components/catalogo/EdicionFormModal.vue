@@ -104,7 +104,7 @@ function onPortadaChange(ev: Event) {
 
 function validar(): boolean {
   limpiarErrores()
-  if (!form.isbn.trim()) errores.isbn = 'El ISBN es requerido'
+  // if (!form.isbn.trim()) errores.isbn = 'El ISBN es requerido'
   if (!form.editorial.trim()) errores.editorial = 'La editorial es requerida'
   const anio = new Date().getFullYear()
   if (!form.anoPublicacion || form.anoPublicacion < 1000 || form.anoPublicacion > anio + 1)
@@ -237,13 +237,13 @@ async function guardar() {
       </div>
       <!-- ── Datos de la edición ────────────────────────────────────────── -->
       <div class="grid grid-cols-2 gap-3">
-        <div class="col-span-2">
+        <!-- <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">ISBN *</label>
           <input v-model="form.isbn" type="text" placeholder="978-0-262-03384-8" maxlength="17" minlength="10"
             class="w-full text-sm rounded-lg border px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.isbn ? 'border-red-400' : 'border-slate-200'" />
           <p v-if="errores.isbn" class="text-xs text-red-500 mt-1">{{ errores.isbn }}</p>
-        </div>
+        </div> -->
 
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">Editorial *</label>

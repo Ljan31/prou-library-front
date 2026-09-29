@@ -121,7 +121,7 @@ const opcionesEstado = [
 const form = reactive({
   edicionId: props.edicionIdInicial ?? null as number | null,
   bibliotecaId: null as number | null,
-  codigoEjemplar: '',
+  // codigoEjemplar: '',
   codigoTopografico: '',
   clasificacionDecimal: '',
   cutterAutor:          '',
@@ -166,7 +166,7 @@ watch(() => props.ejemplar, (e) => {
       form.bibliotecaId = null
     }
 
-    form.codigoEjemplar = ''
+    // form.codigoEjemplar = ''
     form.codigoTopografico = ''
     form.ubicacionFisica = ''
     form.estadoEjemplar = 'DISPONIBLE'
@@ -212,7 +212,7 @@ function limpiarErrores() { Object.keys(errores).forEach(k => delete errores[k])
 function validar(): boolean {
   limpiarErrores()
   // if (!form.codigoEjemplar.trim()) errores.codigoEjemplar = 'El código es requerido'
-  if (!form.ubicacionFisica.trim()) errores.ubicacionFisica = 'La ubicación es requerida'
+  // if (!form.ubicacionFisica.trim()) errores.ubicacionFisica = 'La ubicación es requerida'
   if (!form.edicionId) errores.edicionId = 'Debe seleccionar una edición'
   if (!form.bibliotecaId) errores.bibliotecaId = 'Debe seleccionar una biblioteca'
   return Object.keys(errores).length === 0
@@ -272,7 +272,7 @@ async function guardar() {
 </script>
 
 <template>
-  <BaseModal :title="ejemplar ? 'Editar ejemplar' : 'Nuevo ejemplar'" size="md" @close="emit('close')">
+  <BaseModal :title="ejemplar ? 'Editar ejemplarss' : 'Nuevo ejemplar'" size="md" @close="emit('close')">
     <div class="space-y-4">
 
       <!-- Selección de edición (si se pasan varias) -->
@@ -442,7 +442,7 @@ async function guardar() {
            <!-- Ubicación física -->
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">
-            Ubicación física *
+            Ubicación física
           </label>
 
           <input

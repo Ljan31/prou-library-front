@@ -510,7 +510,7 @@ const ocultarCategorias = () => {
         </div>
         <div>
           <h2 class="text-base font-semibold text-slate-900">
-            {{ modoEdicion ? 'Editar libro' : 'Registro rápido de libro' }}
+            {{ modoEdicion ? 'Editar libroRapidoModal' : 'Registro rápido de libroRapidoModal' }}
           </h2>
           <p class="text-xs text-slate-500">
             {{
