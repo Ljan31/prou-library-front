@@ -48,10 +48,12 @@ const {
   todos,
   pdfActivo,
   cargarEjemplares,
+  resetFiltros,
 
   // filtros
   busqueda,
   estadoFiltro,
+  anioFiltro,
   opcionesEstado,
   ejemplaresFiltrados,
 
@@ -250,8 +252,9 @@ const {
     <!-- ── Filtros ── -->
     <SCard class="mb-5" padding="md">
       <div class="flex flex-col sm:flex-row gap-3">
-        <SInput v-model="busqueda" placeholder="Buscar por código, ISBN, título, ubicación..." clearable
+        <SInput v-model="busqueda" placeholder="Buscar por título, ubicación..." clearable
           class="flex-1" />
+        <SInput v-model="anioFiltro" type="number" placeholder="Año" />
         <SSelect v-model="estadoFiltro" :options="opcionesEstado" class="sm:w-52" />
 
 
@@ -280,6 +283,12 @@ const {
             </select>
           </div>
         </div>
+         <!-- Botón reset -->
+        <SButton variant="secondary" @click="resetFiltros" title="Restablecer filtros">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-3-6.7M21 3v6h-6" />
+          </svg>
+        </SButton>
       </div>
     </SCard>
 

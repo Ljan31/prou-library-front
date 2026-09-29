@@ -145,6 +145,7 @@ export function useInventario() {
   // ─── Filtros ──────────────────────────────────────────────────────────────
   const busqueda = ref('')
   const estadoFiltro = ref('')
+  const anioFiltro = ref<number | null>(null)
 
   const opcionesEstado = [
     { value: '', label: 'Todos los estados' },
@@ -166,11 +167,16 @@ export function useInventario() {
       lista = lista.filter(e =>
         e.codigoEjemplar?.toLowerCase().includes(q) ||
         e.codigoTopografico?.toLowerCase().includes(q) ||
+        e.codigoTopograficoConcat?.toLowerCase().includes(q) ||
         e.ubicacionFisica?.toLowerCase().includes(q) ||
         e.edicion?.isbn?.toLowerCase().includes(q) ||
         e.edicion?.titulo?.toLowerCase().includes(q) ||
-        (e.edicion as any)?.autores?.some((a: any) =>
-          a.nombre?.toLowerCase().includes(q))
+        e.autores?.toLowerCase().includes(q)
+      )
+    }
+    if (anioFiltro.value !== null && anioFiltro.value !== '') {
+      lista = lista.filter(
+        e => Number(e.edicion?.anoPublicacion) === Number(anioFiltro.value)
       )
     }
     if (estadoFiltro.value) {
@@ -493,7 +499,15 @@ export function useInventario() {
     if (pct >= 0.3) return 'bg-amber-400'
     return 'bg-red-500'
   }
-
+  function resetFiltros() {
+    busqueda.value = ''
+    estadoFiltro.value = ''
+    anioFiltro.value = null
+    paginaEj.value = 1
+    paginaLib.value = 1
+    // ejecutarBusqueda()
+    cargarEjemplares()
+  }
   return {
     // acceso directo (stores, permisos, router, utilidades)
     ui,
@@ -519,10 +533,12 @@ export function useInventario() {
     todos,
     pdfActivo,
     cargarEjemplares,
+    resetFiltros,
 
     // filtros
     busqueda,
     estadoFiltro,
+    anioFiltro,
     opcionesEstado,
     ejemplaresFiltrados,
 
