@@ -7,6 +7,7 @@ import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import EjemplarFormModal from '@/components/catalogo/EjemplarFormModal.vue'
 import EjemplarFormModalInventario from '@/components/catalogo/EjemplarFormModalInventario.vue'
+import EdicionEjemplarFormModal from '@/components/catalogo/EdicionEjemplarFormModal.vue'
 import EjemplarEstadoModal from '@/components/catalogo/EjemplarEstadoModal.vue'
 import EjemplarHistorialModal from '@/components/catalogo/EjemplarHistorialModal.vue'
 // import ConfirmModal from '@/components/ui/ConfirmModal.vue'
@@ -95,6 +96,7 @@ const {
   irANuevoEjemplar,
   abrirCrear,
   abrirEditar,
+  abrirEditarEjemplar,
   abrirEstado,
   abrirHistorial,
   abrirConfirmarEliminar,
@@ -179,7 +181,7 @@ const {
         <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Nuevo ejemplarsss
+          Nuevo Libro2
         </SButton>
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
         <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModalRapido = true"
@@ -1814,7 +1816,7 @@ const {
                                         <!-- Editar -->
 
                                         <button
-                                          @click.stop="abrirEditar(ej)"
+                                          @click.stop="abrirEditarEjemplar(ej)"
                                           :disabled="
                                             ['BAJA', 'PERDIDO'].includes(
                                               ej.estadoEjemplar
@@ -2193,6 +2195,9 @@ const {
     <EjemplarHistorialModal v-if="modalActivo === 'historial' && ejemplarSeleccionado" :ejemplar="ejemplarSeleccionado"
       @close="cerrarModal" />
 
+      <!-- Editar ejemplar + edición asociada -->
+    <EdicionEjemplarFormModal v-if="modalActivo === 'form' && ejemplarEditando" :ejemplar="ejemplarEditando"
+      @close="cerrarModal" @saved="onGuardado" />
     <!-- Confirmar eliminar -->
     <!-- <ConfirmModal :model-value="modalActivo === 'confirmarEliminar'" title="¿Eliminar ejemplar?" variant="danger"
       confirm-label="Sí, eliminar" :loading="eliminando" @confirm="confirmarEliminar"

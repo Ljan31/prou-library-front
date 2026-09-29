@@ -350,6 +350,11 @@ export function useInventario() {
     modalActivo.value = 'editar'
   }
 
+  function abrirEditarEjemplar(e: Ejemplar) {
+    ejemplarEditando.value = e
+    modalActivo.value = 'form'
+  }
+
   function abrirEstado(e: Ejemplar) {
     ejemplarSeleccionado.value = e
     modalActivo.value = 'estado'
@@ -562,6 +567,7 @@ export function useInventario() {
     irANuevoEjemplar,
     abrirCrear,
     abrirEditar,
+    abrirEditarEjemplar,
     abrirEstado,
     abrirHistorial,
     abrirConfirmarEliminar,
