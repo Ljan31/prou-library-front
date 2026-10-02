@@ -158,22 +158,46 @@ export function useInventario() {
     { value: 'BAJA', label: '⬛ Baja' },
     { value: 'PERDIDO', label: '⬛ Perdido' },
   ]
+  const normalizar = (valor: any) =>
+    String(valor ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
 
   const ejemplaresFiltrados = computed(() => {
     console.log('todos', todos.value);
     let lista = todos.value
     if (busqueda.value.trim()) {
-      const q = busqueda.value.toLowerCase()
-      lista = lista.filter(e =>
-        e.codigoEjemplar?.toLowerCase().includes(q) ||
-        e.codigoTopografico?.toLowerCase().includes(q) ||
-        e.codigoTopograficoConcat?.toLowerCase().includes(q) ||
-        e.ubicacionFisica?.toLowerCase().includes(q) ||
-        e.edicion?.isbn?.toLowerCase().includes(q) ||
-        e.edicion?.titulo?.toLowerCase().includes(q) ||
-        e.autores?.toLowerCase().includes(q)
-      )
+      const q = normalizar(busqueda.value)
+
+      lista = lista.filter(e => {
+        const codigo = normalizar(
+          [
+            e.edicion?.idioma?.charAt(0),
+            e.clasificacionDecimal,
+            `${e.cutterAutor ?? ''}${e.cutterTitulo ?? ''}`
+          ]
+            .filter(Boolean)
+            .join(' ')
+        )
+
+        return (
+          e.codigoEjemplar?.toLowerCase().includes(q) ||
+          e.codigoTopografico?.toLowerCase().includes(q) ||
+          e.codigoTopograficoConcat?.toLowerCase().includes(q) ||
+          e.ubicacionFisica?.toLowerCase().includes(q) ||
+          e.edicion?.isbn?.toLowerCase().includes(q) ||
+          e.edicion?.titulo?.toLowerCase().includes(q) ||
+          e.autores?.toLowerCase().includes(q) ||
+
+          // 🔥 Búsqueda del código
+          codigo.startsWith(q)
+        )
+      })
     }
+
     if (anioFiltro.value !== null && anioFiltro.value !== '') {
       lista = lista.filter(
         e => Number(e.edicion?.anoPublicacion) === Number(anioFiltro.value)
