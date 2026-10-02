@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useMedia } from '@/composables/useMedia'
 import { useAuthStore } from '@/stores/auth.store'
 import TicketPrestamo, { type PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
+import { estudianteService } from '@/services/estudiante.service'
 import api from '@/services/axios'
 import defaultBookImage from '../../assets/book-default.jpeg'
 
@@ -166,6 +167,7 @@ const userDropdownOpen = ref(false)
 const selectedUser = ref<UsuarioResult | null>(null)
 const sancionEstado = ref<EstadoSancion | null>(null)
 const sancionLoading = ref(false)
+const searchExecuted   = ref(false)  // ← saber si ya se buscó al menos una vez
 let userDebounce: ReturnType<typeof setTimeout>
 
 watch(userQuery, (val) => {
@@ -186,12 +188,25 @@ async function searchUsers(q: string) {
     // userDropdownOpen.value = true
     // userDropdownOpen.value = userResults.value.length > 0
     userDropdownOpen.value = true
+    searchExecuted.value   = true
   } catch {
     userResults.value = []
   } finally {
     userLoading.value = false
   }
 }
+
+// ¿La búsqueda parece un CI? (todo dígitos)
+const queryCiLike = computed(() => /^\d+$/.test(userQuery.value.trim()))
+
+// "No encontrado" = se buscó, no hay resultados, y no está cargando
+const sinResultados = computed(() =>
+  searchExecuted.value &&
+  !userLoading.value &&
+  userResults.value.length === 0 &&
+  userQuery.value.length >= 2
+)
+
 const usuarioInhabilitado = computed(() =>
   selectedUser.value?.enabled === false
 )
@@ -218,6 +233,8 @@ function resetUser() {
   selectedUser.value = null
   userQuery.value = ''
   userResults.value = []
+  searchExecuted.value = false
+  sancionEstado.value = null
   step.value = 1
   resetLote()
 }
@@ -284,6 +301,148 @@ const detalleSancion = computed(() => {
 
   return texto
 })
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODAL DE CREACIÓN DE USUARIO INLINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const showCrearUsuario = ref(false)
+
+// Formulario de nuevo usuario
+const nuevoUsuario = ref({
+  nombre:       '',
+  apellido_pat: '',
+  apellido_mat: '',
+  ci:           '',
+  celular:      '',
+  email:        '',
+  username:     '',  // editable, se genera automáticamente
+})
+
+const nuevoUsuarioErrors = ref<Record<string, string>>({})
+const creandoUsuario = ref(false)
+const usuarioCreadoOk = ref(false)
+
+// Generar username desde nombre y apellidos (ej: "Luis Mamani" → "luis.mamani")
+function generarUsername(): string {
+  const n = nuevoUsuario.value.nombre.trim().split(' ')[0].toLowerCase()
+  const a = nuevoUsuario.value.apellido_pat.trim().split(' ')[0].toLowerCase()
+  if (!n && !a) return ''
+  if (!n) return a
+  if (!a) return n
+  return `${n}.${a}`
+}
+
+// Regenerar username automáticamente cuando cambia nombre o apellido
+watch(
+  [() => nuevoUsuario.value.nombre, () => nuevoUsuario.value.apellido_pat],
+  () => {
+    // Solo auto-generar si el usuario no lo tocó manualmente o está vacío
+    if (!nuevoUsuario.value.username || nuevoUsuario.value.username === _usernameAutoGenerado.value) {
+      const gen = generarUsername()
+      nuevoUsuario.value.username = gen
+      _usernameAutoGenerado.value = gen
+    }
+  }
+)
+const _usernameAutoGenerado = ref('')  // rastrea el último valor autogenerado
+
+function abrirCrearUsuario() {
+  // Precargar CI si la búsqueda era numérica
+  nuevoUsuario.value = {
+    nombre:       '',
+    apellido_pat: '',
+    apellido_mat: '',
+    ci:           queryCiLike.value ? userQuery.value.trim() : '',
+    celular:      '',
+    email:        '',
+    username:     '',
+  }
+  _usernameAutoGenerado.value = ''
+  nuevoUsuarioErrors.value = {}
+  usuarioCreadoOk.value = false
+  showCrearUsuario.value = true
+}
+
+function cerrarCrearUsuario() {
+  showCrearUsuario.value = false
+}
+
+function validarNuevoUsuario(): boolean {
+  const e: Record<string, string> = {}
+  if (!nuevoUsuario.value.nombre.trim())       e.nombre       = 'Nombre requerido'
+  if (!nuevoUsuario.value.apellido_pat.trim()) e.apellido_pat = 'Apellido paterno requerido'
+  if (!nuevoUsuario.value.ci.trim())           e.ci           = 'CI requerido'
+  if (!/^\d+$/.test(nuevoUsuario.value.ci))    e.ci           = 'CI debe contener solo números'
+  if (!nuevoUsuario.value.email.trim())        e.email        = 'Email requerido'
+  if (!nuevoUsuario.value.username.trim())     e.username     = 'Username requerido'
+  nuevoUsuarioErrors.value = e
+  return Object.keys(e).length === 0
+}
+
+async function crearUsuario() {
+  if (!validarNuevoUsuario()) return
+  creandoUsuario.value = true
+  try {
+    const ciNum = parseInt(nuevoUsuario.value.ci)
+    const payload = {
+      username: nuevoUsuario.value.username.trim(),
+      password: nuevoUsuario.value.ci.trim(),  // password = CI
+      persona: {
+        nombre:       nuevoUsuario.value.nombre.trim(),
+        apellido_pat: nuevoUsuario.value.apellido_pat.trim(),
+        apellido_mat: nuevoUsuario.value.apellido_mat.trim(),
+        ci:           ciNum,
+        celular:      nuevoUsuario.value.celular.trim() || '',
+        email:        nuevoUsuario.value.email.trim(),
+      },
+      userCarreras: [],
+    }
+
+    const response = await estudianteService.register(payload)
+    const created = response.data?.data as any
+
+    usuarioCreadoOk.value = true
+    ui.toast.success('Usuario creado', `${nuevoUsuario.value.nombre} fue registrado exitosamente`)
+
+    // Construir el objeto UsuarioResult compatible y seleccionarlo automáticamente
+    const nuevoUserObj: UsuarioResult = {
+      id_usuario: created?.id_usuario ?? 0,
+      username:   nuevoUsuario.value.username,
+      enabled:    true,
+      persona: {
+        nombreCompleto: `${nuevoUsuario.value.nombre} ${nuevoUsuario.value.apellido_pat} ${nuevoUsuario.value.apellido_mat}`.trim(),
+        ci:             ciNum,
+        matricula:      null,
+        celular:        nuevoUsuario.value.celular || undefined,
+        email:          nuevoUsuario.value.email   || undefined,
+      },
+    }
+
+    // Breve pausa para que el usuario vea la confirmación y luego cierra
+    setTimeout(async () => {
+      cerrarCrearUsuario()
+      await selectUser(nuevoUserObj)
+      // Avanzar al paso 2 si el usuario no está bloqueado
+      if (!usuarioBloqueado.value) step.value = 2
+    }, 1200)
+
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { message?: string; errors?: Record<string, string> } } })?.response?.data
+    if (msg?.errors) {
+      // Mapear errores de validación del backend
+      nuevoUsuarioErrors.value = msg.errors
+    } else {
+      ui.toast.error('Error', msg?.message ?? 'No se pudo crear el usuario')
+    }
+  } finally {
+    creandoUsuario.value = false
+  }
+}
+
+
+
 // ─── PASO 2: Búsqueda de libro ───────────────────────────────────────────────
 
 function crearItem(): LoteItem {
@@ -651,9 +810,40 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
                   </div>
                 </button>
               </div>
-              <div v-else-if="userDropdownOpen && !userResults.length && !userLoading"
+              <!-- <div v-else-if="userDropdownOpen && !userResults.length && !userLoading"
                 class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-md z-20 py-6 text-center">
                 <p class="text-sm text-slate-400">Sin resultados para "{{ userQuery }}"</p>
+              </div> -->
+               <!-- ── Estado: sin resultados → oferta de crear ── -->
+              <div v-if="sinResultados && !userLoading"
+                class="mt-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 overflow-hidden">
+                <!-- Mensaje -->
+                <div class="px-4 py-3 flex items-start gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm font-semibold text-slate-700">No se encontró ningún usuario</p>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                      No hay resultados para
+                      <span class="font-mono bg-slate-200 px-1 rounded text-slate-600">{{ userQuery }}</span>
+                    </p>
+                  </div>
+                </div>
+                <!-- Acción -->
+                <div class="px-4 pb-4">
+                  <button
+                    @click="abrirCrearUsuario"
+                    class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                    </svg>
+                    Crear nuevo usuario
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1045,7 +1235,176 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
       <TicketPrestamo v-model="showTicket" :prestamos="prestamosParaTicket" :usuario="usuarioParaTicket"
         :tipo="tipoPrestamo" :fecha-devolucion="fechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" />
 
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- MODAL: CREAR USUARIO INLINE                                        -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <div v-if="showCrearUsuario"
+        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm"
+        @click.self="cerrarCrearUsuario">
+
+        <div class="bg-white w-full sm:rounded-2xl sm:max-w-lg shadow-2xl flex flex-col max-h-[95dvh] sm:max-h-[90vh]"
+          style="animation: slide-up 0.2s ease-out;">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="font-semibold text-slate-800 text-sm">Crear nuevo usuario</p>
+                <p class="text-xs text-slate-400">Continúa el préstamo sin salir de esta pantalla</p>
+              </div>
+            </div>
+            <button @click="cerrarCrearUsuario" class="text-slate-400 hover:text-slate-600 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="flex-1 overflow-y-auto p-5">
+
+            <!-- Estado de éxito -->
+            <div v-if="usuarioCreadoOk" class="flex flex-col items-center justify-center py-8 gap-3 text-center">
+              <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+              <p class="font-semibold text-slate-800">¡Usuario creado!</p>
+              <p class="text-sm text-slate-500">
+                {{ nuevoUsuario.nombre }} {{ nuevoUsuario.apellido_pat }} fue registrado.<br/>
+                Continuando el préstamo...
+              </p>
+            </div>
+
+            <!-- Formulario -->
+            <div v-else class="space-y-4">
+
+              <!-- Nota sobre credenciales -->
+              <div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
+                <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01"/>
+                </svg>
+                <span>La contraseña inicial será el <strong>número de CI</strong>. Informa al usuario que la cambie al ingresar por primera vez.</span>
+              </div>
+
+              <!-- Nombres -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Nombre <span class="text-red-400">*</span>
+                  </label>
+                  <input v-model="nuevoUsuario.nombre" type="text" placeholder="Luis"
+                    :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all',
+                      nuevoUsuarioErrors.nombre ? 'border-red-300 bg-red-50' : 'border-slate-200']"/>
+                  <p v-if="nuevoUsuarioErrors.nombre" class="text-xs text-red-500 mt-1">{{ nuevoUsuarioErrors.nombre }}</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Apellido paterno <span class="text-red-400">*</span>
+                  </label>
+                  <input v-model="nuevoUsuario.apellido_pat" type="text" placeholder="Mamani"
+                    :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all',
+                      nuevoUsuarioErrors.apellido_pat ? 'border-red-300 bg-red-50' : 'border-slate-200']"/>
+                  <p v-if="nuevoUsuarioErrors.apellido_pat" class="text-xs text-red-500 mt-1">{{ nuevoUsuarioErrors.apellido_pat }}</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1.5">Apellido materno</label>
+                  <input v-model="nuevoUsuario.apellido_mat" type="text" placeholder="Quispe"
+                    class="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"/>
+                </div>
+              </div>
+
+              <!-- CI y Celular -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                    CI <span class="text-red-400">*</span>
+                  </label>
+                  <input v-model="nuevoUsuario.ci" type="text" placeholder="12345678"
+                    :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all font-mono',
+                      nuevoUsuarioErrors.ci ? 'border-red-300 bg-red-50' : 'border-slate-200']"/>
+                  <p v-if="nuevoUsuarioErrors.ci" class="text-xs text-red-500 mt-1">{{ nuevoUsuarioErrors.ci }}</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1.5">Celular</label>
+                  <input v-model="nuevoUsuario.celular" type="tel" placeholder="70000000"
+                    class="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"/>
+                </div>
+              </div>
+
+              <!-- Email -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Email <span class="text-red-400">*</span>
+                </label>
+                <input v-model="nuevoUsuario.email" type="email" placeholder="usuario@ejemplo.com"
+                  :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all',
+                    nuevoUsuarioErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200']"/>
+                <p v-if="nuevoUsuarioErrors.email" class="text-xs text-red-500 mt-1">{{ nuevoUsuarioErrors.email }}</p>
+              </div>
+
+              <!-- Username con indicador de auto-generado -->
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="text-xs font-semibold text-slate-600">
+                    Username <span class="text-red-400">*</span>
+                  </label>
+                  <span class="text-xs text-slate-400 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    Generado automáticamente · editable
+                  </span>
+                </div>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">@</span>
+                  <input v-model="nuevoUsuario.username" type="text" placeholder="luis.mamani"
+                    :class="['w-full pl-7 pr-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all font-mono',
+                      nuevoUsuarioErrors.username ? 'border-red-300 bg-red-50' : 'border-slate-200']"/>
+                </div>
+                <p v-if="nuevoUsuarioErrors.username" class="text-xs text-red-500 mt-1">{{ nuevoUsuarioErrors.username }}</p>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div v-if="!usuarioCreadoOk" class="flex gap-2 p-4 border-t border-slate-100 flex-shrink-0">
+            <button @click="cerrarCrearUsuario"
+              class="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button @click="crearUsuario" :disabled="creandoUsuario"
+              :class="['flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
+                !creandoUsuario ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm' : 'bg-indigo-300 text-white cursor-not-allowed']">
+              <svg v-if="creandoUsuario" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              {{ creandoUsuario ? 'Creando usuario...' : 'Crear usuario y continuar' }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Teleport>
 
     </div>
   </div>
 </template>
+<style scoped>
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+</style>
