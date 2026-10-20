@@ -552,7 +552,7 @@ async function guardarResponsable() {
       <input
         v-model="nombreResponsable"
         type="text"
-        maxlength="150"
+        maxlength="60"
         placeholder="Ej. Juan Pérez García"
         class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
       />
