@@ -28,6 +28,7 @@ aux.watchCarrera()
 
 const loading = ref(false)
 const form = reactive({ 
+  username: '', 
   nombre: '', apellido_pat: '', apellido_mat: '', 
   celular: '', enabled: true, ci: '',
   email: '',
@@ -63,6 +64,7 @@ const encargadoLoading = ref(false)
 watch(() => props.user, async (u) => {
   if (!u) return
   Object.assign(form, {
+    username: u.username ?? '',
     nombre: u.persona?.nombre ?? '',
     apellido_pat: u.persona?.apellido_pat ?? '',
     apellido_mat: u.persona?.apellido_mat ?? '',
@@ -114,6 +116,11 @@ function close() { emit('update:modelValue', false) }
 
 function validate(): boolean {
   Object.keys(errors).forEach(k => delete errors[k])
+  if (!form.username.trim()) {
+    errors.username = 'Requerido'
+  } else if (/\s/.test(form.username.trim())) {
+    errors.username = 'No debe contener espacios'
+  }
   if (!form.nombre.trim()) errors.nombre = 'Requerido'
     if (!form.ci.trim()) {
     errors.ci = 'Requerido'
@@ -134,6 +141,7 @@ async function handleEdit() {
   loading.value = true
   try {
     const payload: UpdateUserPayload = {
+      username: form.username.trim(),
       nombre: form.nombre, apellido_pat: form.apellido_pat,
       apellido_mat: form.apellido_mat, celular: form.celular, enabled: form.enabled,
       ...(isAdmin.value ? { ci: Number(form.ci), email: form.email } : {}),
@@ -237,6 +245,29 @@ async function copyTempPassword() {
           <div class="space-y-3">
             <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Datos personales</p>
             <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                  Nombre de usuario
+                  <span class="text-red-500">*</span>
+                </label>
+
+                <input
+                  v-model.trim="form.username"
+                  type="text"
+                  maxlength="30"
+                  autocomplete="username"
+                  class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all
+                        focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                  :class="errors.username
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-slate-200 bg-slate-50'"
+                  @input="delete errors.username"
+                />
+
+                <p v-if="errors.username" class="text-xs text-red-500 mt-0.5">
+                  {{ errors.username }}
+                </p>
+              </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Nombre <span
                     class="text-red-500">*</span></label>
