@@ -354,9 +354,9 @@ const {
                     Estado
                   </th>
 
-                  <th class="px-4 py-3 font-semibold text-slate-600 text-right">
+                  <!-- <th class="px-4 py-3 font-semibold text-slate-600 text-right">
                     Precio
-                  </th>
+                  </th> -->
 
                   <th class="px-4 py-3 font-semibold text-slate-600">
                     Adquisición
@@ -528,7 +528,7 @@ const {
                   </td>
 
                   <!-- Precio -->
-                  <td class="px-4 py-3 text-right">
+                  <!-- <td class="px-4 py-3 text-right">
 
                     <span
                       v-if="ej.precioCompra != null"
@@ -541,7 +541,7 @@ const {
                       —
                     </span>
 
-                  </td>
+                  </td> -->
 
                   <!-- Fecha -->
                   <td class="px-4 py-3">
