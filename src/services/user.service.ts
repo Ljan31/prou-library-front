@@ -39,6 +39,7 @@ export interface CreateUserPayload {
 }
 
 export interface UpdateUserPayload {
+  username?: string
   nombre?: string;
   apellido_pat?: string;
   apellido_mat?: string;
