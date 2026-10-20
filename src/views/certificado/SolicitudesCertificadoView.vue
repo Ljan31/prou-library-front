@@ -186,7 +186,6 @@ async function verDetalle(s: Solicitud) {
   }
   solicitudSeleccionada.value = s
   cargandoDetalle.value = true
-  console.log(solicitudSeleccionada.value)
   // Cargar detalle completo + verificar estado por CI en paralelo (solo PENDIENTE)
   const tasks: Promise<void>[] = [
     api.get(`/solicitudes-certificado/${s.id}`)
@@ -199,6 +198,7 @@ async function verDetalle(s: Solicitud) {
         }
       })
       .catch(() => { /* usar datos del listado */ }),
+      cargarCertificadosExistentes(s.id)
   ]
 
   if (s.estado === 'PENDIENTE' && s.ci) {
@@ -341,7 +341,7 @@ async function generarDesdeSolicitud() {
 const certificadosExistentes = ref<Certificado[]>([])
 const cargandoCertificadosExistentes = ref(false)
 
-async function cargarCertificadosExistentes() {
+async function cargarCertificadosExistentes(idSolicitud?:number) {
   if (!solicitudSeleccionada.value?.ci || !targetBibliotecaId.value) return
   
   cargandoCertificadosExistentes.value = true
@@ -353,6 +353,14 @@ async function cargarCertificadosExistentes() {
       }
     })
     certificadosExistentes.value = data.data ?? []
+    if (idSolicitud) {
+      certGeneradoDesdeSolicitud.value =
+        certificadosExistentes.value.find(
+          (cert: any) => cert.solicitudId === idSolicitud
+        ) ?? null
+    } else {
+      certGeneradoDesdeSolicitud.value = null
+    }
   } catch (e) {
     certificadosExistentes.value = []
   } finally {
@@ -563,7 +571,7 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
   <div class="space-y-5">
 
     <!-- Subcomponentes globales -->
-    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false"/>
+    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" tipo="certificado"/>
     <CertificadoPreview
       v-if="showPrintPreview && printCert"
       :certificado="printCert"
@@ -1157,15 +1165,17 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                   </div>
 
                   <div class="flex flex-col sm:flex-row gap-3">
-                    <button @click="abrirVisor(certGeneradoDesdeSolicitud.id_certificado)" class="flex-1 ...">
-                      Ver PDF
+                    <button @click="abrirVisor(certGeneradoDesdeSolicitud.id_certificado)" 
+                      class="flex-1 px-3 py-2 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors">
+                      Ver PDF modal
                     </button>
-                    <button @click="abrirImprimirDesdeSolicitud" class="flex-1 ...">
+                    <button @click="abrirImprimirDesdeSolicitud" 
+                      class="flex-1 px-3 py-2 text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 active:bg-slate-300 transition-colors">
                       Imprimir
                     </button>
-                    <button @click="nuevaGeneracion" class="px-5 py-3 ...">
+                    <!-- <button @click="nuevaGeneracion" class="px-5 py-3 ...">
                       Nuevo
-                    </button>
+                    </button> -->
                   </div>
                 </div>
               </div>
