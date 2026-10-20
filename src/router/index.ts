@@ -48,6 +48,16 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false, title: 'Solicitar Certificado' }
   },
   {
+    path: "/validar/:codigo?",
+    name: "verificar-certificado-publico",
+    component: () =>
+      import("@/views/certificado/CertificadosValidar.vue"),
+    meta: {
+      requiresAuth: false,
+      title: "Verificación de Certificados",
+    },
+  },
+  {
     path: "/",
     component: () => import("@/layouts/AppLayout.vue"),
     meta: { requiresAuth: true },
@@ -301,9 +311,9 @@ router.beforeEach(async (to, _from) => {
   const ui = useUiStore();
 
   // Restore session once on first navigation
-  if (!auth.initialized) {
-    await auth.initSession();
-  }
+  // if (!auth.initialized) {
+  //   await auth.initSession();
+  // }
 
   // Update document title
   if (to.meta.title) {
@@ -313,6 +323,22 @@ router.beforeEach(async (to, _from) => {
   const requiresAuth = to.meta.requiresAuth !== false;
   const routeRoles = to.meta.roles as RoleKey[] | undefined;
 
+  // Las rutas públicas no necesitan restaurar la sesión
+  // para permitir la navegación.
+  if (!requiresAuth) {
+    // Si el usuario ya está autenticado, restauramos la sesión
+    // para las rutas públicas que necesiten conocer su estado.
+    // La verificación del certificado no depende de este paso.
+    if (to.name === "login" && !auth.initialized) {
+      await auth.initSession();
+    }
+
+    if (to.name === "login" && auth.isAuthenticated) {
+      return { path: "/dashboard" };
+    }
+
+    return;
+  }
   // 1. Needs auth but not logged in → login
   if (requiresAuth && !auth.isAuthenticated) {
     return { name: "login", query: { redirect: to.fullPath } };
