@@ -492,6 +492,7 @@ async function searchBooks(item: LoteItem, q: string) {
     const { data } = await api.get('/libros/search', { params })
     item.bookResults = data.data ?? []
     item.bookDropdownOpen = true
+    console.log('searchBooks', item.bookResults)
   } catch { item.bookResults = [] }
   finally { item.bookLoading = false }
 }
@@ -507,6 +508,7 @@ async function selectBook(item: LoteItem, b: LibroResult) {
       params: { bibliotecaId: biblId, estado: 'DISPONIBLE' }
     })
     item.ejemplares = data.data ?? []
+    console.log('item', item.ejemplares)
   } catch { item.ejemplares = [] }
   finally { item.ejemplaresLoading = false }
 }
@@ -585,6 +587,19 @@ async function confirmarPrestamo() {
   }
 }
 
+const ejemplarYaSeleccionado = (idEjemplar, itemActual) => {
+  return lote.value.some(item =>
+    item.id !== itemActual.id &&
+    item.ejemplar?.id_ejemplar === idEjemplar
+  )
+}
+const seleccionarEjemplar = (item, ejemplar) => {
+  if (ejemplarYaSeleccionado(ejemplar.id_ejemplar, item)) {
+    return
+  }
+
+  item.ejemplar = ejemplar
+}
 function resetForm() {
   resetUser()
   step.value = 1
@@ -958,72 +973,501 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
 
               <!-- Búsqueda de libro -->
               <div v-else class="relative">
+                <!-- Campo de búsqueda -->
                 <div class="relative">
-                  <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none"
-                    stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <svg
+                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
                   </svg>
-                  <input v-model="item.bookQuery" type="text" :placeholder="`Buscar libro ${idx + 1}...`"
+
+                  <input
+                    v-model="item.bookQuery"
+                    type="text"
+                    :placeholder="`Buscar libro ${idx + 1}...`"
                     @input="onBookQueryChange(item, item.bookQuery)"
-                    class="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
-                  <div v-if="item.bookLoading" class="absolute right-3 top-1/2 -translate-y-1/2">
-                    <svg class="w-4 h-4 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    class="w-full pl-9 pr-10 py-2.5 text-sm
+                          border border-slate-200 rounded-xl
+                          focus:outline-none focus:ring-2
+                          focus:ring-indigo-400 transition-all"
+                  />
+
+                  <!-- Indicador de carga -->
+                  <div
+                    v-if="item.bookLoading"
+                    class="absolute right-3 top-1/2 -translate-y-1/2"
+                  >
+                    <svg
+                      class="w-4 h-4 text-indigo-500 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      />
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8z"
+                      />
                     </svg>
                   </div>
                 </div>
-                <div v-if="item.bookDropdownOpen && item.bookResults.length"
-                  class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-52 overflow-y-auto">
-                  <button v-for="b in item.bookResults" :key="b.id_libro" @click="selectBook(item, b)"
-                    class="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left border-b border-slate-50 last:border-0">
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium text-slate-800" v-html="highlight(b.titulo, item.bookQuery)" />
-                      <p class="text-xs text-slate-400">{{ b.isbn }} · {{ b.editorial }}</p>
-                    </div>
-                    <span :class="['text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
-                      b.ejemplaresDisponibles > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-500']">
-                      {{ b.ejemplaresDisponibles > 0 ? `✓ ${b.ejemplaresDisponibles}` : '✗ 0' }}
+
+                <!-- Resultados -->
+                <div
+                  v-if="item.bookDropdownOpen && item.bookResults.length"
+                  class="absolute top-full left-0 right-0 mt-2
+                        bg-white border border-slate-200 rounded-2xl
+                        shadow-xl z-30 max-h-96 overflow-y-auto"
+                >
+                  <!-- Encabezado de resultados -->
+                  <div
+                    class="sticky top-0 z-10 px-4 py-2.5
+                          bg-slate-50 border-b border-slate-100
+                          flex items-center justify-between"
+                  >
+                    <p class="text-xs font-semibold text-slate-600">
+                      Resultados de búsqueda
+                    </p>
+
+                    <span
+                      class="text-xs font-medium text-slate-400"
+                    >
+                      {{ item.bookResults.length }}
+                      {{ item.bookResults.length === 1 ? 'libro' : 'libros' }}
                     </span>
+                  </div>
+
+                  <!-- Cada libro -->
+                  <button
+                    v-for="b in item.bookResults"
+                    :key="b.idLibro"
+                    type="button"
+                    @click="selectBook(item, b)"
+                    class="group w-full flex items-start gap-3 p-3.5
+                          text-left border-b border-slate-100 last:border-0
+                          hover:bg-indigo-50/70 transition-colors
+                          focus-visible:outline-none focus-visible:ring-2
+                          focus-visible:ring-inset focus-visible:ring-indigo-500"
+                  >
+                    <!-- Portada -->
+                    <div
+                      class="w-[68px] h-[92px] flex-shrink-0
+                            rounded-lg overflow-hidden
+                            bg-indigo-50 border border-slate-200
+                            flex items-center justify-center"
+                    >
+                      <img
+                        v-if="b.ediciones?.some(ed => ed.imagenPortada)"
+                        :src="getUrl(
+                          b.ediciones.find(ed => ed.imagenPortada).imagenPortada
+                        )"
+                        :alt="`Portada de ${b.titulo}`"
+                        class="w-full h-full object-cover"
+                      />
+
+                      <svg
+                        v-else
+                        class="w-8 h-8 text-indigo-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="1.5"
+                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5
+                          7.5 5S4.168 5.477 3 6.253v13
+                          C4.168 18.477 5.754 18 7.5 18
+                          s3.332-.477 4.5 1.253"
+                        />
+                      </svg>
+                    </div>
+
+                    <!-- Información bibliográfica -->
+                    <div class="flex-1 min-w-0 space-y-1.5">
+
+                      <!-- Título -->
+                      <p
+                        class="text-sm font-bold text-slate-800
+                              leading-snug group-hover:text-indigo-700"
+                        v-html="highlight(b.titulo, item.bookQuery)"
+                      />
+
+                      <!-- Autores -->
+                      <p class="text-xs text-slate-600 leading-relaxed">
+                        <span class="font-semibold text-slate-700">
+                          Autor:
+                        </span>
+
+                        {{
+                          b.autores?.length
+                            ? b.autores.map(a => a.nombre).join(', ')
+                            : 'No registrado'
+                        }}
+                      </p>
+
+                      <!-- Ediciones -->
+                      <div
+                        v-if="b.ediciones?.length"
+                        class="space-y-1.5 pt-0.5"
+                      >
+                        <p class="text-xs font-medium text-slate-500">
+                          {{ b.ediciones.length }}
+                          {{ b.ediciones.length === 1 ? 'edición' : 'ediciones' }}
+                        </p>
+
+                        <div class="flex flex-col gap-1.5">
+                          <div
+                            v-for="ed in b.ediciones"
+                            :key="ed.idEdicion"
+                            class="flex items-start gap-2 rounded-lg
+                                  bg-slate-50 border border-slate-100
+                                  px-2.5 py-2"
+                          >
+                            <svg
+                              class="w-3.5 h-3.5 mt-0.5 text-indigo-500 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.8"
+                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5
+                                7.5 5S4.168 5.477 3 6.253v13
+                                C4.168 18.477 5.754 18 7.5 18
+                                s3.332-.477 4.5 1.253"
+                              />
+                            </svg>
+
+                            <div class="flex-1 min-w-0">
+                              <p class="text-xs font-semibold text-slate-700 break-words">
+                                {{ ed.editorial || 'Editorial no registrada' }}
+                              </p>
+
+                              <p class="text-[11px] text-slate-500">
+                                <span v-if="ed.edicion">
+                                  {{ ed.edicion }}
+                                </span>
+
+                                <span v-if="ed.edicion && ed.anoPublicacion">
+                                  ·
+                                </span>
+
+                                <span v-if="ed.anoPublicacion">
+                                  {{ ed.anoPublicacion }}
+                                </span>
+
+                                <span
+                                  v-if="!ed.edicion && !ed.anoPublicacion"
+                                >
+                                  Datos de edición incompletos
+                                </span>
+                              </p>
+                            </div>
+
+                            <!-- Disponibilidad por edición
+                            <span
+                              :class="[
+                                'flex-shrink-0 text-[10px] font-semibold',
+                                'px-1.5 py-1 rounded-md',
+                                ed.ejemplaresDisponibles > 0
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-200 text-slate-500'
+                              ]"
+                            >
+                              {{ ed.ejemplaresDisponibles ?? 0 }} disp.
+                            </span> -->
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Disponibilidad general del libro -->
+                      <div class="flex items-center gap-2 flex-wrap pt-0.5">
+                        <span
+                          :class="[
+                            'inline-flex items-center gap-1 rounded-full',
+                            'px-2 py-1 text-xs font-semibold',
+                            b.ejemplaresDisponibles > 0
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-red-50 text-red-600'
+                          ]"
+                        >
+                          <svg
+                            class="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+
+                          {{
+                            b.ejemplaresDisponibles > 0
+                              ? `${b.ejemplaresDisponibles} ejemplares disponibles`
+                              : 'Sin ejemplares disponibles'
+                          }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Indicador de selección -->
+                    <svg
+                      class="w-4 h-4 mt-1 text-slate-300 flex-shrink-0
+                            group-hover:text-indigo-500 transition-colors"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="m9 18 6-6-6-6"
+                      />
+                    </svg>
                   </button>
+                </div>
+
+                <!-- Sin resultados -->
+                <div
+                  v-else-if="
+                    item.bookDropdownOpen &&
+                    !item.bookLoading &&
+                    item.bookQuery.trim().length >= 2 &&
+                    !item.bookResults.length
+                  "
+                  class="absolute top-full left-0 right-0 mt-2 z-30
+                        bg-white border border-slate-200 rounded-xl
+                        shadow-lg p-5 text-center"
+                >
+                  <svg
+                    class="w-8 h-8 mx-auto text-slate-300 mb-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      cx="11"
+                      cy="11"
+                      r="7"
+                      stroke-width="1.8"
+                    />
+                    <path
+                      d="m16 16 4 4"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+
+                  <p class="text-sm font-semibold text-slate-700">
+                    No se encontraron libros
+                  </p>
+
+                  <p class="text-xs text-slate-400 mt-1">
+                    Prueba con otro título o con el nombre del autor.
+                  </p>
                 </div>
               </div>
 
-              <!-- Selección de ejemplar (si hay libro) -->
-              <div v-if="item.libro && !item.ejemplar">
-                <p class=" text-xs font-medium text-slate-500 mb-2">Seleccionar ejemplar</p>
+              <!-- Selección de ejemplar físico -->
+              <div v-if="item.libro && !item.ejemplar" class="space-y-3">
+
+                <!-- Encabezado -->
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-800">
+                      Seleccionar ejemplar
+                    </p>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Elige la copia física que se prestará.
+                    </p>
+                  </div>
+
+                  <span
+                    v-if="!item.ejemplaresLoading && item.ejemplares.length"
+                    class="text-xs font-semibold px-2.5 py-1 rounded-full
+                          bg-emerald-50 text-emerald-700"
+                  >
+                    {{ item.ejemplares.length }}
+                    {{ item.ejemplares.length === 1 ? 'disponible' : 'disponibles' }}
+                  </span>
+                </div>
+
+                <!-- Cargando -->
                 <div v-if="item.ejemplaresLoading" class="space-y-2">
-                  <div v-for="i in 2" :key="i" class="h-16 bg-slate-100 rounded-xl animate-pulse" />
+                  <div
+                    v-for="i in 2"
+                    :key="i"
+                    class="flex gap-3 p-3 rounded-xl border border-slate-100"
+                  >
+                    <div class="w-12 h-16 rounded-lg bg-slate-100 animate-pulse" />
+                    <div class="flex-1 space-y-2 py-1">
+                      <div class="h-3 w-2/3 bg-slate-100 rounded animate-pulse" />
+                      <div class="h-3 w-1/2 bg-slate-100 rounded animate-pulse" />
+                      <div class="h-3 w-3/4 bg-slate-100 rounded animate-pulse" />
+                    </div>
+                  </div>
                 </div>
-                <div v-else-if="!item.ejemplares.length"
-                  class="text-center py-4 bg-red-50 rounded-xl border border-red-100">
-                  <p class="text-sm text-red-600 font-medium">No hay ejemplares disponibles</p>
+
+                <!-- Sin ejemplares -->
+                <div
+                  v-else-if="!item.ejemplares.length"
+                  class="flex items-start gap-3 p-4
+                        bg-amber-50 border border-amber-200 rounded-xl"
+                >
+                  <div
+                    class="w-9 h-9 flex-shrink-0 rounded-lg bg-amber-100
+                          flex items-center justify-center"
+                  >
+                    <svg
+                      class="w-5 h-5 text-amber-700"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.8"
+                        d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0
+                        1.7 3h15a2 2 0 0 0 1.7-3l-7.5-13.1a2 2 0 0 0-3.4 0Z"
+                      />
+                    </svg>
+                  </div>
+
+                  <div>
+                    <p class="text-sm font-semibold text-amber-900">
+                      No hay ejemplares disponibles
+                    </p>
+                    <p class="text-xs text-amber-800 mt-1">
+                      Este libro no tiene copias disponibles para seleccionar.
+                    </p>
+                  </div>
                 </div>
+
+                <!-- Lista de ejemplares -->
                 <div v-else class="space-y-2">
-                  <button v-for="ej in item.ejemplares" :key="ej.id_ejemplar" @click="item.ejemplar = ej" :class="['w-full flex gap-3 px-3 py-2.5 rounded-xl border-2 transition-all text-left',
-                    item.ejemplar?.id_ejemplar === ej.id_ejemplar
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50']">
-                    <img :src="getUrl(ej.edicion?.imagenPortada) || defaultBookImage" alt=""
-                      class="w-10 h-14 object-cover rounded-lg border border-slate-100 flex-shrink-0" />
-                    <div class="flex-1 min-w-0">
-                      <p class="text-xs font-semibold text-slate-800 leading-tight">{{ ej.codigoEjemplar }}</p>
-                      <p class="text-xs text-slate-500 mt-0.5">{{ ej.edicion?.editorial }} · {{ ej.edicion?.edicion }}
-                      </p>
-                      <p v-if="ej.ubicacionFisica" class="text-xs text-indigo-500 font-medium mt-0.5">📍 {{
-                        ej.ubicacionFisica }}</p>
-                    </div>
-                    <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                      <div class="w-2 h-2 rounded-full bg-emerald-500" />
-                      <div v-if="item.ejemplar?.id_ejemplar === ej.id_ejemplar"
-                        class="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center">
-                        <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
+
+                  
+              <button
+                v-for="ej in item.ejemplares"
+                :key="ej.id_ejemplar"
+                type="button"
+                :disabled="ejemplarYaSeleccionado(ej.id_ejemplar, item)"
+                @click="seleccionarEjemplar(item, ej)"
+                :class="[
+                  'w-full flex gap-3 px-3 py-2.5 rounded-xl border-2',
+                  'transition-all text-left',
+                  item.ejemplar?.id_ejemplar === ej.id_ejemplar
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : ejemplarYaSeleccionado(ej.id_ejemplar, item)
+                      ? 'border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed'
+                      : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                ]"
+              >
+                <img
+                  :src="getUrl(ej.edicion?.imagenPortada) || defaultBookImage"
+                  :alt="`Portada de ${ej.codigoEjemplar}`"
+                  class="w-10 h-14 object-cover rounded-lg border border-slate-200 flex-shrink-0"
+                />
+
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-semibold text-slate-800 leading-tight">
+                    {{ ej.codigoEjemplar }}
+                  </p>
+
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    {{ ej.edicion?.editorial || 'Editorial no registrada' }}
+                    <span v-if="ej.edicion?.edicion">
+                      · {{ ej.edicion.edicion }}
+                    </span>
+                  </p>
+
+                  <p
+                    v-if="ej.ubicacionFisica"
+                    class="text-xs text-indigo-500 font-medium mt-0.5"
+                  >
+                    📍 {{ ej.ubicacionFisica }}
+                  </p>
+
+                  <p
+                    v-if="ejemplarYaSeleccionado(ej.id_ejemplar, item)"
+                    class="text-xs text-red-600 font-semibold mt-1"
+                  >
+                    Ya seleccionado en otro libro del lote
+                  </p>
+                </div>
+
+                <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                  <div
+                    v-if="ejemplarYaSeleccionado(ej.id_ejemplar, item)"
+                    class="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center"
+                  >
+                    <svg
+                      class="w-3 h-3 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 6l12 12M18 6L6 18"
+                      />
+                    </svg>
+                  </div>
+
+                  <div
+                    v-else-if="item.ejemplar?.id_ejemplar === ej.id_ejemplar"
+                    class="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center"
+                  >
+                    <svg
+                      class="w-3 h-3 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.5"
+                        d="m5 12 4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </button>
+
+
                 </div>
               </div>
             </div>
