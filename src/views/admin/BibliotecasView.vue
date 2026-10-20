@@ -10,6 +10,8 @@ import CarreraFormModal from '@/components/bibliotecas/CarreraFormModal.vue'
 import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
 import ConfiguracionPrestamoModal from '@/components/bibliotecas/ConfiguracionPrestamoModal.vue'
 import BibliotecaEncargadosModal from './BibliotecaEncargadosModal.vue'
+import PlantillaManager from '@/components/PlantillaManager.vue'
+
 // ─── Stores ───────────────────────────────────────────────────────────────
 const store = useBibliotecasStore()
 const authStore = useAuthStore()
@@ -20,11 +22,10 @@ onMounted(async () => {
   uiStore.setPageTitle('Gestión de Bibliotecas')
   uiStore.setBreadcrumbs([{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bibliotecas' }])
   const data = await store.fetchAll()
-  console.log('biblioteca', data)
 })
 
 // ─── Active tab ───────────────────────────────────────────────────────────
-const activeTab = ref<'bibliotecas' | 'carreras'>('bibliotecas')
+const activeTab = ref<'bibliotecas' | 'carreras' | 'plantillas'>('bibliotecas')
 
 // ─── Search / filter ─────────────────────────────────────────────────────
 const searchBib = ref('')
@@ -61,13 +62,11 @@ const editingBib = ref<Biblioteca | null>(null)
 const showCarModal = ref(false)
 const editingCar = ref<CarreraDetail | null>(null)
 const showDelModal = ref(false)
-const delTarget = ref<{ type: 'bib' | 'car'; id: number; name: string } | null>(null)
+const delTarget = ref<{ type: 'bib' | 'car' | 'plan' ; id: number; name: string } | null>(null)
 
 const showConfigModal = ref(false)
 const configBiblioteca = ref<{ id: number; nombre: string;   encargados: any[]} | null>(null)
 function openConfigModal(bib: Biblioteca) {
-  console.log('clicl config')
-  console.log(bib)
   configBiblioteca.value = { id: bib.id_biblioteca, nombre: bib.nombre,   encargados: bib.encargados}
   showConfigModal.value = true
 }
@@ -147,7 +146,14 @@ function openEncargadosModal(bib: Biblioteca) {
     <!-- Tabs -->
     <div class="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 w-fit mb-6">
       <button
-        v-for="tab in [{ key: 'bibliotecas', label: 'Bibliotecas', icon: 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z' }, { key: 'carreras', label: 'Carreras', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' }]"
+        v-for="tab in [
+          { key: 'bibliotecas', label: 'Bibliotecas', icon: 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z' }, 
+          { key: 'carreras', label: 'Carreras', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+          { key: 'plantillas', label: 'Plantillas', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' }
+        ].filter(tab =>
+          tab.key !== 'plantillas' ||
+          !authStore.user?.roles?.includes('ROLE_ADMIN')
+        )"
         :key="tab.key" @click="activeTab = tab.key as any"
         class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all" :class="activeTab === tab.key
           ? 'bg-primary-600 text-white shadow-sm'
@@ -466,6 +472,15 @@ function openEncargadosModal(bib: Biblioteca) {
       </div>
     </div>
 
+
+     <!-- ══════════ PLANTILLA ══════════ -->
+    <div v-if="activeTab === 'plantillas' && !authStore.user?.roles?.includes('ROLE_ADMIN')">
+      <PlantillaManager
+        :biblioteca-id="authStore.user?.biblioteca[0]?.id_biblioteca ?? 0"
+        :nombre-bib="authStore.user?.biblioteca[0]?.nombre ?? 'Mi Biblioteca'"
+        @plantilla-actualizada="(url) => { if (plantillaInfo) plantillaInfo.url = url; else plantillaInfo = { url, firmaUrl: null, selloUrl: null } }"
+      />
+    </div>
     <!-- ─── Modals ─────────────────────────────────────────────────────── -->
     <BibliotecaFormModal v-model="showBibModal" :editing="editingBib" @saved="store.fetchBibliotecas" />
 
