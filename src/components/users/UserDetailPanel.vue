@@ -424,7 +424,7 @@ function openEncargadoEdit(entry: EncargadoEntry) {
                   Resolución
                 </button>
                 <!-- Editar -->
-                <button class="w-9 h-9 flex items-center justify-center rounded-lg
+              <button  v-if="canRemoveEncargado(entry)" class="w-9 h-9 flex items-center justify-center rounded-lg
            bg-amber-50 text-amber-600 border border-amber-100
            hover:bg-amber-100 transition-all" title="Editar encargado" @click="openEncargadoEdit(entry)">
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

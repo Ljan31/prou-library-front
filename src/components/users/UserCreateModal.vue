@@ -97,14 +97,22 @@ function validate(): boolean {
     errors.username = 'Máximo 30 caracteres'
   }
 
-  // Password
-  if (!form.password) {
-    errors.password = 'Requerido'
-  } else if (form.password.length < 8) {
-    errors.password = 'Mínimo 8 caracteres'
-  } else if (form.password.length > 64) {
-    errors.password = 'Máximo 64 caracteres'
-  }
+// Password
+if (!form.password) {
+  errors.password = 'La contraseña es requerida'
+} else if (form.password.length < 8) {
+  errors.password = 'Mínimo 8 caracteres'
+} else if (form.password.length > 20) {
+  errors.password = 'Máximo 20 caracteres'
+} else if (!/[A-Z]/.test(form.password)) {
+  errors.password = 'Debe contener al menos una mayúscula'
+} else if (!/[a-z]/.test(form.password)) {
+  errors.password = 'Debe contener al menos una minúscula'
+} else if (!/[0-9]/.test(form.password)) {
+  errors.password = 'Debe contener al menos un número'
+} else if (!/[^A-Za-z0-9]/.test(form.password)) {
+  errors.password = 'Debe contener al menos un carácter especial'
+}
 
   // Nombre
   if (!form.nombre.trim()) {
@@ -312,6 +320,9 @@ async function handleCreate() {
                     :class="errors.password ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                     @input="delete errors.password" />
                   <p v-if="errors.password" class="text-xs text-red-500 mt-0.5">{{ errors.password }}</p>
+                  <p class="text-xs text-slate-500 mt-1">
+                    De 8 a 20 caracteres, con mayúscula, minúscula, número y símbolo.
+                  </p>
                 </div>
               </div>
             </div>
