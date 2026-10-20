@@ -1,0 +1,1 @@
+function e(){return{getUrl:e=>e?e.startsWith(`http`)?e:`/media${e}`:``}}export{e as t};
