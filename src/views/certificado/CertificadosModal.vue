@@ -71,7 +71,7 @@ function cardBorderClass(estado: string) {
 
 <template>
   <!-- PDF Viewer anidado (z mayor para quedar sobre el modal) -->
-  <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
+  <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" tipo="certificado"/>
 
   <Transition name="fade">
     <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"

@@ -198,7 +198,7 @@ function estadoCertClasses(estado: string) {
   <div class="space-y-5">
 
     <!-- Subcomponentes -->
-    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
+    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" tipo="certificado"/>
 
     <CertificadosModal :show="showModal" :certificados="modalCerts" :titulo="modalTitulo" :can-anular="true"
       :anulando-id="anulandoId" @close="showModal = false" @anular="handleAnularDesdeModal" />

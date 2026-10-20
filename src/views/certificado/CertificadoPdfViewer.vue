@@ -6,6 +6,7 @@ import api from '@/services/axios'
 const props = defineProps<{
   certificadoId: number | null
   show: boolean
+  tipo: string
 }>()
 
 const emit = defineEmits<{
@@ -26,12 +27,25 @@ watch(() => props.show, async (val) => {
   }
 })
 
+function obtenerUrlDescarga(id: number): string {
+  if (props.tipo === 'certificado') {
+    return `/certificados/${id}/download`
+  }
+
+  if (props.tipo === 'planilla') {
+    return `/plantillas/biblioteca/${id}/download`
+  }
+
+  throw new Error(`Tipo no soportado: ${props.tipo}`)
+}
+
 async function cargarPdf(id: number) {
   cargando.value = true
   error.value = null
   pdfBlobUrl.value = null
   try {
-    const res = await api.get(`/certificados/${id}/download`, {
+     const url = obtenerUrlDescarga(id)
+    const res = await api.get(url, {
       responseType: 'blob',
     })
     const blob = new Blob([res.data], { type: 'application/pdf' })
@@ -46,7 +60,8 @@ async function cargarPdf(id: number) {
 
 async function descargar(id: number) {
   try {
-    const res = await api.get(`/certificados/${id}/download`, { responseType: 'blob' })
+     const urldescargar = obtenerUrlDescarga(id)
+    const res = await api.get(urldescargar, { responseType: 'blob' })
     const blob = new Blob([res.data], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
