@@ -1,37 +1,89 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import api from '@/services/axios'
+import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useRoute } from 'vue-router'
 
 const ui = useUiStore()
+
+const route = useRoute()
+const auth = useAuthStore()
+interface UsuarioCertificado {
+  id_usuario: number
+  nombreCompleto: string
+  username: string
+  ci: string
+  email: string
+}
+
+interface Certificado {
+  id_certificado: number
+  codigo_verificacion: string
+  estadoCertificado: 'VIGENTE' | 'VENCIDO' | 'ANULADO'
+  fechaEmision: string | null
+  fechaVencimiento: string | null
+  bibliotecaId: number
+  bibliotecaNombre: string
+  solicitudId: number
+  urlDescarga: string | null
+  pdf_generado: string | null
+  usuario: UsuarioCertificado
+  bibliotecario: UsuarioCertificado
+}
 
 interface ValidacionResult {
   valido: boolean
   mensaje: string
-  certificado?: any
+  certificado: Certificado | null
 }
 
 const codigoValidar = ref('')
 const validando = ref(false)
 const validacionResult = ref<ValidacionResult | null>(null)
 const validacionError = ref<string | null>(null)
+const puedeIntroducirCodigo = computed(() => auth.isAuthenticated)
 
+// const certificado = computed(
+//   () => validacionResult.value?.certificado ?? null
+// )
+// const estadoPresentacion = computed(() => {
+//   const resultado = validacionResult.value
+
+//   if (!resultado?.valido || !resultado.certificado) {
+//     return 'NO_VERIFICADO'
+//   }
+
+//   return resultado.certificado.estadoCertificado
+// })
 async function validarCertificado() {
-  if (!codigoValidar.value.trim()) return
+   const codigo = codigoValidar.value.trim()
+
+  if (!codigo || validando.value) return
   validando.value = true
   validacionResult.value = null
   validacionError.value = null
 
   try {
-    const { data } = await api.get(`/certificados/validar/${codigoValidar.value.trim()}`)
-    validacionResult.value = data.data ?? data
+    const { data } = await api.get(`/certificados/validar/${encodeURIComponent(codigo)}`)
+    console.log('validar: ', data.data)
+    const resultado: ValidacionResult = data.data ?? data
+    validacionResult.value = resultado
+
   } catch (e: any) {
-    validacionError.value = e.response?.data?.message || 'No se pudo validar el certificado'
+    validacionError.value = e.response?.data?.message || 'No se pudo verificar el certificado. Inténtalo nuevamente.'
   } finally {
     validando.value = false
   }
 }
+onMounted(() => {
+  const codigo = route.params.codigo
 
+  if (typeof codigo === 'string' && codigo.trim()) {
+    codigoValidar.value = codigo
+    validarCertificado()
+  }
+})
 function formatDateTime(s?: string) {
   if (!s) return '—'
   return new Date(s).toLocaleString('es-BO', {
@@ -61,7 +113,7 @@ function estadoCertClasses(estado: string) {
         </svg>
         <h3 class="font-semibold text-slate-800 text-sm">Verificar autenticidad de certificado</h3>
       </div>
-      <div class="p-5 space-y-4">
+      <div v-if="puedeIntroducirCodigo"  class="p-5 space-y-4">
         <p class="text-sm text-slate-500">Ingresa el código de verificación del certificado para comprobar su validez
           y
           estado.</p>
@@ -118,52 +170,157 @@ function estadoCertClasses(estado: string) {
             </svg>
           </div>
           <div>
-            <p :class="['font-bold', validacionResult.valido ? 'text-emerald-800' : 'text-red-800']">
-              {{ validacionResult.valido ? 'Certificado Válido' : 'Certificado No Válido' }}
+           <p
+              :class="[
+                'font-bold',
+                validacionResult.valido &&
+                validacionResult.certificado?.estadoCertificado === 'VIGENTE'
+                  ? 'text-emerald-800'
+                  : 'text-amber-800'
+              ]"
+            >
+              {{
+                !validacionResult.valido
+                  ? 'Certificado no verificado'
+                  : validacionResult.certificado?.estadoCertificado === 'ANULADO'
+                    ? 'Certificado anulado'
+                    : validacionResult.certificado?.estadoCertificado === 'VENCIDO'
+                      ? 'Certificado vencido'
+                      : validacionResult.certificado?.estadoCertificado === 'VIGENTE'
+                        ? 'Certificado auténtico y vigente'
+                        : 'Autenticidad confirmada'
+              }}
             </p>
             <p :class="['text-xs', validacionResult.valido ? 'text-emerald-600' : 'text-red-600']">{{
               validacionResult.mensaje }}</p>
           </div>
         </div>
-        <div v-if="validacionResult.valido && validacionResult.certificado" class="p-5">
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p class="text-xs text-slate-400 mb-0.5">Código</p>
-              <p class="font-mono text-xs text-indigo-700 break-all">{{
-                validacionResult.certificado.codigo_verificacion
-              }}</p>
+       <div
+            v-if="validacionResult.certificado"
+            class="p-5 sm:p-6 space-y-6"
+          >
+            <!-- Titular del certificado -->
+            <div class="space-y-1">
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Titular del certificado
+              </p>
+
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 break-words">
+                {{
+                  validacionResult.certificado.usuario?.nombreCompleto?.trim()
+                    || 'Nombre no disponible'
+                }}
+              </h2>
+
+              <p class="text-sm text-slate-500">
+                Certificado emitido por
+                <span class="font-medium text-slate-700">
+                  {{ validacionResult.certificado.bibliotecaNombre }}
+                </span>
+              </p>
             </div>
-            <div>
-              <p class="text-xs text-slate-400 mb-0.5">Estado</p>
-              <span
-                :class="['text-xs font-bold px-2.5 py-0.5 rounded-full', estadoCertClasses(validacionResult.certificado.estadoCertificado)]">
-                {{ validacionResult.certificado.estadoCertificado }}
-              </span>
+
+            <!-- Información del certificado -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              <!-- Estado -->
+              <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+                <p class="text-xs text-slate-500 mb-2">
+                  Estado del certificado
+                </p>
+
+                <span
+                  :class="[
+                    'inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full',
+                    estadoCertClasses(
+                      validacionResult.certificado.estadoCertificado
+                    )
+                  ]"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+
+                  {{ validacionResult.certificado.estadoCertificado }}
+                </span>
+              </div>
+
+              <!-- Biblioteca -->
+              <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+                <p class="text-xs text-slate-500 mb-1">
+                  Biblioteca emisora
+                </p>
+
+                <p class="text-sm font-semibold text-slate-800">
+                  {{ validacionResult.certificado.bibliotecaNombre }}
+                </p>
+              </div>
+
+              <!-- Fecha de emisión -->
+              <div class="rounded-xl border border-slate-100 p-4">
+                <p class="text-xs text-slate-500 mb-1">
+                  Fecha de emisión
+                </p>
+
+                <p class="text-sm font-medium text-slate-800">
+                  {{ formatDateTime(validacionResult.certificado.fechaEmision!) }}
+                </p>
+              </div>
+
+              <!-- Fecha de vencimiento -->
+              <div class="rounded-xl border border-slate-100 p-4">
+                <p class="text-xs text-slate-500 mb-1">
+                  Fecha de vencimiento
+                </p>
+
+                <p class="text-sm font-medium text-slate-800">
+                  {{ formatDateTime(validacionResult.certificado.fechaVencimiento!) }}
+                </p>
+              </div>
             </div>
-            <div>
-              <p class="text-xs text-slate-400 mb-0.5">Fecha de Emisión</p>
-              <p class="font-medium text-slate-700 text-xs">{{
-                formatDateTime(validacionResult.certificado.fechaEmision)
-              }}</p>
+
+            <!-- Código de verificación -->
+            <div class="border-t border-slate-100 pt-4">
+              <p class="text-xs font-medium text-slate-500 mb-2">
+                Código de verificación
+              </p>
+
+              <p
+                class="font-mono text-xs sm:text-sm text-indigo-700 break-all select-all"
+              >
+                {{ validacionResult.certificado.codigo_verificacion }}
+              </p>
             </div>
-            <div>
-              <p class="text-xs text-slate-400 mb-0.5">Fecha de Vencimiento</p>
-              <p class="font-medium text-slate-700 text-xs">{{
-                formatDateTime(validacionResult.certificado.fechaVencimiento) }}</p>
-            </div>
-            <div v-if="validacionResult.certificado.urlDescarga" class="col-span-2 pt-2">
-              <a :href="`http://localhost:8098${validacionResult.certificado.urlDescarga}`" target="_blank"
+
+            <!-- Descarga
+            <div
+              v-if="validacionResult.certificado.urlDescarga"
+              class="border-t border-slate-100 pt-4"
+            >
+              <a
+                :href="`${API_BASE_URL}${validacionResult.certificado.urlDescarga}`"
+                target="_blank"
                 rel="noopener noreferrer"
-                class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
                 </svg>
-                Descargar PDF del certificado
+
+                Descargar certificado PDF
               </a>
-            </div>
+            </div> -->
           </div>
-        </div>
+
+
       </div>
     </Transition>
 
