@@ -15,6 +15,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
+import { razonCertificadoService } from '@/services/razon-certificado.service'
 import api from '@/services/axios'
 import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
@@ -63,10 +64,31 @@ interface Biblioteca {
   id_biblioteca: number
   nombre: string
 }
+interface RazonCertificado {
+  idRazon?: number
+  id?: number
+  nombre: string
+  descripcion?: string
+  requisitos?: string[]
+  activo?: boolean
+}
 
+function razonId(razon: RazonCertificado): number {
+  return razon.idRazon ?? razon.id ?? 0
+}
+
+const razones = ref<RazonCertificado[]>([])
+const razonesLoading = ref(false)
+const selectedRazonId = ref<number | null>(null)
+
+const selectedRazon = computed(() =>
+  razones.value.find(r => razonId(r) === selectedRazonId.value) ?? null
+)
 // ─── Init ─────────────────────────────────────────────────────────────────────
 onMounted(() => {
   if (isAdmin.value) fetchBibliotecas()
+  else
+    cargarRazones(auth.user?.biblioteca?.[0]?.id_biblioteca ?? null)
   fetchCertsBiblioteca()
 })
 
@@ -87,6 +109,31 @@ const targetBibliotecaId = computed(() =>
   isAdmin.value ? selectedBibliotecaId.value : bibliotecarioId.value
 )
 
+watch(targetBibliotecaId, async (bibliotecaId) => {
+  cargarRazones(bibliotecaId);
+})
+const cargarRazones = async(bibliotecaId: number|null) =>{
+  razones.value = []
+  selectedRazonId.value = null
+
+  if (!bibliotecaId) return
+
+  razonesLoading.value = true
+
+  try {
+    const data = await razonCertificadoService.getByBiblioteca(bibliotecaId)
+    const resultado: RazonCertificado[] = data?.data ?? data ?? []
+    razones.value = resultado.filter(r => r.activo !== false)
+  } catch {
+    razones.value = []
+    ui.toast.error(
+      'Error',
+      'No se pudieron cargar las razones del certificado'
+    )
+  } finally {
+    razonesLoading.value = false
+  }
+}
 // ─── Búsqueda de usuario ──────────────────────────────────────────────────────
 const userQuery = ref('')
 const userResults = ref<UsuarioBusqueda[]>([])
@@ -124,6 +171,7 @@ function resetUser() {
   userQuery.value = ''
   userResults.value = []
   estadoSancionUsuario.value = null
+  selectedRazonId.value = null
   prestamosUsuario.value = []
   certificadosUsuario.value = []
   certGenerado.value = null
@@ -160,6 +208,7 @@ async function verificarEstudianteSeleccionado(userId: number) {
     ])
     estadoSancionUsuario.value = sancionRes.data.data ?? sancionRes.data
     certificadosUsuario.value = certRes.data.data ?? []
+    console.log('certificados', certificadosUsuario.value )
   } catch (e: unknown) {
     ui.toast.error('Error', 'No se pudo verificar el estado del estudiante')
   } finally {
@@ -183,6 +232,7 @@ const estudianteTieneVigente = computed(() =>
 const puedeGenerar = computed(() => {
   if (!selectedUser.value) return false
   if (!targetBibliotecaId.value) return false
+  if (!selectedRazonId.value) return false
   if (verificandoEstudiante.value) return false
   if (estudianteTieneSuspension.value) return false
   if (estudianteTieneVigente.value) return false
@@ -205,6 +255,7 @@ async function generarCertificado() {
       usuarioId: selectedUser.value!.id_usuario,
       bibliotecaId: targetBibliotecaId.value,
       diasValidez: diasValidez.value,
+      razonCertificadoId: selectedRazonId.value,
     }
     const { data } = await api.post('/certificados', payload)
     if (data.success) {
@@ -320,7 +371,7 @@ function estadoCertClasses(estado: string) {
   <div class="space-y-6">
 
     <!-- Subcomponentes globales -->
-    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" />
+    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" tipo="certificado"/>
 
     <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert"
       :nombre-usuario="printCert.usuario?.nombreCompleto ?? selectedUser?.persona.nombreCompleto ?? ''"
@@ -374,9 +425,66 @@ function estadoCertClasses(estado: string) {
           </select>
         </div>
 
+        
+        <!-- Selector de razón del certificado -->
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">
+            Razón del certificado
+            <span class="text-red-400">*</span>
+          </label>
+
+          <div
+            v-if="!targetBibliotecaId"
+            class="w-full h-10 border border-slate-200 rounded-xl bg-slate-50 flex items-center px-3"
+          >
+            <span class="text-xs text-slate-400">
+              Primero selecciona una biblioteca
+            </span>
+          </div>
+
+          <div
+            v-else-if="razonesLoading"
+            class="w-full h-10 border border-slate-200 rounded-xl bg-slate-100 animate-pulse"
+          />
+
+          <div
+            v-else-if="!razones.length"
+            class="w-full h-10 border border-amber-200 rounded-xl bg-amber-50 flex items-center px-3"
+          >
+            <span class="text-xs text-amber-600">
+              No hay razones configuradas para esta biblioteca
+            </span>
+          </div>
+
+          <select
+            v-else
+            v-model.number="selectedRazonId"
+            class="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
+          >
+            <option :value="null" disabled>
+              Seleccionar razón del certificado...
+            </option>
+
+            <option
+              v-for="razon in razones"
+              :key="razonId(razon)"
+              :value="razonId(razon)"
+            >
+              {{ razon.nombre }}
+            </option>
+          </select>
+
+          <p
+            v-if="selectedRazon?.descripcion"
+            class="text-xs text-slate-500 mt-1.5"
+          >
+            {{ selectedRazon.descripcion }}
+          </p>
+        </div>
+
         <!-- Buscador de usuario -->
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Buscar estudiante <span
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Buscar estudiantesssss <span
               class="text-red-400">*</span></label>
           <div class="relative">
             <div class="relative">
@@ -707,67 +815,6 @@ function estadoCertClasses(estado: string) {
         </div>
       </div>
     </Transition>
-
-    <!-- ══ TABLA DE CERTIFICADOS DE LA BIBLIOTECA ══ -->
-    <!-- <div v-if="!certGenerado" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex-wrap gap-y-2">
-        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <h3 class="font-semibold text-slate-800 text-sm">Certificados de mi biblioteca</h3>
-        <div class="ml-auto flex gap-1">
-          <button
-            v-for="f in [{ v: '', l: 'Todos' }, { v: 'VIGENTE', l: 'Vigente' }, { v: 'VENCIDO', l: 'Vencido' }, { v: 'ANULADO', l: 'Anulado' }]"
-            :key="f.v" @click="filtroEstadoBib = f.v as typeof filtroEstadoBib"
-            :class="['px-2.5 py-0.5 rounded-full text-xs font-medium transition-all',
-              filtroEstadoBib === f.v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200']">{{ f.l }}</button>
-        </div>
-      </div>
-      <div v-if="certsBibliotecaLoading" class="p-5 space-y-3">
-        <div v-for="i in 3" :key="i" class="h-12 bg-slate-100 rounded-xl animate-pulse" />
-      </div>
-      <div v-else-if="!certsBiblioteca.length" class="py-10 text-center">
-        <p class="text-sm text-slate-400">No hay certificados con este filtro</p>
-      </div>
-      <div v-else class="divide-y divide-slate-50 max-h-72 overflow-y-auto">
-        <div v-for="c in certsBiblioteca" :key="c.id_certificado"
-          class="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-slate-800 capitalize truncate">{{ c.usuario?.nombreCompleto ?? '—' }}</p>
-            <p class="text-xs font-mono text-slate-400 truncate">{{ c.codigo_verificacion }}</p>
-            <p class="text-xs text-slate-400">Vence: {{ formatDate(c.fechaVencimiento) }}</p>
-          </div>
-          <span
-            :class="['text-xs font-bold px-2.5 py-0.5 rounded-full flex-shrink-0', estadoCertClasses(c.estadoCertificado)]">
-            {{ c.estadoCertificado }}
-          </span>
-          <div class="flex gap-1.5 flex-shrink-0">
-            <button @click="abrirVisor(c.id_certificado)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-              title="Ver PDF">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </button>
-            <button @click="abrirImprimir(c)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-              title="Imprimir">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-            </button>
-            <button v-if="c.estadoCertificado === 'VIGENTE'" @click="anularCertificado(c.id_certificado)"
-              :disabled="anulandoId === c.id_certificado"
-              class="text-xs px-2.5 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-medium transition-colors disabled:opacity-50">
-              {{ anulandoId === c.id_certificado ? '...' : 'Anular' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div> -->
 
   </div>
 </template>
