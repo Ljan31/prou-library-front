@@ -107,12 +107,29 @@ const certificadosFiltrados = computed(() => {
 
 // ─── Anular ───────────────────────────────────────────────────────────────────
 const anulandoId = ref<number | null>(null)
+ // ─── Confirmación de anulación ────────────────────────────────────────────────
+const showConfirmAnular = ref(false)
+const certificadoPendiente = ref<Certificado | null>(null)
 
+function confirmarAnulacion(certificado: Certificado) {
+  certificadoPendiente.value = certificado
+  showConfirmAnular.value = true
+}
+
+function cerrarConfirmacion() {
+  if (anulandoId.value !== null) return
+  showConfirmAnular.value = false
+  certificadoPendiente.value = null
+}
 async function anularCertificado(id: number) {
+  if (anulandoId.value !== null) return
+
   anulandoId.value = id
   try {
     await api.patch(`/certificados/${id}/anular`)
     ui.toast.success('Certificado anulado', 'El certificado fue anulado correctamente')
+    showConfirmAnular.value = false
+    certificadoPendiente.value = null
     fetchCertificados()
     // Refrescar modal si estaba abierto con ese usuario
     if (modalCerts.value.length) {
@@ -203,6 +220,153 @@ function estadoCertClasses(estado: string) {
     <CertificadosModal :show="showModal" :certificados="modalCerts" :titulo="modalTitulo" :can-anular="true"
       :anulando-id="anulandoId" @close="showModal = false" @anular="handleAnularDesdeModal" />
 
+    <!-- Modal de confirmación de anulación -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-opacity duration-200"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-opacity duration-150"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showConfirmAnular"
+          class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4"
+          @click.self="cerrarConfirmacion"
+          @keydown.esc="cerrarConfirmacion"
+        >
+          <Transition
+            appear
+            enter-active-class="transition-all duration-200"
+            enter-from-class="opacity-0 scale-95 translate-y-2"
+            enter-to-class="opacity-100 scale-100 translate-y-0"
+          >
+            <div
+              v-if="showConfirmAnular"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="titulo-confirmar-anulacion"
+              aria-describedby="descripcion-confirmar-anulacion"
+              class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <!-- Encabezado -->
+              <div class="flex items-start gap-4 p-6 pb-4">
+                <div
+                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
+                >
+                  <svg
+                    class="h-6 w-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"
+                    />
+                  </svg>
+                </div>
+
+                <div class="min-w-0 flex-1">
+                  <h2
+                    id="titulo-confirmar-anulacion"
+                    class="text-lg font-bold text-slate-900"
+                  >
+                    ¿Anular certificado?
+                  </h2>
+
+                  <p
+                    id="descripcion-confirmar-anulacion"
+                    class="mt-2 text-sm leading-relaxed text-slate-500"
+                  >
+                    Esta acción cambiará el estado del certificado a
+                    <span class="font-semibold text-red-600">ANULADO</span>.
+                    Asegúrate de que deseas continuar.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Información del certificado -->
+              <div
+                v-if="certificadoPendiente"
+                class="mx-6 mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Estudiante
+                </p>
+                <p class="mt-1 truncate text-sm font-semibold text-slate-800">
+                  {{ certificadoPendiente.usuario?.nombreCompleto ?? 'Sin nombre' }}
+                </p>
+
+                <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+                  <div>
+                    <p class="text-xs text-slate-400">CI</p>
+                    <p class="mt-0.5 text-sm text-slate-700">
+                      {{ certificadoPendiente.usuario?.ci ?? '—' }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p class="text-xs text-slate-400">Código</p>
+                    <p class="mt-0.5 break-all font-mono text-xs text-indigo-600">
+                      {{ certificadoPendiente.codigo_verificacion }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Acciones -->
+              <div
+                class="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 p-4 sm:flex-row sm:justify-end"
+              >
+                <button
+                  type="button"
+                  @click="cerrarConfirmacion"
+                  :disabled="anulandoId !== null"
+                  class="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  @click="certificadoPendiente && anularCertificado(certificadoPendiente.id_certificado)"
+                  :disabled="anulandoId !== null || !certificadoPendiente"
+                  class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <svg
+                    v-if="anulandoId !== null"
+                    class="h-4 w-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    />
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 0 1 8-8v8z"
+                    />
+                  </svg>
+
+                  {{ anulandoId !== null ? 'Anulando...' : 'Sí, anular certificado' }}
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
+      </Transition>
+    </Teleport>
+    
     <!-- Stats -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="bg-white rounded-xl border border-slate-200 p-4">
@@ -395,7 +559,7 @@ function estadoCertClasses(estado: string) {
                   </button>
 
                   <!-- Anular -->
-                  <button v-if="c.estadoCertificado === 'VIGENTE'" @click="anularCertificado(c.id_certificado)"
+                  <button v-if="c.estadoCertificado === 'VIGENTE'" @click="confirmarAnulacion(c)"
                     :disabled="anulandoId === c.id_certificado"
                     class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
                     title="Anular certificado">
