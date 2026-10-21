@@ -17,9 +17,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
 import { razonCertificadoService } from '@/services/razon-certificado.service'
 import api from '@/services/axios'
-import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
-import CertificadoPreview from './CertificadoPreview.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -208,7 +206,6 @@ async function verificarEstudianteSeleccionado(userId: number) {
     ])
     estadoSancionUsuario.value = sancionRes.data.data ?? sancionRes.data
     certificadosUsuario.value = certRes.data.data ?? []
-    console.log('certificados', certificadosUsuario.value )
   } catch (e: unknown) {
     ui.toast.error('Error', 'No se pudo verificar el estado del estudiante')
   } finally {
@@ -324,25 +321,19 @@ watch([filtroEstadoBib, targetBibliotecaId], fetchCertsBiblioteca)
 const showCertsModal = ref(false)
 const pdfViewerShow = ref(false)
 const pdfViewerCertId = ref<number | null>(null)
-const printCert = ref<Certificado | null>(null)
-const showPrintPreview = ref(false)
+// const printCert = ref<Certificado | null>(null)
+// const showPrintPreview = ref(false)
 
 function abrirVisor(id: number) {
   pdfViewerCertId.value = id
   pdfViewerShow.value = true
 }
 
-function abrirImprimir(cert: Certificado) {
-  printCert.value = cert
-  showPrintPreview.value = true
-}
+// function abrirImprimir(cert: Certificado) {
+//   printCert.value = cert
+//   showPrintPreview.value = true
+// }
 
-// QR para cert generado
-const qrUrl = computed(() => {
-  if (!certGenerado.value?.codigo_verificacion) return ''
-  const url = `${window.location.origin}/certificados?tab=validar&codigo=${certGenerado.value.codigo_verificacion}`
-  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}&ecc=M&margin=2`
-})
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(s?: string | null) {
@@ -372,15 +363,6 @@ function estadoCertClasses(estado: string) {
 
     <!-- Subcomponentes globales -->
     <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" tipo="certificado"/>
-
-    <CertificadoPreview v-if="showPrintPreview && printCert" :certificado="printCert"
-      :nombre-usuario="printCert.usuario?.nombreCompleto ?? selectedUser?.persona.nombreCompleto ?? ''"
-      :ci-usuario="String(printCert.usuario?.ci ?? selectedUser?.persona.ci ?? '')" @close="showPrintPreview = false" />
-
-    <CertificadosModal :show="showCertsModal" :certificados="certificadosUsuario"
-      :titulo="`Certificados de ${selectedUser?.persona.nombreCompleto ?? 'este usuario'}`" :can-anular="true"
-      :anulando-id="anulandoId" @close="showCertsModal = false" @anular="anularCertificado" @ver-pdf="abrirVisor"
-      @imprimir="abrirImprimir" />
 
     <!-- ══ PANEL PRINCIPAL ══ -->
     <div v-if="!certGenerado" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
@@ -484,7 +466,7 @@ function estadoCertClasses(estado: string) {
 
         <!-- Buscador de usuario -->
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Buscar estudiantesssss <span
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Buscar Lectores <span
               class="text-red-400">*</span></label>
           <div class="relative">
             <div class="relative">
@@ -694,123 +676,138 @@ function estadoCertClasses(estado: string) {
     <!-- ══ CERTIFICADO GENERADO ══ -->
     <Transition name="fade">
       <div v-if="certGenerado" class="space-y-4">
+
+        <!-- Confirmación -->
         <div class="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
           <div class="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M5 13l4 4L19 6"
+              />
             </svg>
           </div>
+
           <div>
-            <p class="font-semibold text-emerald-800 text-sm">¡Certificado generado exitosamente!</p>
+            <p class="font-semibold text-emerald-800 text-sm">
+              ¡Certificado generado exitosamente!
+            </p>
             <p class="text-xs text-emerald-600 mt-0.5">
-              El certificado de <strong>{{ selectedUser?.persona.nombreCompleto }}</strong> fue emitido. El estudiante
-              recibirá una notificación.
+              El certificado de
+              <strong>{{ selectedUser?.persona.nombreCompleto }}</strong>
+              fue emitido correctamente.
             </p>
           </div>
         </div>
 
+        <!-- Información del certificado -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
           <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-            <div class="flex items-center gap-2.5">
-              <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 class="font-semibold text-slate-800 text-sm">Previsualización</h3>
+            <div>
+              <h3 class="font-semibold text-slate-800 text-sm">
+                Certificado oficial
+              </h3>
+              <p class="text-xs text-slate-400 mt-1">
+                Certificado #{{ certGenerado.id_certificado }}
+              </p>
             </div>
+
             <span
-              :class="['text-xs font-bold px-2.5 py-0.5 rounded-full', estadoCertClasses(certGenerado.estadoCertificado)]">
+              :class="[
+                'text-xs font-bold px-2.5 py-1 rounded-full',
+                estadoCertClasses(certGenerado.estadoCertificado)
+              ]"
+            >
               {{ certGenerado.estadoCertificado }}
             </span>
           </div>
-          <div class="p-6">
-            <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50/50">
-              <div class="text-center mb-6 pb-4 border-b border-slate-200">
-                <div class="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center mx-auto mb-2">
-                  <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <h2 class="text-lg font-bold text-slate-900 uppercase tracking-wide">Universidad Mayor de San Andrés
-                </h2>
-                <p class="text-sm text-slate-600">Facultad de Humanidades y Ciencias de la Educación</p>
-                <p class="text-xs text-slate-400 mt-0.5">Sistema de Gestión Bibliográfica – SIGEB</p>
-              </div>
-              <div class="text-center mb-6">
-                <h3 class="text-xl font-bold text-indigo-700 uppercase tracking-widest">Certificado de No Deuda</h3>
-                <p class="text-xs text-slate-500 mt-1">Bibliográfica</p>
-              </div>
-              <div class="text-sm text-slate-700 space-y-3 mb-6 text-center">
-                <p>
-                  Se certifica que el/la estudiante
-                  <strong class="text-slate-900 capitalize">{{ selectedUser?.persona.nombreCompleto }}</strong>
-                  con CI: <strong class="text-slate-900">{{ selectedUser?.persona.ci }}</strong>
-                  no registra préstamos bibliográficos pendientes en el sistema.
+
+          <div class="p-5 space-y-3">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p class="text-xs text-slate-400 mb-1">Estudiante</p>
+                <p class="text-sm font-semibold text-slate-800">
+                  {{ selectedUser?.persona.nombreCompleto }}
                 </p>
               </div>
-              <!-- Datos + QR -->
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div class="sm:col-span-2 grid grid-cols-1 gap-3 text-xs">
-                  <div class="bg-white rounded-xl border border-slate-200 p-3">
-                    <p class="text-slate-400 mb-0.5">Fecha de Emisión</p>
-                    <p class="font-semibold text-slate-800">{{ formatDateTime(certGenerado.fechaEmision) }}</p>
-                  </div>
-                  <div class="bg-white rounded-xl border border-slate-200 p-3">
-                    <p class="text-slate-400 mb-0.5">Fecha de Vencimiento</p>
-                    <p class="font-semibold text-slate-800">{{ formatDateTime(certGenerado.fechaVencimiento) }}</p>
-                  </div>
-                  <div class="bg-white rounded-xl border border-slate-200 p-3">
-                    <p class="text-slate-400 mb-0.5">Código de Verificación</p>
-                    <p class="font-mono font-semibold text-indigo-700 text-xs break-all">{{
-                      certGenerado.codigo_verificacion
-                    }}</p>
-                  </div>
-                </div>
-                <div
-                  class="flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 p-3 gap-2">
-                  <p class="text-xs text-slate-400 font-medium">Verificar autenticidad</p>
-                  <img v-if="qrUrl" :src="qrUrl" alt="QR" class="w-32 h-32 rounded-lg" loading="lazy" />
-                  <div v-else class="w-32 h-32 bg-slate-100 rounded-lg animate-pulse" />
-                  <p class="text-xs text-slate-400 text-center leading-tight">Escanea para validar</p>
-                </div>
+
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p class="text-xs text-slate-400 mb-1">Cédula de identidad</p>
+                <p class="text-sm font-semibold text-slate-800">
+                  {{ selectedUser?.persona.ci }}
+                </p>
               </div>
-              <div class="flex justify-end pt-4 border-t border-slate-200">
-                <div class="text-center">
-                  <div class="w-28 border-b border-slate-400 mb-1 mx-auto" />
-                  <p class="text-xs text-slate-500">{{ auth.displayName }}</p>
-                  <p class="text-xs text-slate-400">{{ auth.bibliotecaNombre ?? 'Bibliotecario' }}</p>
-                </div>
+
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p class="text-xs text-slate-400 mb-1">Fecha de emisión</p>
+                <p class="text-sm font-semibold text-slate-800">
+                  {{ formatDateTime(certGenerado.fechaEmision) }}
+                </p>
               </div>
+
+              <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p class="text-xs text-slate-400 mb-1">Fecha de vencimiento</p>
+                <p class="text-sm font-semibold text-slate-800">
+                  {{ formatDateTime(certGenerado.fechaVencimiento) }}
+                </p>
+              </div>
+
             </div>
+
+            <div class="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+              <p class="text-xs text-indigo-500 mb-1">
+                Código de verificación
+              </p>
+              <p class="font-mono text-sm font-semibold text-indigo-700 break-all">
+                {{ certGenerado.codigo_verificacion }}
+              </p>
+            </div>
+
+            <p class="text-xs text-slate-500">
+              El documento PDF será obtenido directamente del backend para garantizar
+              que la descarga corresponda al certificado oficial emitido.
+            </p>
+
           </div>
 
           <!-- Acciones -->
           <div class="px-5 pb-5 flex flex-col sm:flex-row gap-3">
-            <button @click="abrirVisor(certGenerado.id_certificado)"
-              class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 active:scale-[0.98]">
+
+            <button
+              @click="abrirVisor(certGenerado.id_certificado)"
+              class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all"
+            >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a2 2 0 01.707.293l5.414 5.414A2 2 0 0120 9.414V19a2 2 0 01-2 2z"
+                />
               </svg>
-              Descargar PDF oficial
+              Ver / descargar PDF oficial
             </button>
-            <!-- <button @click="abrirImprimir(certGenerado)"
-              class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
+
+            <button
+              @click="resetCertificado"
+              class="sm:flex-none flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-500 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all"
+            >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Imprimir vista web
-            </button> -->
-            <button @click="resetCertificado"
-              class="sm:flex-none flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-500 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               Generar otro
             </button>
+
           </div>
         </div>
       </div>
