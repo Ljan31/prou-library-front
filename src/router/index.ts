@@ -276,7 +276,17 @@ const routes: RouteRecordRaw[] = [
           roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO'],
           title: 'Solicitudes de Certificado',
         }
-      }
+      },
+      {
+        path: "configuracion",
+        name: "configuracion-biblioteca",
+        component: () => import("@/views/bibliotecario/ConfiguracionBibliotecaView.vue"),
+        meta: {
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          title: "Ajustes de Biblioteca",
+          breadcrumb: "Configuración",
+        },
+      },
     ],
   },
   {

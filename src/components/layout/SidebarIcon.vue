@@ -52,6 +52,26 @@ defineProps<{ name: string; class?: string }>()
     <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
     <line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
   </svg>
+   <!-- clipboard-document-list (Gestión de Reservas) -->
+  <svg v-else-if="name === 'clipboard-document-list'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="$props.class">
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+    <line x1="9" y1="10" x2="15" y2="10"></line>
+    <line x1="9" y1="14" x2="15" y2="14"></line>
+    <line x1="9" y1="18" x2="15" y2="18"></line>
+  </svg>
+ <!-- cog-6-tooth (Configuración) -->
+  <svg v-else-if="name === 'cog-6-tooth'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="$props.class">
+    <circle cx="12" cy="12" r="3"></circle>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+  </svg>
+
+  <!-- document-duplicate (Plantillas) -->
+  <svg v-else-if="name === 'document-duplicate'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="$props.class">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+  </svg>
+
   <!-- fallback -->
   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="$props.class">
     <circle cx="12" cy="12" r="10"/>

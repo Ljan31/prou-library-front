@@ -41,7 +41,6 @@ const pdfViewerShow = ref(false)
 const pdfViewerCertId = ref<number | null>(null)
 
 function abrirVisor(id: number) { 
-  console.log('abrirVisor', id)
   pdfViewerCertId.value = id; pdfViewerShow.value = true 
 }
   
@@ -74,7 +73,6 @@ async function cargarInfo() {
   loadingInfo.value = true
   try {
     const { data } = await api.get(`/plantillas/biblioteca/${props.bibliotecaId}`)
-    console.log('cargarInfo',data)
     plantillaActual.value = data?.data?.url ?? null
 
     const firma = data?.data?.firmaUrl ?? null;
@@ -87,7 +85,6 @@ async function cargarInfo() {
 
     nombreResponsable.value =
       data?.data?.nombreResponsable ?? ''
-    console.log('planillaCertificado: ', data.data)
     plantillaInfo.value = {
       id: data?.data?.idFormato ?? 0,
       nombre: data?.data?.nombreArchivo ?? 'certificado_no_adeudo.docx',
