@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useMedia } from '@/composables/useMedia'
@@ -11,15 +11,35 @@ import type { RoleKey } from '@/types'
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
+const router = useRouter()
 const { getUrl } = useMedia()
+
+// Controla el estado abierto/cerrado de los submenús por su etiqueta (Label)
+const openMenus = ref<Record<string, boolean>>({
+  Configuración: false
+})
+
+const toggleMenu = (label: string) => {
+  openMenus.value[label] = !openMenus.value[label]
+}
 
 // Filter nav items the current user can see
 const visibleItems = computed(() =>
   NAV_ITEMS.filter(item => auth.hasAnyRole(item.roles as RoleKey[]))
 )
-const isActive = (to: string) =>
-  route.path === to || route.path.startsWith(to + '/')
 
+const getVisibleChildren = (children?: any[]) => {
+  if (!children) return []
+  return children.filter(child => auth.hasAnyRole(child.roles as RoleKey[]))
+}
+const isActive = (to?: string) => {
+  if (!to) return false
+  return route.path === to || route.path.startsWith(to + '/')
+}
+const hasActiveChild = (item: any) => {
+  if (!item.children) return false
+  return item.children.some((child: any) => isActive(child.to))
+}
 const roleLabel: Record<RoleKey, string> = {
   ROLE_ADMIN: 'Administrador',
   ROLE_BIBLIOTECARIO: 'Bibliotecario',
@@ -52,6 +72,10 @@ const isBibliotecario = computed(() =>
 const isAdminOrStudent = computed(() =>
   role.value === 'ROLE_ADMIN' || role.value === 'ROLE_ESTUDIANTE'
 )
+async function handleLogout() {
+  await auth.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -115,15 +139,57 @@ const isAdminOrStudent = computed(() =>
     <nav class="flex-1 overflow-y-auto py-3 px-2">
       <ul class="space-y-0.5">
         <li v-for="item in visibleItems" :key="item.to">
-          <RouterLink :to="item.to"
+         
+           <!-- ELEMENTO CON HIJOS (Eje: Configuración) -->
+          <div v-if="item.children && item.children.length > 0">
+            <button 
+              @click="toggleMenu(item.label)"
+              class="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-150 group relative"
+              :class="hasActiveChild(item) ? 'text-primary-700 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+              :title="ui.sidebarCollapsed ? item.label : undefined"
+            >
+              <SidebarIcon :name="item.icon" class="w-5 h-5 shrink-0" />
+              <Transition name="fade">
+                <span v-if="!ui.sidebarCollapsed" class="truncate text-left flex-1">{{ item.label }}</span>
+              </Transition>
+              
+              <!-- Flecha de despliegue -->
+              <svg 
+                v-if="!ui.sidebarCollapsed"
+                class="w-4 h-4 text-slate-400 transition-transform duration-200"
+                :class="openMenus[item.label] ? 'rotate-90 text-primary-600' : ''"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              >
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            <!-- Lista Desplegable Anidada -->
+            <ul v-if="openMenus[item.label] && !ui.sidebarCollapsed" class="mt-1 ml-4 pl-2 border-l border-slate-100 space-y-0.5">
+              <li v-for="child in getVisibleChildren(item.children)" :key="child.to">
+                <RouterLink 
+                  :to="child.to"
+                  class="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                  :class="isActive(child.to) ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'"
+                  @click="ui.closeMobileSidebar()"
+                >
+                  <SidebarIcon :name="child.icon" class="w-4 h-4 shrink-0 opacity-70" />
+                  <span class="truncate">{{ child.label }}</span>
+                </RouterLink>
+              </li>
+            </ul>
+          </div>
+
+          <!-- ELEMENTO SIMPLE (Sin Hijos - Comportamiento Original) -->
+          <RouterLink 
+            v-else
+            :to="item.to!"
             class="flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-150 group relative"
-            :class="isActive(item.to)
-              ? 'bg-primary-50 text-primary-700'
-              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
-            :title="ui.sidebarCollapsed ? item.label : undefined" @click="ui.closeMobileSidebar()">
-            <!-- Active indicator bar -->
-            <span v-if="isActive(item.to)"
-              class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary-600 rounded-r-full" />
+            :class="isActive(item.to) ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+            :title="ui.sidebarCollapsed ? item.label : undefined" 
+            @click="ui.closeMobileSidebar()"
+          >
+            <span v-if="isActive(item.to)" class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary-600 rounded-r-full" />
             <SidebarIcon :name="item.icon" class="w-5 h-5 shrink-0" />
             <Transition name="fade">
               <span v-if="!ui.sidebarCollapsed" class="truncate">{{ item.label }}</span>
@@ -137,7 +203,7 @@ const isAdminOrStudent = computed(() =>
     <div class="border-t border-slate-100 p-2 shrink-0">
       <button
         class="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-        :title="ui.sidebarCollapsed ? 'Cerrar Sesión' : undefined" @click="auth.logout()">
+        :title="ui.sidebarCollapsed ? 'Cerrar Sesión' : undefined" @click="handleLogout">
         <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
         </svg>
