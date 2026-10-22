@@ -1,0 +1,1 @@
+import{h as e,k as t,u as n,xt as r,yt as i}from"./runtime-core.esm-bundler-DGLs_r5O.js";var a=e({__name:`SSkeleton`,props:{width:{},height:{},rounded:{type:Boolean,default:!1}},setup(e){return(a,o)=>(t(),n(`div`,{class:i([`skeleton`,e.rounded?`rounded-full`:`rounded-lg`]),style:r({width:e.width??`100%`,height:e.height??`1rem`})},null,6))}});export{a as t};
