@@ -462,9 +462,9 @@ function openEncargadosModal(bib: Biblioteca) {
       :message="`¿Estás seguro de que deseas eliminar «${delTarget?.name}»? Esta acción no se puede deshacer.`"
       @confirm="executeDelete" />
       <BibliotecaEncargadosModal
-  v-if="bibliotecaEncargados"
-  v-model="showEncargadosModal"
-  :biblioteca="bibliotecaEncargados"
-/>
+        v-if="bibliotecaEncargados"
+        v-model="showEncargadosModal"
+        :biblioteca="bibliotecaEncargados"
+      />
   </div>
 </template>
