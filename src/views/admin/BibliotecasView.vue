@@ -8,9 +8,7 @@ import type { Biblioteca, CarreraDetail } from '@/services/bibliotecas.service'
 import BibliotecaFormModal from '@/components/bibliotecas/BibliotecaFormModal.vue'
 import CarreraFormModal from '@/components/bibliotecas/CarreraFormModal.vue'
 import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
-import ConfiguracionPrestamoModal from '@/components/bibliotecas/ConfiguracionPrestamoModal.vue'
 import BibliotecaEncargadosModal from './BibliotecaEncargadosModal.vue'
-import PlantillaManager from '@/components/PlantillaManager.vue'
 
 // ─── Stores ───────────────────────────────────────────────────────────────
 const store = useBibliotecasStore()
@@ -21,11 +19,11 @@ const uiStore = useUiStore()
 onMounted(async () => {
   uiStore.setPageTitle('Gestión de Bibliotecas')
   uiStore.setBreadcrumbs([{ label: 'Dashboard', to: '/dashboard' }, { label: 'Bibliotecas' }])
-  const data = await store.fetchAll()
+  await store.fetchAll()
 })
 
 // ─── Active tab ───────────────────────────────────────────────────────────
-const activeTab = ref<'bibliotecas' | 'carreras' | 'plantillas'>('bibliotecas')
+const activeTab = ref<'bibliotecas' | 'carreras'>('bibliotecas')
 
 // ─── Search / filter ─────────────────────────────────────────────────────
 const searchBib = ref('')
@@ -62,14 +60,10 @@ const editingBib = ref<Biblioteca | null>(null)
 const showCarModal = ref(false)
 const editingCar = ref<CarreraDetail | null>(null)
 const showDelModal = ref(false)
-const delTarget = ref<{ type: 'bib' | 'car' | 'plan' ; id: number; name: string } | null>(null)
+const delTarget = ref<{ type: 'bib' | 'car' ; id: number; name: string } | null>(null)
 
 const showConfigModal = ref(false)
 const configBiblioteca = ref<{ id: number; nombre: string;   encargados: any[]} | null>(null)
-function openConfigModal(bib: Biblioteca) {
-  configBiblioteca.value = { id: bib.id_biblioteca, nombre: bib.nombre,   encargados: bib.encargados}
-  showConfigModal.value = true
-}
 
 function openCreateBib() { editingBib.value = null; showBibModal.value = true }
 function openEditBib(b: Biblioteca) { editingBib.value = b; showBibModal.value = true }
@@ -149,11 +143,7 @@ function openEncargadosModal(bib: Biblioteca) {
         v-for="tab in [
           { key: 'bibliotecas', label: 'Bibliotecas', icon: 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z' }, 
           { key: 'carreras', label: 'Carreras', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-          { key: 'plantillas', label: 'Plantillas', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' }
-        ].filter(tab =>
-          tab.key !== 'plantillas' ||
-          !authStore.user?.roles?.includes('ROLE_ADMIN')
-        )"
+        ]"
         :key="tab.key" @click="activeTab = tab.key as any"
         class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all" :class="activeTab === tab.key
           ? 'bg-primary-600 text-white shadow-sm'
@@ -323,18 +313,8 @@ function openEncargadosModal(bib: Biblioteca) {
               </svg>
               Editar
             </button>
-            <!-- Configuración de préstamos -->
-            <button @click="openConfigModal(bib)"
-              class="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
-              title="Configuración de préstamos">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-            <!-- <button
+  
+            <button
               @click="openEncargadosModal(bib)"
               class="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
               title="Ver encargados"
@@ -354,7 +334,7 @@ function openEncargadosModal(bib: Biblioteca) {
               </svg>
 
               Encargados
-            </button> -->
+            </button>
             <button v-if="authStore.isAdmin" @click="confirmDelete('bib', bib.id_biblioteca, bib.nombre)"
               class="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -472,15 +452,6 @@ function openEncargadosModal(bib: Biblioteca) {
       </div>
     </div>
 
-
-     <!-- ══════════ PLANTILLA ══════════ -->
-    <div v-if="activeTab === 'plantillas' && !authStore.user?.roles?.includes('ROLE_ADMIN')">
-      <PlantillaManager
-        :biblioteca-id="authStore.user?.biblioteca[0]?.id_biblioteca ?? 0"
-        :nombre-bib="authStore.user?.biblioteca[0]?.nombre ?? 'Mi Biblioteca'"
-        @plantilla-actualizada="(url) => { if (plantillaInfo) plantillaInfo.url = url; else plantillaInfo = { url, firmaUrl: null, selloUrl: null } }"
-      />
-    </div>
     <!-- ─── Modals ─────────────────────────────────────────────────────── -->
     <BibliotecaFormModal v-model="showBibModal" :editing="editingBib" @saved="store.fetchBibliotecas" />
 
@@ -490,8 +461,6 @@ function openEncargadosModal(bib: Biblioteca) {
       :title="`Eliminar ${delTarget?.type === 'bib' ? 'biblioteca' : 'carrera'}`"
       :message="`¿Estás seguro de que deseas eliminar «${delTarget?.name}»? Esta acción no se puede deshacer.`"
       @confirm="executeDelete" />
-    <ConfiguracionPrestamoModal v-if="configBiblioteca" v-model="showConfigModal" :biblioteca-id="configBiblioteca.id"
-      :nombre-bib="configBiblioteca.nombre" :key="configBiblioteca.id" />
       <BibliotecaEncargadosModal
   v-if="bibliotecaEncargados"
   v-model="showEncargadosModal"
