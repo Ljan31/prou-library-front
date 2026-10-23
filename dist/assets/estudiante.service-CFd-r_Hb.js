@@ -1,0 +1,1 @@
+import{n as e}from"./estudiante.service-QMxWPiHI.js";export{e as estudianteService};

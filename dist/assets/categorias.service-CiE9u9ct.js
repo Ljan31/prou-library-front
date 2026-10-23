@@ -1,0 +1,1 @@
+import{t as e}from"./axios-BwAm3xJC.js";async function t(){try{let t=await e.get(`/categorias`);return Array.isArray(t.data.data)?t.data.data:[]}catch(e){return console.error(`Error cargando categorías:`,e),[]}}export{t};
