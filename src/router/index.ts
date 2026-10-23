@@ -287,6 +287,12 @@ const routes: RouteRecordRaw[] = [
           breadcrumb: "Configuración",
         },
       },
+      {
+        path: 'auditoria',
+        name: 'auditoria',
+        component: () => import('@/views/admin/AuditoriaView.vue'),
+        meta: { roles: ['ROLE_ADMIN'], title: 'Auditoría del sistema', breadcrumb: 'Auditoría' }
+      },
     ],
   },
   {

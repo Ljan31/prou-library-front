@@ -114,5 +114,11 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/configuracion",
     icon: "cog-6-tooth",
     roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
-  }
+  },
+  {
+    label: 'Auditoría',
+    to: '/auditoria',
+    icon: 'document-check',
+    roles: ['ROLE_ADMIN']
+  },
 ];
