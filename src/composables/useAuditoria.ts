@@ -5,7 +5,7 @@ import type { AuditoriaFilters, AuditoriaResponse, AuditoriaUsuario, FilterError
 import { applyClientFilters, computeStats, emptyFilters, planRequest, sortByFechaDesc, validateFilters } from '@/utils/auditoria'
 
 export type LoadMode = 'initial' | 'filters' | 'refresh'
-export const PAGE_SIZE = 25
+export const PAGE_SIZE = 12
 
 export function useAuditoria() {
   const filters = reactive<AuditoriaFilters>(emptyFilters())

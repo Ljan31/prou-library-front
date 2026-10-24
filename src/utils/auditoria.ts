@@ -105,7 +105,9 @@ export function planRequest(f: AuditoriaFilters): RequestPlan {
   if (f.fechaInicio && f.fechaFin) return { endpoint: 'fechas', handled: ['fechas'] }
   if (f.usuarioId != null) return { endpoint: 'usuario', handled: ['usuarioId'] }
   if (f.tabla.trim()) return { endpoint: 'tabla', handled: ['tabla'] }
-  if (f.accion) return { endpoint: 'accion', handled: ['accion'] }
+  // if (f.accion) return { endpoint: 'accion', handled: ['accion'] }
+  if (f.accion) return { endpoint: 'all', handled: [] }
+
   return { endpoint: 'all', handled: [] }
 }
 
@@ -115,7 +117,14 @@ export function applyClientFilters(list: AuditoriaResponse[], f: AuditoriaFilter
   const to = f.fechaFin ? parseAuditDate(`${f.fechaFin}T23:59:59`)?.getTime() : undefined
   return list.filter((r) => {
     if (!done.has('usuarioId') && f.usuarioId != null && r.usuario?.id_usuario !== f.usuarioId) return false
-    if (!done.has('accion') && f.accion && normAccion(r.accion) !== f.accion) return false
+    if (
+      !done.has('accion') &&
+      f.accion &&
+      !(
+        normAccion(r.accion) === normAccion(f.accion) ||
+        normAccion(r.accion).startsWith(`${normAccion(f.accion)}_`)
+      )
+    ) return false
     if (!done.has('tabla') && f.tabla.trim() && (r.tablaAfectada ?? '').toLowerCase() !== f.tabla.trim().toLowerCase()) return false
     if (!done.has('idRegistro') && f.idRegistro.trim() && String(r.id_registro) !== f.idRegistro.trim()) return false
     if (!done.has('fechas') && (from !== undefined || to !== undefined)) {
