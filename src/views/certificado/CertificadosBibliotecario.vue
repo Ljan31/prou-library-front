@@ -201,7 +201,7 @@ async function verificarEstudianteSeleccionado(userId: number) {
     const [sancionRes, certRes] = await Promise.all([
       api.get(`/sanciones/usuario/${userId}/estado`, {
         params: {
-          bibliotecaId: targetBibliotecaId.value ? { bibliotecaId: targetBibliotecaId.value } : {}
+          bibliotecaId: targetBibliotecaId.value ?  targetBibliotecaId.value  : bibliotecarioId
         }
       }),
       api.get(`/certificados/usuario/${userId}`, {
