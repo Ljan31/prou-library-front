@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useUsers, roleLabel } from '@/composables/useUsers'
 import { useAuxAssign } from '@/composables/useAuxAssign'
 import { userService } from '@/services/user.service'
+import { usePermissions } from '@/composables/usePermissions'
 import type { CreateUserPayload } from '@/services/user.service'
 
 const props = defineProps<{ modelValue: boolean }>()
@@ -13,9 +14,22 @@ const emit = defineEmits<{
 }>()
 
 const ui = useUiStore()
+const { isAdmin, isBibliotecario: isBIB} = usePermissions()
 const aux = useAuxAssign()
 const { roles, allCarreras, allBibliotecas, addUser, roleNameForId } = useUsers()
+const availableRoles = computed(() => {
+  if (isAdmin.value) {
+    return roles.value
+  }
 
+  if (isBIB.value) {
+    return roles.value.filter(
+      role => role.name === 'ROLE_ESTUDIANTE'
+    )
+  }
+
+  return []
+})
 const loading = ref(false)
 
 // ─── Form ─────────────────────────────────────────────────────────────────
@@ -168,6 +182,26 @@ if (!form.password) {
 
 // ─── Submit ────────────────────────────────────────────────────────────────
 async function handleCreate() {
+  const selectedRole = roleNameForId(form.roleId)
+
+  if (
+    isBIB.value &&
+    selectedRole !== 'ROLE_ESTUDIANTE'
+  ) {
+    ui.toast.error(
+      'Acceso denegado',
+      'Solo puedes crear usuarios estudiantes'
+    )
+    return
+  }
+
+  if (!isAdmin.value && !isBIB.value) {
+    ui.toast.error(
+      'Acceso denegado',
+      'No tienes permiso para crear usuarios'
+    )
+    return
+  }
   if (!validate()) return
   loading.value = true
   try {
@@ -293,7 +327,7 @@ async function handleCreate() {
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.roleId ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'">
                   <option value="">Seleccionar rol…</option>
-                  <option v-for="role in roles" :key="role.id_role" :value="role.id_role">
+                  <option v-for="role in availableRoles" :key="role.id_role" :value="role.id_role">
                     {{ roleLabel(role.name) }}
                   </option>
                 </select>

@@ -12,7 +12,7 @@ import UserCreateModal from '@/components/users/UserCreateModal.vue'
 import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
 
 const ui = useUiStore()
-const { isAdmin } = usePermissions()
+const { isAdmin, isBibliotecario} = usePermissions()
 
 const {
   users, roles, allCarreras, allBibliotecas,
@@ -76,6 +76,14 @@ const showEditModal = ref(false)
 const editingUser = ref<UserResponse | null>(null)
 
 function openEditModal(user: UserResponse) {
+  if (!canEditOrDelete(user)) {
+    ui.toast.error(
+      'Acceso denegado',
+      'Solo puedes editar usuarios estudiantes'
+    )
+    return
+  }
+
   editingUser.value = user
   showEditModal.value = true
 }
@@ -100,6 +108,13 @@ function onUserCreated(newUser: UserResponse) {
 const showDeleteModal = ref(false)
 const userToDelete = ref<UserResponse | null>(null)
 function openDeleteModal(user: UserResponse) {
+  if (!canEditOrDelete(user)) {
+    ui.toast.error(
+      'Acceso denegado',
+      'Solo puedes eliminar usuarios estudiantes'
+    )
+    return
+  }
   if (user.roles?.some(r => r.name === 'ROLE_ADMIN')) {
     ui.toast.error("No permitido", "No se puede eliminar un administrador")
   return
@@ -120,6 +135,20 @@ async function confirmDelete() {
   showDeleteModal.value = false
   userToDelete.value = null
 }
+const canCreateUser = computed(() =>
+  isAdmin.value || isBibliotecario.value
+)
+function isEstudiante(user: UserResponse): boolean {
+  return user.roles?.some(
+    role => role.name === 'ROLE_ESTUDIANTE'
+  ) ?? false
+}
+
+function canEditOrDelete(user: UserResponse): boolean {
+  return isAdmin.value || (
+    isBibliotecario.value && isEstudiante(user)
+  )
+}
 </script>
 
 <template>
@@ -131,7 +160,7 @@ async function confirmDelete() {
         <h1 class="text-xl font-semibold text-slate-900">Gestión de Usuarios</h1>
         <p class="text-sm text-slate-500 mt-0.5">Administra cuentas, roles y accesos del sistema</p>
       </div>
-      <button v-if="isAdmin"
+      <button v-if="canCreateUser"
         class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm shrink-0"
         @click="showCreateModal = true">
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -245,7 +274,7 @@ async function confirmDelete() {
                 <th class="text-left text-xs font-medium text-slate-500 px-4 py-3">Rol(es)</th>
                 <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 hidden xl:table-cell">Biblioteca</th>
                 <th class="text-left text-xs font-medium text-slate-500 px-4 py-3">Estado</th>
-                <th v-if="isAdmin" class="text-right text-xs font-medium text-slate-500 px-4 py-3">Acciones</th>
+                <th v-if="canCreateUser" class="text-right text-xs font-medium text-slate-500 px-4 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-50">
@@ -312,7 +341,7 @@ async function confirmDelete() {
                 </td>
 
                 <!-- Acciones -->
-                <td v-if="isAdmin" class="px-4 py-3 text-right" @click.stop>
+                <td v-if="canEditOrDelete(user)" class="px-4 py-3 text-right" @click.stop>
                   <button
                     class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                     title="Editar" @click="openEditModal(user)">
