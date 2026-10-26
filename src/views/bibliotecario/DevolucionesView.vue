@@ -253,6 +253,9 @@ function resetFormulario() {
   devolucionSuccess.value = false
   devolucionResult.value = null
   omitirBloqueo.value = false
+  decisionSancionTomada.value = false
+  decisionSancionTipo.value = null
+  modalSancionOpen.value = false
 }
 
 const ejemplarPerdido = computed(() => estadoEjemplar.value === 'PERDIDO')
@@ -279,13 +282,28 @@ const hayDeterioro = computed(() => {
 
 // Ajustar estado del ejemplar según condición
 watch(condicionDevolucion, (val) => {
-  if (ORDEN_CONDICION[val] >= ORDEN_CONDICION['MALO']) estadoEjemplar.value = 'DAÑADO'
-  else if (ORDEN_CONDICION[val] >= ORDEN_CONDICION['REGULAR']) estadoEjemplar.value = 'DETERIORADO'
-  else estadoEjemplar.value = 'DISPONIBLE'
+   if (val === 'DAÑADO') {
+    estadoEjemplar.value = 'DAÑADO'
+  } else if (val === 'REGULAR') {
+    estadoEjemplar.value = 'DETERIORADO'
+  } else {
+    estadoEjemplar.value = 'DISPONIBLE'
+  }
 })
+
+watch(
+  [condicionDevolucion, estadoEjemplar],
+  () => {
+    decisionSancionTomada.value = false
+    decisionSancionTipo.value = null
+  }
+)
+
 const puedeConfirmar = computed(() =>
   !!prestamoSeleccionado.value &&
+  !requiereReposicion.value &&
   (!bloqueadoPorPrestamo.value || omitirBloqueo.value) &&
+  (!requiereSancion.value || decisionSancionTomada.value) &&
   !devolucionLoading.value
 )
 // Si hay deterioro → forzar estado ejemplar a DETERIORADO o DAÑADO
@@ -420,6 +438,25 @@ async function confirmarPagoDeuda() {
   } finally { pagoLoading.value = false }
 }
 
+// ─── Decisión de sanción por condición del ejemplar ──────────────────────
+const decisionSancionTomada = ref(false)
+const decisionSancionTipo = ref<'APLICADA' | 'OMITIDA' | null>(null)
+
+const requiereSancion = computed(() => {
+  return (
+    condicionDevolucion.value === 'REGULAR' ||
+    condicionDevolucion.value === 'DAÑADO' ||
+    estadoEjemplar.value === 'DETERIORADO' ||
+    estadoEjemplar.value === 'DAÑADO' ||
+    estadoEjemplar.value === 'PERDIDO'
+  )
+})
+
+function continuarSinSancion() {
+  decisionSancionTomada.value = true
+  decisionSancionTipo.value = 'OMITIDA'
+}
+
 // ─── Modal de SANCIÓN por deterioro / pérdida ─────────────────────────────────
 const modalSancionOpen = ref(false)
 const sancionMotivo = ref<'DANIO_EJEMPLAR' | 'PERDIDA_EJEMPLAR'>('DANIO_EJEMPLAR')
@@ -432,18 +469,45 @@ const MOTIVOS_SANCION = [
   { value: 'PERDIDA_EJEMPLAR', label: 'Pérdida del ejemplar' },
 ]
 
+// function abrirModalSancion(motivo: 'DANIO_EJEMPLAR' | 'PERDIDA_EJEMPLAR') {
+//   sancionMotivo.value = motivo
+//   sancionMonto.value = ''
+//   sancionObs.value = motivo === 'PERDIDA_EJEMPLAR'
+//     ? `Ejemplar perdido. Código: ${prestamoSeleccionado.value?.ejemplar?.codigoEjemplar ?? ''}`
+//     : `Ejemplar devuelto con daños. Condición entrega: ${prestamoSeleccionado.value?.condicionEntrega} → Devolución: ${condicionDevolucion.value}`
+//   modalSancionOpen.value = true
+// }
 function abrirModalSancion(motivo: 'DANIO_EJEMPLAR' | 'PERDIDA_EJEMPLAR') {
   sancionMotivo.value = motivo
   sancionMonto.value = ''
-  sancionObs.value = motivo === 'PERDIDA_EJEMPLAR'
-    ? `Ejemplar perdido. Código: ${prestamoSeleccionado.value?.ejemplar?.codigoEjemplar ?? ''}`
-    : `Ejemplar devuelto con daños. Condición entrega: ${prestamoSeleccionado.value?.condicionEntrega} → Devolución: ${condicionDevolucion.value}`
+
+  sancionObs.value =
+    motivo === 'PERDIDA_EJEMPLAR'
+      ? `Ejemplar perdido. Código: ${
+          prestamoSeleccionado.value?.ejemplar?.codigoEjemplar ??
+          prestamoSeleccionado.value?.ejemplar?.codigo_ejemplar ??
+          ''
+        }`
+      : `Ejemplar devuelto con daños. Condición entrega: ${
+          prestamoSeleccionado.value?.condicionEntrega ?? 'N/D'
+        } → Devolución: ${condicionDevolucion.value}`
+
   modalSancionOpen.value = true
 }
-
 async function confirmarSancion() {
   const prestamo = prestamoSeleccionado.value
-  if (!prestamo) return
+  if (!prestamo || sancionLoading2.value) return
+   if (
+    sancionMonto.value.trim() !== '' &&
+    (
+      !Number.isFinite(Number(sancionMonto.value)) ||
+      Number(sancionMonto.value) < 0
+    )
+  ) {
+    ui.toast.error('Monto inválido', 'Ingresa un monto válido')
+    return
+  }
+
   sancionLoading2.value = true
   try {
     const bibliotecaId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca ?? 1
@@ -455,7 +519,11 @@ async function confirmarSancion() {
       montoFijo: sancionMonto.value ? parseFloat(sancionMonto.value) : null,
       observaciones: sancionObs.value || undefined,
     })
-    ui.toast.success('Sanción aplicada', 'La sanción fue registrada correctamente')
+    decisionSancionTomada.value = true
+    decisionSancionTipo.value = 'APLICADA'
+    modalSancionOpen.value = false
+
+    ui.toast.success('Sanción aplicada', 'La sanción fue registrada correctamente. Puedes continuar con la devolución.')
     modalSancionOpen.value = false
     nuevaDevolucion()
   } catch {
@@ -472,7 +540,16 @@ function getPrestamoCardClass(p: Prestamo) {
     ? 'bg-indigo-50 border-l-4 border-l-indigo-500'
     : ''
 }
+const requiereReposicion = computed(() => {
+  const sancion = sancionPrestamoActual.value
 
+  return (
+    sancion?.estado === 'ACTIVA' &&
+    ['PERDIDA_EJEMPLAR', 'DANIO_EJEMPLAR'].includes(
+      sancion.motivo ?? ''
+    )
+  )
+})
 </script>
 
 <template>
@@ -829,7 +906,7 @@ function getPrestamoCardClass(p: Prestamo) {
                   </button>
 
                   <!-- Proceder de todos modos (override del bibliotecario) -->
-                  <button @click="omitirBloqueo = true"
+                  <button v-if="!requiereReposicion" @click="omitirBloqueo = true"
                     class="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-amber-300 hover:bg-amber-50 transition-all text-left">
                     <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
                       <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -867,7 +944,46 @@ function getPrestamoCardClass(p: Prestamo) {
               </svg>
               Usuario sin sanciones activas — puede proceder con la devolución
             </div>
+            <div
+              v-if="requiereReposicion"
+              class="p-4 rounded-xl border-2 border-red-200 bg-red-50"
+            >
+              <div class="flex items-start gap-3">
+                <svg
+                  class="w-6 h-6 text-red-600 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
 
+                <div>
+                  <p class="font-semibold text-red-800">
+                    Reposición del ejemplar pendiente
+                  </p>
+
+                  <p class="text-sm text-red-700 mt-1">
+                    El usuario tiene una sanción activa por
+                    {{ sancionPrestamoActual?.motivo === 'PERDIDA_EJEMPLAR'
+                      ? 'pérdida del ejemplar'
+                      : 'daño al ejemplar'
+                    }}.
+                    Debe reponer el ejemplar antes de registrar la devolución.
+                  </p>
+
+                  <p class="text-xs text-red-600 mt-2">
+                    La condición de devolución y el estado físico permanecerán bloqueados
+                    hasta que se regularice la sanción.
+                  </p>
+                </div>
+              </div>
+            </div>
             <!-- Comparación de condición -->
             <!-- <div> -->
             <div :class="{ 'opacity-50 pointer-events-none': bloqueadoPorPrestamo && !omitirBloqueo }">
@@ -907,7 +1023,7 @@ function getPrestamoCardClass(p: Prestamo) {
 
               <!-- Selector de condición devolución -->
               <div class="grid grid-cols-4 gap-2">
-                <button v-for="c in CONDICIONES" :key="c" @click="condicionDevolucion = c"
+                <button v-for="c in CONDICIONES" :key="c" @click="condicionDevolucion = c"  :disabled="requiereReposicion"
                   :class="['py-2.5 rounded-xl border-2 text-xs font-semibold transition-all',
                     condicionDevolucion === c ? condicionColors[c] : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white']">
                   {{ c }}
@@ -920,6 +1036,7 @@ function getPrestamoCardClass(p: Prestamo) {
               <label class="block text-sm font-semibold text-slate-700 mb-3">Estado físico del ejemplar</label>
               <div class="grid grid-cols-2 gap-2">
                 <button v-for="e in ESTADO_EJEMPLAR_OPTIONS" :key="e" @click="estadoEjemplar = e"
+                  :disabled="requiereReposicion"
                   :class="['py-2.5 rounded-xl border-2 text-xs font-semibold transition-all',
                     estadoEjemplar === e ? estadoEjemplarColors[e] : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white']">
                   <span v-if="e === 'DISPONIBLE'">✓ DISPONIBLE</span>
@@ -947,6 +1064,95 @@ function getPrestamoCardClass(p: Prestamo) {
                   confirmar la devolución.</span>
               </div>
             </div>
+
+            
+            <!-- Decisión de sanción -->
+            <div
+              v-if="requiereSancion"
+              class="p-4 rounded-xl border border-amber-200 bg-amber-50 space-y-3"
+            >
+              <div class="flex items-start gap-3">
+                <div
+                  class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0"
+                >
+                  <svg
+                    class="w-5 h-5 text-amber-700"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+
+                <div>
+                  <p class="text-sm font-semibold text-amber-900">
+                    Se requiere una decisión sobre la sanción
+                  </p>
+                  <p class="text-xs text-amber-800 mt-1">
+                    Puedes registrar una sanción por el estado del ejemplar o continuar
+                    sin aplicarla.
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  @click="
+                    abrirModalSancion(
+                      estadoEjemplar === 'PERDIDO'
+                        ? 'PERDIDA_EJEMPLAR'
+                        : 'DANIO_EJEMPLAR'
+                    )
+                  "
+                  class="py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                >
+                  Aplicar sanción
+                </button>
+
+                <button
+                  type="button"
+                  @click="continuarSinSancion"
+                  class="py-2.5 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-sm font-semibold transition-colors"
+                >
+                  Continuar sin sanción
+                </button>
+              </div>
+
+              <div
+                v-if="decisionSancionTomada"
+                class="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200"
+              >
+                <svg
+                  class="w-4 h-4 text-emerald-600 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2.5"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+
+                <p class="text-xs font-medium text-emerald-800">
+                  {{
+                    decisionSancionTipo === 'APLICADA'
+                      ? 'Sanción registrada. Puedes confirmar la devolución.'
+                      : 'Se decidió continuar sin sanción. Puedes confirmar la devolución.'
+                  }}
+                </p>
+              </div>
+            </div>
+
 
             <!-- Observaciones -->
             <div>
@@ -992,11 +1198,17 @@ function getPrestamoCardClass(p: Prestamo) {
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {{
-                devolucionLoading ? 'Registrando...' :
-                  !puedeConfirmar && bloqueadoPorPrestamo ? 'Resuelve la sanción para continuar' :
-                    ejemplarPerdido ? 'Confirmar devolución — ejemplar perdido' :
-                      hayDeterioro ? 'Confirmar devolución con deterioro' :
-                        'Confirmar devolución'
+                  devolucionLoading
+                  ? 'Registrando...'
+                  : requiereReposicion
+                    ? 'Reposición pendiente — devolución bloqueada'
+                    : !puedeConfirmar && bloqueadoPorPrestamo
+                      ? 'Resuelve la sanción para continuar'
+                      : ejemplarPerdido
+                        ? 'Confirmar devolución — ejemplar perdido'
+                        : hayDeterioro
+                          ? 'Confirmar devolución con deterioro'
+                          : 'Confirmar devolución'
               }}
             </button>
 
