@@ -199,7 +199,11 @@ async function verificarEstudianteSeleccionado(userId: number) {
     // Los préstamos del estudiante los pide el staff via endpoint específico si existiera,
     // de lo contrario se informa solo en base a las sanciones
     const [sancionRes, certRes] = await Promise.all([
-      api.get(`/sanciones/usuario/${userId}/estado`),
+      api.get(`/sanciones/usuario/${userId}/estado`, {
+        params: {
+          bibliotecaId: targetBibliotecaId.value ? { bibliotecaId: targetBibliotecaId.value } : {}
+        }
+      }),
       api.get(`/certificados/usuario/${userId}`, {
         params: targetBibliotecaId.value ? { bibliotecaId: targetBibliotecaId.value } : {}
       }),

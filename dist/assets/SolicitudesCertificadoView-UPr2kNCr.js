@@ -1,0 +1,1 @@
+import{t as e}from"./SolicitudesCertificadoView-BowlFUtp.js";export{e as default};

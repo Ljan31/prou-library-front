@@ -217,9 +217,16 @@ async function selectUser(u: UsuarioResult) {
   sancionEstado.value = null
   // Verificar sanciones inmediatamente
   sancionLoading.value = true
+  const biblId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca
   try {
     console.log('user',u)
-    const { data } = await api.get(`/sanciones/usuario/${u.id_usuario}/estado`)
+
+    const { data } = await api.get(`/sanciones/usuario/${u.id_usuario}/estado`, {
+      params: {
+        bibliotecaId: biblId
+      }
+    })
+    console.log('selected user: ', data)
     sancionEstado.value = data?.data ?? data
     // console.log("✅ Data final procesada:", sancionEstado.value)
   } catch (error) {

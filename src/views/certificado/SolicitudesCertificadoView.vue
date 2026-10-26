@@ -205,12 +205,17 @@ async function verDetalle(s: Solicitud) {
     verificandoSolicitante.value = true
     tasks.push(
       Promise.all([
-        api.get(`/sanciones/usuario/ci/${s.ci}/estado`),
+        api.get(`/sanciones/usuario/ci/${s.ci}/estado`, {
+          params: {
+            bibliotecaId: targetBibliotecaId.value
+          }
+        }),
         api.get(`/prestamos/estado-usuario/${targetBibliotecaId.value}/${s.ci}`),
       ]).then(([sancionRes, prestamosRes]) => {
         sancionSolicitante.value = sancionRes.data.data ?? sancionRes.data
         prestamosSolicitante.value = prestamosRes.data.data ?? prestamosRes.data
       }).catch(() => {
+        console.log('catch')
         sancionSolicitante.value = null
         prestamosSolicitante.value = null
       }).finally(() => {
@@ -433,7 +438,11 @@ async function verificarEstudiante(userId: number) {
   certificadosUsuario.value = []
   try {
     const [sancionRes, certRes] = await Promise.all([
-      api.get(`/sanciones/usuario/${userId}/estado`),
+      api.get(`/sanciones/usuario/${userId}/estado`, {
+        params: {
+          bibliotecaId: targetBibliotecaId.value ? { bibliotecaId: targetBibliotecaId.value } : {},
+        }
+      }),
       api.get(`/certificados/usuario/${userId}`, {
         params: targetBibliotecaId.value ? { bibliotecaId: targetBibliotecaId.value } : {}
       }),
@@ -996,13 +1005,13 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
 
                    <button
                      @click="aprobarSolicitud(solicitudSeleccionada.id)"
-                     :disabled="aprobando || isAdmin || (solicitanteTieneSuspension || solicitanteTienePrestamos)"
+                     :disabled="aprobando || isAdmin || (solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda)"
                      :title="
                      isAdmin ? 'Los administradores no pueden aprobar solicitudes': solicitanteTieneSuspension ? 'No se puede aprobar: tiene suspensión activa'
                        : solicitanteTienePrestamos ? 'No se puede aprobar: tiene préstamos sin devolver'
                        : 'Aprobar solicitud'"
                      :class="['w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all',
-                       aprobando || isAdmin || solicitanteTieneSuspension || solicitanteTienePrestamos
+                       aprobando || isAdmin || solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda
                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200']"
                    >
@@ -1010,7 +1019,7 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                      </svg>
-                     <svg v-else-if="solicitanteTieneSuspension || solicitanteTienePrestamos" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <svg v-else-if="solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                      </svg>
@@ -1021,6 +1030,7 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                      : isAdmin ? 'Solo bibliotecarios pueden aprobar'
                        : solicitanteTieneSuspension ? 'No disponible (suspensión activa)'
                        : solicitanteTienePrestamos ? 'No disponible (préstamos pendientes)'
+                        : solicitanteTieneDeuda ? 'No disponible (deuda pendiente)'
                        : 'Aprobar solicitud' }}
                    </button>
    

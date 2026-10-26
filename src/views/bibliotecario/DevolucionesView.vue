@@ -192,7 +192,13 @@ async function seleccionarPrestamo(p: Prestamo) {
 
   sancionLoading.value = true
   try {
-    const { data } = await api.get(`/sanciones/usuario/${usuarioId}/estado`)
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
+
+    const { data } = await api.get(`/sanciones/usuario/${usuarioId}/estado`, {
+      params: {
+        bibliotecaId: bibliotecaId
+      }
+    })
     const estado = data?.data ?? data
     sancionUsuario.value = estado
     console.log('Seleccionar Prestamo')
@@ -397,9 +403,15 @@ async function confirmarPagoDeuda() {
     modalPagoOpen.value = false
     // Re-verificar sanciones del usuario
     const uid = prestamoSeleccionado.value?.usuario?.id_usuario
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
+
     console.log('uid', uid)
     if (uid) {
-      const { data } = await api.get(`/sanciones/usuario/${uid}/estado`)
+      const { data } = await api.get(`/sanciones/usuario/${uid}/estado`, {
+        params: {
+          bibliotecaId: bibliotecaId
+        }
+      })
       sancionUsuario.value = data?.data ?? data
       console.log('sancionUsuario', sancionUsuario.value)
     }

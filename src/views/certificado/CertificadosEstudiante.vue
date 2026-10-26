@@ -154,8 +154,13 @@ const prestamosEnBiblioteca = ref<Prestamo[]>([]) // activos/renovados en la bib
 async function fetchEstadoGlobal() {
   if (!auth.user?.id) return
   try {
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
     const [sancionRes, prestamosRes] = await Promise.all([
-      api.get(`/sanciones/usuario/${auth.user.id}/estado`),
+      api.get(`/sanciones/usuario/${auth.user.id}/estado`, {
+        params: {
+          bibliotecaId: bibliotecaId
+        }
+      }),
       api.get('/prestamos/mis-prestamos'),
     ])
     estadoSancion.value = sancionRes.data.data ?? sancionRes.data
