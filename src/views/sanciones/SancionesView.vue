@@ -73,6 +73,29 @@ const totalMonto = computed(() =>
 const totalSuspensiones = computed(() =>
   store.sanciones.filter((s) => s.suspensionVigente).length
 )
+type SancionConReposicion = SancionResponse & {
+  reposicionRealizada?: boolean
+}
+
+function requiereReposicion(s: SancionResponse) {
+  return (
+    s.estado === 'ACTIVA' &&
+    ['PERDIDA_EJEMPLAR', 'DANO_EJEMPLAR'].includes(s.motivo)
+  )
+}
+
+function reposicionPendiente(s: SancionResponse) {
+  const sancion = s as SancionConReposicion
+
+  return requiereReposicion(s) && !sancion.reposicionRealizada
+}
+// const requiereReposicion = computed(() => {
+//   return sancionSeleccionada.value?.estado === 'ACTIVA' &&
+//     ['PERDIDA_EJEMPLAR', 'DANO_EJEMPLAR'].includes(
+//       sancionSeleccionada.value?.motivo ?? ''
+//     ) &&
+//     !sancionSeleccionada.value?.reposicionRealizada
+// })
 </script>
 
 <template>
@@ -194,6 +217,12 @@ const totalSuspensiones = computed(() =>
                   hasta</th>
                 <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Estado
                 </th>
+                <th
+                  class="text-left px-4 py-2.5 text-xs font-semibold
+                        text-slate-500 uppercase tracking-wide"
+                >
+                  Reposición
+                </th>
                 <th class="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Acciones
                 </th>
               </tr>
@@ -228,6 +257,27 @@ const totalSuspensiones = computed(() =>
                   <SancionBadge tipo="estado" :valor="s.estado" />
                 </td>
                 <td class="px-4 py-3">
+                  <span
+                    v-if="reposicionPendiente(s)"
+                    class="inline-flex items-center px-2 py-1 rounded-md
+                          text-xs font-semibold bg-red-100 text-red-700"
+                  >
+                    Pendiente
+                  </span>
+
+                  <span
+                    v-else-if="requiereReposicion(s)"
+                    class="inline-flex items-center px-2 py-1 rounded-md
+                          text-xs font-semibold bg-green-100 text-green-700"
+                  >
+                    Regularizada
+                  </span>
+
+                  <span v-else class="text-slate-400 text-xs">
+                    No aplica
+                  </span>
+                </td>
+                <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-1.5">
                     <!-- Pago -->
                     <SButton v-if="s.estado === 'ACTIVA' && s.montoMulta" variant="success" size="xs"
@@ -235,10 +285,18 @@ const totalSuspensiones = computed(() =>
                       Pago
                     </SButton>
                     <!-- Condonar (solo admin) -->
-                    <SButton v-if="s.estado === 'ACTIVA' && isAdmin" variant="danger" size="xs"
+                    <SButton v-if="s.estado === 'ACTIVA'" variant="danger" size="xs"
                       @click="abrirCondonar(s)">
                       Condonar
                     </SButton>
+                    <!-- <SButton
+                      v-if="reposicionPendiente(s)"
+                      variant="success"
+                      size="xs"
+                      @click="registrarReposicion(s)"
+                    >
+                      Registrar reposición
+                    </SButton> -->
                   </div>
                 </td>
               </tr>
