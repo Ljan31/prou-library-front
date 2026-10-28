@@ -8,6 +8,8 @@ import type {
   SancionManualRequest,
   PagoMultaRequest,
   CondonacionRequest,
+  ReposicionRequest,
+  ReposicionFisicaRequest,
   EstadoSancion,
 } from "@/types/notificacion.types";
 
@@ -20,8 +22,24 @@ export const useSancionStore = defineStore("sanciones", () => {
   const estadoUsuario = ref<EstadoSancionUsuario | null>(null);
   const historial = ref<SancionResponse[]>([]);
   const cargando = ref(false);
+  const cargandoDetalle = ref(false);
   const cargandoEstado = ref(false);
   const filtroEstado = ref<EstadoSancion>("ACTIVA");
+
+  const activas = ref<SancionResponse[]>([]);
+  const cargandoActivas = ref(false);
+  const error = ref<string | null>(null);
+
+  const errMsg = (e: any, fallback: string) =>
+    e?.response?.data?.error ?? e?.response?.data?.message ?? fallback;
+
+  /** Sincroniza lista y detalle con la respuesta del backend (única fuente de verdad). */
+  function aplicar(data: SancionResponse) {
+    const idx = sanciones.value.findIndex((s) => s.idSancion === data.idSancion);
+    if (idx !== -1) sanciones.value[idx] = data;
+    if (sancionDetalle.value?.idSancion === data.idSancion) sancionDetalle.value = data;
+  }
+
 
   // ── Acciones ────────────────────────────────────────────────────────────
   async function cargarPorBiblioteca(
@@ -30,19 +48,48 @@ export const useSancionStore = defineStore("sanciones", () => {
   ) {
     cargando.value = true;
     filtroEstado.value = estado;
+    console.log('cargarporbib')
+    console.log(estado)
     try {
       const { data } = await sancionService.porBiblioteca(bibliotecaId, estado);
+      console.log('sanciones: ', data)
       sanciones.value = data;
     } catch (e: any) {
-      ui.toast.error(
-        "Error",
-        e?.response?.data?.error ?? "No se pudieron cargar las sanciones",
-      );
+      ui.toast.error("Error", errMsg(e, "No se pudieron cargar las sanciones"));
     } finally {
       cargando.value = false;
     }
   }
 
+  async function cargarActivas(bibliotecaId: number) {
+    cargandoActivas.value = true;
+    try {
+      const { data } = await sancionService.porBiblioteca(bibliotecaId, "ACTIVA");
+      activas.value = data;
+    } catch {
+      activas.value = [];
+    } finally {
+      cargandoActivas.value = false;
+    }
+  }
+  function abrirDetalle(s: SancionResponse) {
+    sancionDetalle.value = s;
+    return cargarDetalle(s.idSancion);
+  }
+
+  async function cargarDetalle(id: number) {
+    cargandoDetalle.value = true;
+    try {
+      const { data } = await sancionService.obtener(id);
+      sancionDetalle.value = data;
+      aplicar(data);
+      return data as SancionResponse;
+    } catch (e: any) {
+      ui.toast.error("Error", errMsg(e, "No se pudo cargar el detalle de la sanción"));
+    } finally {
+      cargandoDetalle.value = false;
+    }
+  }
   async function cargarEstadoUsuario(usuarioId: number) {
     cargandoEstado.value = true;
     try {
@@ -61,10 +108,7 @@ export const useSancionStore = defineStore("sanciones", () => {
       const { data } = await sancionService.historialUsuario(usuarioId);
       historial.value = data;
     } catch (e: any) {
-      ui.toast.error(
-        "Error",
-        e?.response?.data?.error ?? "No se pudo cargar el historial",
-      );
+      ui.toast.error("Error", errMsg(e, "No se pudo cargar el historial"));
     } finally {
       cargando.value = false;
     }
@@ -80,8 +124,22 @@ export const useSancionStore = defineStore("sanciones", () => {
       );
       return data;
     } catch (e: any) {
-      const msg = e?.response?.data?.error ?? "No se pudo registrar la sanción";
-      ui.toast.error("Error", msg);
+      ui.toast.error("Error", errMsg(e, "No se pudo registrar la sanción"));
+      throw e;
+    }
+  }
+
+  /** Pérdida de ejemplar → sanción independiente de tipo REPOSICION. */
+  async function registrarReposicion(payload: ReposicionRequest) {
+    try {
+      const { data } = await sancionService.registrarReposicion(payload);
+      ui.toast.success(
+        "Pérdida registrada",
+        "Se generó la sanción de reposición y se notificó al usuario",
+      );
+      return data as SancionResponse;
+    } catch (e: any) {
+      ui.toast.error("Error", errMsg(e, "No se pudo registrar la pérdida del ejemplar"));
       throw e;
     }
   }
@@ -97,8 +155,22 @@ export const useSancionStore = defineStore("sanciones", () => {
       );
       return data;
     } catch (e: any) {
-      const msg = e?.response?.data?.error ?? "No se pudo registrar el pago";
-      ui.toast.error("Error", msg);
+      ui.toast.error("Error", errMsg(e, "No se pudo registrar el pago"));
+      throw e;
+    }
+  }
+
+  async function registrarReposicionFisica(id: number, payload: ReposicionFisicaRequest) {
+    try {
+      const { data } = await sancionService.registrarReposicionFisica(id, payload);
+      aplicar(data);
+      ui.toast.success(
+        "Reposición registrada",
+        "El ejemplar de reemplazo fue registrado y el inventario fue actualizado",
+      );
+      return data as SancionResponse;
+    } catch (e: any) {
+      ui.toast.error("Error", errMsg(e, "No se pudo registrar la reposición física"));
       throw e;
     }
   }
@@ -114,8 +186,7 @@ export const useSancionStore = defineStore("sanciones", () => {
       );
       return data;
     } catch (e: any) {
-      const msg = e?.response?.data?.error ?? "No se pudo condonar la sanción";
-      ui.toast.error("Error", msg);
+      ui.toast.error("Error", errMsg(e, "No se pudo condonar la sanción"));
       throw e;
     }
   }
@@ -130,9 +201,7 @@ export const useSancionStore = defineStore("sanciones", () => {
       );
       return data;
     } catch (e: any) {
-      const msg =
-        e?.response?.data?.error ?? "Error al procesar la devolución tardía";
-      ui.toast.error("Error", msg);
+      ui.toast.error("Error", errMsg(e, "Error al procesar la devolución tardía"));
       throw e;
     }
   }
@@ -147,13 +216,22 @@ export const useSancionStore = defineStore("sanciones", () => {
     estadoUsuario,
     historial,
     cargando,
+    cargandoDetalle,
     cargandoEstado,
     filtroEstado,
+    activas,
+    cargandoActivas,
+    error,
     cargarPorBiblioteca,
+    cargarActivas,
+    abrirDetalle,
+    cargarDetalle,
     cargarEstadoUsuario,
     cargarHistorialUsuario,
     registrarManual,
+    registrarReposicion,
     registrarPago,
+    registrarReposicionFisica,
     condonarSancion,
     procesarDevolucionTardia,
     limpiarEstadoUsuario,

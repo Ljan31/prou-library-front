@@ -1,88 +1,121 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useSancionStore } from '@/stores/sancion.store'
+import { computed, ref, watch } from 'vue'
 import SModal from '@/components/ui/SModal.vue'
-import SInput from '@/components/ui/SInput.vue'
 import SButton from '@/components/ui/SButton.vue'
+import SInput from '@/components/ui/SInput.vue'
+import { useSancionStore } from '@/stores/sancion.store'
+import { esReposicion, formatFecha, formatMonto, montoSancion } from '@/utils/sancion.utils'
 import type { SancionResponse } from '@/types/notificacion.types'
-export interface SancionPago {
-  idSancion: number
-  nombreUsuario: string
-  ciUsuario: string
-  montoMulta: number | null
-  tipoSancion?: string
-  estado?: string
-  fechaFinSuspension?: string | null
-  observaciones?: string | null
-}
+
 const props = defineProps<{ sancion: SancionResponse | null }>()
-const emit = defineEmits<{
-  (e: 'update:modelValue', v: boolean): void
-  (e: 'pagado', idPrestamo: numbeR): void
-}>()
-const modelValue = defineModel<boolean>()
+const emit = defineEmits<{ pagado: [sancion: SancionResponse] }>()
+const open = defineModel<boolean>({ required: true })
 
 const store = useSancionStore()
-const metodoPago = ref('')
+
+const METODOS = ['Efectivo', 'Transferencia bancaria', 'QR', 'Depósito bancario', 'Otro'] as const
+
+const metodo = ref<string>('')
+const otroMetodo = ref('')
 const observaciones = ref('')
-const enviando = ref(false)
+const loading = ref(false)
+const intentado = ref(false)
 
-// const METODOS = ['Efectivo', 'Transferencia bancaria', 'QR', 'Depósito bancario', 'Otro']
-const METODOS = ['Efectivo', 'QR', 'Otro']
+const repos = computed(() => !!props.sancion && esReposicion(props.sancion))
+const monto = computed(() => (props.sancion ? montoSancion(props.sancion) : 0))
+const metodoFinal = computed(() => (metodo.value === 'Otro' ? otroMetodo.value.trim() : metodo.value))
 
-async function registrar() {
-  if (!metodoPago.value || !props.sancion) return
-  enviando.value = true
+const errorMetodo = computed(() => {
+  if (!intentado.value) return undefined
+  if (!metodo.value) return 'Selecciona un método de pago'
+  if (metodo.value === 'Otro' && !otroMetodo.value.trim()) return 'Describe el método de pago'
+  return undefined
+})
+
+watch(open, abierto => {
+  if (!abierto) return
+  metodo.value = ''
+  otroMetodo.value = ''
+  observaciones.value = ''
+  intentado.value = false
+})
+
+async function confirmar() {
+  intentado.value = true
+  const s = props.sancion
+  if (!s || !metodoFinal.value || loading.value) return
+
+  loading.value = true
   try {
-    await store.registrarPago(props.sancion.idSancion, {
-      metodoPago: metodoPago.value,
-      observaciones: observaciones.value || undefined,
+    const data = await store.registrarPago(s.idSancion, {
+      metodoPago: metodoFinal.value,
+      observaciones: observaciones.value.trim() || undefined,
     })
-    modelValue.value = false
-    emit('pagado', props.sancion.idPrestamo)
-    metodoPago.value = ''
-    observaciones.value = ''
+    open.value = false
+    emit('pagado', data)
+  } catch {
+    /* el store ya mostró el error del backend */
   } finally {
-    enviando.value = false
+    loading.value = false
   }
 }
 </script>
 
 <template>
-  <SModal v-model="modelValue" title="Registrar pago de multa" size="sm">
-    <div v-if="sancion" class="space-y-4">
-      <!-- Info sanción -->
-      <div class="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-1">
-        <p class="text-sm font-medium text-amber-900">{{ sancion.nombreUsuario }}</p>
-        <p class="text-xs text-amber-700">CI: {{ sancion.ciUsuario }}</p>
-        <p class="text-lg font-bold text-amber-800 mt-1">
-          Bs {{ sancion.montoMulta?.toFixed(2) ?? '0.00' }}
+  <SModal v-model="open" :title="repos ? 'Pago de reposición' : 'Registrar pago de multa'" size="md">
+    <div v-if="sancion" class="space-y-5">
+      <!-- Resumen -->
+      <div class="rounded-xl bg-slate-50 p-4 space-y-3">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-xs text-slate-500">Usuario</p>
+            <p class="font-medium text-slate-800 truncate">{{ sancion.nombreUsuario }}</p>
+            <p class="text-xs text-slate-400">CI: {{ sancion.ciUsuario }}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-xs text-slate-500">Monto a pagar</p>
+            <p class="text-2xl font-bold text-slate-900">{{ formatMonto(monto) }}</p>
+          </div>
+        </div>
+        <p v-if="repos && sancion.tituloEjemplar" class="text-xs text-slate-500 border-t border-slate-200 pt-2">
+          Ejemplar: <span class="font-medium text-slate-700">{{ sancion.tituloEjemplar }}</span>
+          <span v-if="sancion.codigoTopograficoConcat"> · {{ sancion.codigoTopograficoConcat }}</span>
         </p>
       </div>
 
       <!-- Método de pago -->
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1.5">
-          Método de pago <span class="text-red-500">*</span>
-        </label>
-        <div class="grid grid-cols-2 gap-2">
-          <button v-for="m in METODOS" :key="m" class="px-3 py-2 rounded-lg border text-sm font-medium transition-all"
-            :class="metodoPago === m
-              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-              : 'border-slate-200 text-slate-600 hover:border-slate-300'" @click="metodoPago = m">
+      <fieldset>
+        <legend class="block text-sm font-semibold text-slate-700 mb-2">Método de pago</legend>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" role="radiogroup">
+          <button v-for="m in METODOS" :key="m" type="button" role="radio" :aria-checked="metodo === m"
+            :class="['py-2.5 px-2 rounded-xl border-2 text-xs font-semibold transition-all',
+              metodo === m
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300']"
+            @click="metodo = m">
             {{ m }}
           </button>
         </div>
-      </div>
+        <SInput v-if="metodo === 'Otro'" v-model="otroMetodo" class="mt-3" placeholder="Describe el método de pago"
+          :error-message="errorMetodo" />
+        <p v-else-if="errorMetodo" class="mt-2 text-xs text-red-600" role="alert">{{ errorMetodo }}</p>
+      </fieldset>
 
-      <SInput v-model="observaciones" type="textarea" label="Observaciones"
-        placeholder="Opcional – notas adicionales" />
+      <SInput v-model="observaciones" type="textarea" label="Observaciones (opcional)"
+        placeholder="Ej: Pagado en caja central, comprobante Nº ..." />
+
+      <!-- El pago de multa no levanta la suspensión -->
+      <p v-if="!repos && sancion.suspensionVigente"
+        class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+        El pago salda la multa, pero la <strong>suspensión sigue vigente</strong> hasta
+        {{ formatFecha(sancion.fechaFinSuspension) }}. La sanción permanecerá activa hasta que venza.
+      </p>
     </div>
 
     <template #footer>
-      <SButton variant="secondary" @click="modelValue = false">Cancelar</SButton>
-      <SButton :loading="enviando" :disabled="!metodoPago" @click="registrar">
-        Confirmar pago
+      <SButton variant="secondary" :disabled="loading" @click="open = false">Cancelar</SButton>
+      <SButton variant="success" :loading="loading" @click="confirmar">
+        Confirmar pago · {{ formatMonto(monto) }}
       </SButton>
     </template>
   </SModal>

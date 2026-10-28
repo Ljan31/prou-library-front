@@ -36,13 +36,21 @@ export interface ContadorNoLeidas {
 
 // ─── Sanciones ───────────────────────────────────────────────────────────────
 
-export type TipoSancion = "MULTA" | "SUSPENSION" | "MULTA_Y_SUSPENSION";
+export type TipoSancion = "MULTA" | "SUSPENSION" | "MULTA_Y_SUSPENSION" | 'REPOSICION';
 export type MotivoSancion =
   | "RETRASO_DEVOLUCION"
   | "DANIO_EJEMPLAR"
   | "PERDIDA_EJEMPLAR"
   | "REINCIDENCIA";
 export type EstadoSancion = "ACTIVA" | "PAGADA" | "CONDONADA";
+
+export interface ReposicionRequest {
+  prestamoId: number
+  bibliotecaId: number
+  montoReposicion: number
+  observaciones?: string
+}
+export interface ReposicionFisicaRequest { observaciones?: string }
 
 export interface SancionResponse {
   idSancion: number;
@@ -57,6 +65,8 @@ export interface SancionResponse {
   estado: EstadoSancion;
   diasRetraso: number | null;
   montoMulta: number | null;
+  montoReposicion?: number | null
+  resolucion?: string | null            // PENDIENTE | ... (enum definitivo)
   diasSuspension: number | null;
   fechaGeneracion: string;
   fechaInicioSuspension: string | null;
@@ -66,6 +76,10 @@ export interface SancionResponse {
   metodoPago: string | null;
   observaciones: string | null;
   suspensionVigente: boolean;
+  codigoTopograficoConcat: string | null;
+  tituloEjemplar: string | null;
+  formaResolucion?: string | null   // PENDIENTE | ... (lo que envía el backend hoy)
+  fechaResolucion?: string | null
 }
 
 export interface EstadoSancionUsuario {

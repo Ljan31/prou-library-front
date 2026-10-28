@@ -5,6 +5,8 @@ import type {
   SancionManualRequest,
   PagoMultaRequest,
   CondonacionRequest,
+  ReposicionFisicaRequest,
+  ReposicionRequest,
 } from "@/types/notificacion.types";
 
 export const sancionService = {
@@ -17,7 +19,10 @@ export const sancionService = {
   registrarManual(data: SancionManualRequest) {
     return api.post<SancionResponse>("/sanciones/manual", data);
   },
-
+  // Obtener sanción por ID (alias de buscarPorId)
+  obtener(id: number) {
+    return api.get<SancionResponse>(`/sanciones/${id}`);
+  },
   buscarPorId(id: number) {
     return api.get<SancionResponse>(`/sanciones/${id}`);
   },
@@ -55,5 +60,23 @@ export const sancionService = {
 
   condonar(id: number, data: CondonacionRequest) {
     return api.patch<SancionResponse>(`/sanciones/${id}/condonar`, data);
+  },
+  // Registrar reposición
+  registrarReposicion(payload: ReposicionRequest) {
+    return api.post<SancionResponse>(
+      "/sanciones/reposicion",
+      payload,
+    );
+  },
+
+  // Registrar reposición física de una sanción
+  registrarReposicionFisica(
+    id: number,
+    payload: ReposicionFisicaRequest,
+  ) {
+    return api.patch<SancionResponse>(
+      `/sanciones/${id}/reposicion-fisica`,
+      payload,
+    );
   },
 };

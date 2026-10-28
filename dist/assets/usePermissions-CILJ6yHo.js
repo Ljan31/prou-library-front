@@ -1,1 +1,0 @@
-import{o as e}from"./runtime-core.esm-bundler-DGLs_r5O.js";import{t}from"./auth.store-DmAzjtTv.js";function n(){let n=t();function r(...e){return n.hasAnyRole(e)}return{can:r,isAdmin:e(()=>n.isAdmin),isBibliotecario:e(()=>n.isBibliotecario),isEstudiante:e(()=>n.isEstudiante),isStaff:e(()=>n.isAdmin||n.isBibliotecario)}}export{n as t};

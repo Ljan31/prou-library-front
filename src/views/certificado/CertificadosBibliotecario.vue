@@ -341,8 +341,24 @@ function abrirVisor(id: number) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(s?: string | null) {
+  // if (!s) return '—'
+  // return new Date(s).toLocaleDateString('es-BO', { day: '2-digit', month: 'long', year: 'numeric' })
+  
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('es-BO', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  const [year, month, day] = s.slice(0, 10).split('-')
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  )
+
+  return date.toLocaleDateString('es-BO', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 function formatDateTime(s?: string) {
