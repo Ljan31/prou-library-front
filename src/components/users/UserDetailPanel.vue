@@ -16,7 +16,7 @@ const props = defineProps<{ user: UserResponse | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const ui = useUiStore()
-const { isAdmin, isStaff } = usePermissions()
+const { isAdmin, isStaff, isBibliotecario: isBIB } = usePermissions()
 const { allCarreras, allBibliotecas } = useUsers()
 const aux = useAuxAssign()
 aux.watchCarrera()
@@ -39,8 +39,8 @@ const isBibliotecario = computed(() =>
   props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false
 )
 const canManageAux = computed(() => {
-  // if (isEstudiante.value && isStaff.value) return true
-  if (isBibliotecario.value && isAdmin.value) return true
+  if (isEstudiante.value && isStaff.value) return true
+  // if (isBibliotecario.value && isAdmin.value) return true
   return false
 })
 
@@ -58,6 +58,9 @@ const encargadoEntries = ref<EncargadoEntry[]>([])
 const encargadoLoading = ref(false)
 
 watch(() => props.user, async (u) => {
+   console.log('Roles del usuario:', u?.roles?.map(r => r.name))
+  console.log('Es estudiante:', isEstudiante.value)
+  console.log('Es bibliotecario:', isBibliotecario.value)
   detailCarreras.value = []
   encargadoEntries.value = []
   aux.resetAux()
@@ -452,7 +455,7 @@ function openEncargadoEdit(entry: EncargadoEntry) {
         <div v-if="isEstudiante" class="pt-4 border-t border-slate-100">
           <div class="flex items-center justify-between mb-3">
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Carreras asignadas</p>
-            <button v-if="isAdmin && detailAvailableCarreras.length"
+            <button v-if="(isAdmin || isBIB) && detailAvailableCarreras.length"
               class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 border border-sky-200 font-medium transition-all"
               @click="openAssignModal">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

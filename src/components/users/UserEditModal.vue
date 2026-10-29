@@ -144,7 +144,7 @@ async function handleEdit() {
       username: form.username.trim(),
       nombre: form.nombre, apellido_pat: form.apellido_pat,
       apellido_mat: form.apellido_mat, celular: form.celular, enabled: form.enabled,
-      ...(isAdmin.value ? { ci: Number(form.ci), email: form.email } : {}),
+      ci: form.ci, email: form.email
     }
     const res = await userService.update(props.user.id_usuario, payload)
     const raw = res.data as any
@@ -155,9 +155,31 @@ async function handleEdit() {
     emit('updated', updated)
     ui.toast.success('Usuario actualizado', updated.persona?.nombreCompleto ?? updated.username)
   } catch (e: unknown) {
-     const message = e?.response?.data?.message || 'No se pudo actualizar';
-     ui.toast.error('Error', message);
-  } finally { loading.value = false }
+     let msg = 'Error al actualizar usuario'
+
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const err = e as any
+      msg = err.response?.data?.message || msg
+      // console.log("BACKEND 👉", err.response?.data)
+    } else if (e instanceof Error) {
+      msg = e.message
+    }
+
+    const lower = msg.toLowerCase()
+
+    if (lower.includes('username') || lower.includes('usuario')) {
+      errors.username = msg
+    } else if (lower.includes('ci')) {
+      errors.ci = msg
+    } else if (lower.includes('email') || lower.includes('correo')) {
+      errors.email = msg
+    } else {
+      ui.toast.error('Error', msg)
+    }
+
+  } finally {
+    loading.value = false
+  }
 }
 
 async function handleAssignAux() {
@@ -302,20 +324,19 @@ async function copyTempPassword() {
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">
                   CI
-                  <span v-if="isAdmin" class="text-red-500">*</span>
-                  <span v-else class="text-slate-400 font-normal ml-1">(solo admin)</span>
+                  <!-- <span v-if="isAdmin" class="text-red-500">*</span>
+                  <span v-else class="text-slate-400 font-normal ml-1">(solo admin)</span> -->
                 </label>
                 <input
                   v-model="form.ci"
                   type="text"
-                  :readonly="!isAdmin"
                   @input="
                       form.ci = form.ci.replace(/\D/g, '').slice(0, 10);
                       delete errors.ci
                     "
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
                   :class="[
-                    !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
+                    'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
                     errors.ci ? 'border-red-300 bg-red-50' : ''
                   ]"
                 />
@@ -325,16 +346,16 @@ async function copyTempPassword() {
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">
                   Email
-                  <span v-if="isAdmin" class="text-red-500">*</span>
-                  <span v-else class="text-slate-400 font-normal ml-1">(solo admin)</span>
+                  <!-- <span v-if="isAdmin" class="text-red-500">*</span>
+                  <span v-else class="text-slate-400 font-normal ml-1">(solo admin)</span> -->
                 </label>
                 <input
                   v-model="form.email"
                   type="email"
-                  :readonly="!isAdmin" maxlength="35"
+                  maxlength="35"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
                   :class="[
-                    !isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
+                    'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',
                     errors.email ? 'border-red-300 bg-red-50' : ''
                   ]"
                   @input="delete errors.email"
