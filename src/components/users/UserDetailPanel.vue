@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
+import { useBibliotecaId } from '@/composables/useBibliotecaId'
 import { usePermissions } from '@/composables/usePermissions'
 import { useUsers, roleLabel, roleBadgeClass } from '@/composables/useUsers'
 import { useAuxAssign } from '@/composables/useAuxAssign'
@@ -12,10 +13,12 @@ import type { CarreraBasic } from '@/services/estudiante.service'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RespaldoViewerModal from '@/components/bibliotecas/RespaldoViewerModal.vue'
 import EncargadoFormModal from '@/components/bibliotecas/EncargadoFormModal.vue'
+import { errMsg } from '@/services/error-handler'
 const props = defineProps<{ user: UserResponse | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const ui = useUiStore()
+const bibliotecaUsuario = useBibliotecaId()
 const { isAdmin, isStaff, isBibliotecario: isBIB } = usePermissions()
 const { allCarreras, allBibliotecas } = useUsers()
 const aux = useAuxAssign()
@@ -128,7 +131,10 @@ function canRemoveEncargado(entry: EncargadoEntry): boolean {
   }
 
   // Bibliotecario can only remove AUXILIAR students
-  if (isStaff.value && entry.encargado.rol === 'AUXILIAR' && isEstudiante.value) return true
+  if (isStaff.value && entry.encargado.rol === 'AUXILIAR' && isEstudiante.value){
+    if(entry.bib.id_biblioteca===bibliotecaUsuario.value)
+      return true
+  } 
   return false
 }
 
@@ -154,7 +160,7 @@ async function handleRemoveEncargado() {
     removeEncargadoEntry.value = null
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'No se pudo remover el encargado'
-    ui.toast.error('Error', msg)
+    ui.toast.error("Error", errMsg(e, msg))
   } finally { removeEncargadoLoading.value = false }
 }
 
@@ -215,7 +221,7 @@ async function handleRemoveCarrera() {
     showConfirmRemove.value = false
     carreraToRemove.value = null
   } catch (e: unknown) {
-    ui.toast.error('Error', e instanceof Error ? e.message : 'No se pudo remover')
+    ui.toast.error('Error', errMsg(e, 'No se pudo remover'))
   } finally { removeLoading.value = false }
 }
 
@@ -500,7 +506,7 @@ function openEncargadoEdit(entry: EncargadoEntry) {
               </svg>
               {{ c.nombre_carrera }}
               <span v-if="c.matricula" class="text-sky-400 font-mono">· {{ c.matricula }}</span>
-              <button v-if="isAdmin"
+              <button v-if="(isAdmin || isBIB) "
                 class="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-sky-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                 @click="openConfirmRemove(c)">
                 <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
