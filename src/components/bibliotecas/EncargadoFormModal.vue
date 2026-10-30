@@ -7,6 +7,7 @@ import { bibliotecasService } from '@/services/bibliotecas.service'
 import type { BibliotecaResponse, EncargadoResponse } from '@/services/bibliotecas.service'
 import type { UserResponse } from '@/services/user.service'
 import type { CarreraBasic } from '@/services/estudiante.service'
+import { errMsg } from '@/services/error-handler'
 
 interface EncargadoEntry {
   bib: BibliotecaResponse
@@ -119,7 +120,9 @@ async function handleUpdate() {
     emit('updated')
     close()
   } catch (e: unknown) {
-    editError.value = e instanceof Error ? e.message : 'No se pudo actualizar el respaldo'
+    let msg = 'No se pudo actualizar el respaldo'
+    editError.value = errMsg(e, msg)
+    ui.toast.error("Error", editError.value)
   } finally {
     editLoading.value = false
   }
