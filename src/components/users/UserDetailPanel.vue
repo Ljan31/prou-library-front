@@ -39,7 +39,15 @@ const isBibliotecario = computed(() =>
   props.user?.roles?.some(r => r.name === 'ROLE_BIBLIOTECARIO') ?? false
 )
 const canManageAux = computed(() => {
-  if (isEstudiante.value && isStaff.value) return true
+  // if (isEstudiante.value && isStaff.value) return true
+   if (isAdmin.value) {
+    return isBibliotecario.value
+  }
+
+  // El personal puede asignar auxiliares a estudiantes.
+  if (isEstudiante.value && isBIB.value) {
+    return true
+  }
   // if (isBibliotecario.value && isAdmin.value) return true
   return false
 })
@@ -114,7 +122,11 @@ const removeEncargadoEntry = ref<EncargadoEntry | null>(null)
 const removeEncargadoLoading = ref(false)
 
 function canRemoveEncargado(entry: EncargadoEntry): boolean {
-  if (isAdmin.value) return true
+  // if (isAdmin.value) return true
+  if (isAdmin.value) {
+    return isBibliotecario.value
+  }
+
   // Bibliotecario can only remove AUXILIAR students
   if (isStaff.value && entry.encargado.rol === 'AUXILIAR' && isEstudiante.value) return true
   return false
@@ -231,7 +243,9 @@ const auxBibliotecaOptions = computed(() => {
   }
   return aux.auxBibliotecas.value
 })
-
+const yaTieneAsignacionBiblioteca = computed(() =>
+  encargadoEntries.value.length > 0
+)
 // ── Validación de duplicado de asignación ─────────────────────────────────
 const yaEstaAsignadoEnEstaBiblioteca = computed(() => {
   if (!props.user || !aux.auxBibliotecaId.value) return false
@@ -315,7 +329,11 @@ function openEncargadoEdit(entry: EncargadoEntry) {
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button v-if="canManageAux"
+          <button v-if="canManageAux && !yaTieneAsignacionBiblioteca"
+           :disabled="yaTieneAsignacionBiblioteca"
+           :title="yaTieneAsignacionBiblioteca
+              ? 'Este usuario ya tiene una asignación de biblioteca'
+              : 'Asignar encargado'"
             class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 font-medium transition-all"
             @click="openEncargadoCreate">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
