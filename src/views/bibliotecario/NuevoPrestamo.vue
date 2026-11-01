@@ -52,6 +52,7 @@ interface EstadoSancion {
   usuarioId: number
   tieneSuspensionVigente: boolean
   tieneDeudaPendiente: boolean
+  tieneReposicionPendiente: boolean
   totalSancionesActivas: number
   fechaFinSuspensionMasProxima: string | null
 }
@@ -252,7 +253,7 @@ function highlight(text: string, query: string): string {
   return text.replace(re, '<mark class="bg-indigo-100 text-indigo-700 rounded-sm px-0.5">$1</mark>')
 }
 
-const usuarioSancionado = computed(() => sancionEstado.value?.tieneDeudaPendiente === true)
+const usuarioSancionado = computed(() => sancionEstado.value?.tieneDeudaPendiente === true ||   sancionEstado.value?.tieneReposicionPendiente === true)
 // const usuarioSancionado = computed(() => sancionEstado.value?.tieneSuspensionVigente === true)
 const usuarioBloqueado = computed(() => {
   // if (!sancionEstado.value) return false
@@ -263,7 +264,8 @@ const usuarioBloqueado = computed(() => {
   // )
   const bloqueadoPorSancion =
     sancionEstado.value?.tieneSuspensionVigente === true ||
-    sancionEstado.value?.tieneDeudaPendiente === true
+    sancionEstado.value?.tieneDeudaPendiente === true ||
+    sancionEstado.value?.tieneReposicionPendiente === true
 
   return bloqueadoPorSancion || usuarioInhabilitado.value
 })
@@ -275,15 +277,29 @@ const mensajeSancion = computed(() => {
 
   const tieneSuspension = sancionEstado.value.tieneSuspensionVigente
   const tieneDeuda = sancionEstado.value.tieneDeudaPendiente
-
-  if (tieneSuspension && tieneDeuda) {
-    return 'Usuario con suspensión activa y deuda pendiente'
+  const tieneReposicion = sancionEstado.value.tieneReposicionPendiente
+  
+  if (tieneSuspension && tieneDeuda && tieneReposicion) {
+    return 'Usuario con suspensión activa, deuda pendiente y reposición pendiente'
   }
+   if (tieneSuspension && tieneReposicion) {
+    return 'Usuario con suspensión activa y reposición pendiente'
+  }
+
+  if (tieneDeuda && tieneReposicion) {
+    return 'Usuario con deuda y reposición pendiente'
+  }
+
   if (tieneSuspension) {
     return 'Usuario con suspensión vigente'
   }
+
   if (tieneDeuda) {
     return 'Usuario con deuda pendiente'
+  }
+
+  if (tieneReposicion) {
+    return 'Usuario con reposición pendiente'
   }
   return ''
 })
@@ -299,6 +315,11 @@ const detalleSancion = computed(() => {
   if (sancionEstado.value.tieneDeudaPendiente) {
     if (texto) texto += ' • '
     texto += 'Tiene deuda pendiente'
+  }
+  
+  if (sancionEstado.value.tieneReposicionPendiente) {
+    if (texto) texto += ' • '
+    texto += 'Tiene reposición pendiente'
   }
 
   if (sancionEstado.value.totalSancionesActivas > 0) {
