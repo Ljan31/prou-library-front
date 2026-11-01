@@ -41,6 +41,7 @@ interface Solicitud {
 interface EstadoSancion {
   tieneSuspensionVigente: boolean
   tieneDeudaPendiente: boolean
+  tieneReposicionPendiente: boolean
   totalSancionesActivas: number
   fechaFinSuspensionMasProxima: string | null
 }
@@ -50,6 +51,7 @@ interface EstadoSancionCI {
   usuarioId: number | null
   tieneSuspensionVigente: boolean
   tieneDeudaPendiente: boolean
+  tieneReposicionPendiente: boolean
   totalSancionesActivas: number
   montoTotalDeuda: number
   fechaFinProxima: string | null
@@ -183,6 +185,8 @@ async function verDetalle(s: Solicitud) {
   if (solicitudSeleccionada.value?.id !== s.id) {
     sancionSolicitante.value = null
     prestamosSolicitante.value = null
+    certGeneradoDesdeSolicitud.value = null
+    certificadosExistentes.value = []
   }
   solicitudSeleccionada.value = s
   cargandoDetalle.value = true
@@ -198,9 +202,11 @@ async function verDetalle(s: Solicitud) {
         }
       })
       .catch(() => { /* usar datos del listado */ }),
-      cargarCertificadosExistentes(s.id)
+      // cargarCertificadosExistentes(s.id)
   ]
-
+  if (s.estado === 'APROBADA') {
+    tasks.push(cargarCertificadosExistentes(s.id))
+  }
   if (s.estado === 'PENDIENTE' && s.ci) {
     verificandoSolicitante.value = true
     tasks.push(
@@ -215,7 +221,6 @@ async function verDetalle(s: Solicitud) {
         sancionSolicitante.value = sancionRes.data.data ?? sancionRes.data
         prestamosSolicitante.value = prestamosRes.data.data ?? prestamosRes.data
       }).catch(() => {
-        console.log('catch')
         sancionSolicitante.value = null
         prestamosSolicitante.value = null
       }).finally(() => {
@@ -239,9 +244,10 @@ function cerrarDetalle() {
 // Computed: ¿tiene problemas el solicitante?
 const solicitanteTieneSuspension = computed(() => sancionSolicitante.value?.tieneSuspensionVigente ?? false)
 const solicitanteTieneDeuda = computed(() => sancionSolicitante.value?.tieneDeudaPendiente ?? false)
+const solicitanteTieneReposicion = computed(() => sancionSolicitante.value?.tieneReposicionPendiente ?? false)
 const solicitanteTienePrestamos = computed(() => prestamosSolicitante.value?.tienePrestamosPendientes ?? false)
 const solicitanteTieneProblemas = computed(() =>
-  solicitanteTieneSuspension.value || solicitanteTienePrestamos.value
+  solicitanteTieneSuspension.value || solicitanteTienePrestamos.value || solicitanteTieneReposicion.value
 )
 
 // ─── Aprobar solicitud ────────────────────────────────────────────────────────
@@ -346,7 +352,7 @@ async function generarDesdeSolicitud() {
 const certificadosExistentes = ref<Certificado[]>([])
 const cargandoCertificadosExistentes = ref(false)
 
-async function cargarCertificadosExistentes(idSolicitud?:number) {
+async function cargarCertificadosExistentes(idSolicitud:number) {
   if (!solicitudSeleccionada.value?.ci || !targetBibliotecaId.value) return
   
   cargandoCertificadosExistentes.value = true
@@ -368,17 +374,18 @@ async function cargarCertificadosExistentes(idSolicitud?:number) {
     }
   } catch (e) {
     certificadosExistentes.value = []
+     certGeneradoDesdeSolicitud.value = null
   } finally {
     cargandoCertificadosExistentes.value = false
   }
 }
 
 // Llamar cuando se abre el detalle de una solicitud aprobada
-watch(() => solicitudSeleccionada.value?.estado, (estado) => {
-  if (estado === 'APROBADA' && solicitudSeleccionada.value?.ci) {
-    cargarCertificadosExistentes()
-  }
-})
+// watch(() => solicitudSeleccionada.value?.estado, (estado) => {
+//   if (estado === 'APROBADA' && solicitudSeleccionada.value?.ci) {
+//     cargarCertificadosExistentes()
+//   }
+// })
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -407,24 +414,6 @@ async function searchUsers(q: string) {
     userDropdownOpen.value = true
   } catch { userResults.value = [] }
   finally { userLoading.value = false }
-}
-
-function selectUser(u: UsuarioBusqueda) {
-  selectedUser.value = u
-  userQuery.value = u.persona.nombreCompleto
-  userDropdownOpen.value = false
-  verificarEstudiante(u.id_usuario)
-}
-
-function resetUser() {
-  selectedUser.value = null
-  userQuery.value = ''
-  userResults.value = []
-  estadoSancionUsuario.value = null
-  certificadosUsuario.value = []
-  certGenerado.value = null
-  certError.value = null
-  showCertsModal.value = false
 }
 
 // Verificación automática del estudiante seleccionado
@@ -456,62 +445,10 @@ async function verificarEstudiante(userId: number) {
   }
 }
 
-const estudianteTieneSuspension = computed(() => estadoSancionUsuario.value?.tieneSuspensionVigente ?? false)
-const estudianteTieneDeuda = computed(() => estadoSancionUsuario.value?.tieneDeudaPendiente ?? false)
-const estudianteTieneVigente = computed(() => certificadosUsuario.value.some(c => c.estadoCertificado === 'VIGENTE'))
-
-const puedeGenerar = computed(() =>
-  !!selectedUser.value &&
-  !!targetBibliotecaId.value &&
-  !verificandoEstudiante.value &&
-  !estudianteTieneSuspension.value &&
-  !estudianteTieneVigente.value
-)
-
-// Generación
-const diasValidez = ref(2)
-const generandoCert = ref(false)
-const certError = ref<string | null>(null)
-const certGenerado = ref<Certificado | null>(null)
-
-async function generarCertificado() {
-  if (!puedeGenerar.value) return
-  generandoCert.value = true
-  certError.value = null
-  certGenerado.value = null
-  try {
-    const { data } = await api.post('/certificados', {
-      usuarioId: selectedUser.value!.id_usuario,
-      bibliotecaId: targetBibliotecaId.value,
-      diasValidez: diasValidez.value,
-    })
-    if (data.success) {
-      certGenerado.value = data.data
-      ui.toast.success('Certificado generado', 'El certificado fue emitido correctamente')
-      await verificarEstudiante(selectedUser.value!.id_usuario)
-    } else {
-      certError.value = data.message ?? 'No se pudo generar el certificado'
-      ui.toast.error('Error', certError.value!)
-    }
-  } catch (e: unknown) {
-    const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      ?? 'Error al generar certificado'
-    certError.value = msg
-    ui.toast.error('Error', msg)
-  } finally {
-    generandoCert.value = false
-  }
-}
-
 function abrirImprimirDesdeSolicitud() {
   if (certGeneradoDesdeSolicitud.value) {
     abrirImprimir(certGeneradoDesdeSolicitud.value)
   }
-}
-
-function nuevaGeneracion() {
-  certGeneradoDesdeSolicitud.value = null
-  diasValidezSolicitud.value = 2
 }
 
 // Anular certificado
@@ -539,18 +476,6 @@ const printCert = ref<Certificado | null>(null)
 
 function abrirVisor(id: number) { pdfViewerCertId.value = id; pdfViewerShow.value = true }
 function abrirImprimir(cert: Certificado) { printCert.value = cert; showPrintPreview.value = true }
-
-const qrUrl = computed(() => {
-  if (!certGenerado.value?.codigo_verificacion) return ''
-  const url = `${window.location.origin}/certificados?tab=validar&codigo=${certGenerado.value.codigo_verificacion}`
-  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}&ecc=M&margin=2`
-})
-
-function highlight(text: string, query: string): string {
-  if (!query) return text
-  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
-  return text.replace(re, '<mark class="bg-indigo-100 text-indigo-700 rounded-sm px-0.5">$1</mark>')
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(s?: string | null) {
@@ -911,6 +836,20 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                     </div>
                   </div>
 
+                  <!-- DEUDA Reposicion -->
+                  <div v-if="solicitanteTieneReposicion"
+                    class="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div class="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                    </div>
+                    <div class="flex-1">
+                      <p class="text-xs font-bold text-amber-800">Reposicion pendiente</p>
+                    </div>
+                  </div>
+
                   <!-- DEUDA PENDIENTE -->
                   <div v-if="solicitanteTieneDeuda"
                     class="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -1005,13 +944,14 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
 
                    <button
                      @click="aprobarSolicitud(solicitudSeleccionada.id)"
-                     :disabled="aprobando || isAdmin || (solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda)"
+                     :disabled="aprobando || isAdmin || (solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda || solicitanteTieneReposicion)"
                      :title="
                      isAdmin ? 'Los administradores no pueden aprobar solicitudes': solicitanteTieneSuspension ? 'No se puede aprobar: tiene suspensión activa'
                        : solicitanteTienePrestamos ? 'No se puede aprobar: tiene préstamos sin devolver'
+                       : solicitanteTieneReposicion ? 'No se puede aprobar: tiene reposcion pendiente' 
                        : 'Aprobar solicitud'"
                      :class="['w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all',
-                       aprobando || isAdmin || solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda
+                       aprobando || isAdmin || solicitanteTieneSuspension || solicitanteTienePrestamos || solicitanteTieneDeuda || solicitanteTieneReposicion
                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200']"
                    >
@@ -1031,6 +971,7 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                        : solicitanteTieneSuspension ? 'No disponible (suspensión activa)'
                        : solicitanteTienePrestamos ? 'No disponible (préstamos pendientes)'
                         : solicitanteTieneDeuda ? 'No disponible (deuda pendiente)'
+                        : solicitanteTieneReposicion ? 'No disponible (reposicion pendiente)'
                        : 'Aprobar solicitud' }}
                    </button>
    
@@ -1043,9 +984,11 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
                          if (solicitanteTieneSuspension && solicitanteTienePrestamos)
                            motivoRechazo = 'Cuenta con suspensión activa y préstamos sin devolver.'
                          else if (solicitanteTieneSuspension)
-                           motivoRechazo = 'Cuenta con suspensión activa' + (sancionSolicitante?.fechaFinProxima ? ` hasta el ${formatDate(sancionSolicitante.fechaFinProxima)}.` : '.')
-                         else if (solicitanteTienePrestamos)
-                           motivoRechazo = `Tiene ${(prestamosSolicitante?.prestamosActivos ?? 0) + (prestamosSolicitante?.prestamosVencidos ?? 0)} préstamo(s) pendiente(s) sin devolver.`
+                          motivoRechazo = 'Cuenta con suspensión activa' + (sancionSolicitante?.fechaFinProxima ? ` hasta el ${formatDate(sancionSolicitante.fechaFinProxima)}.` : '.')
+                        else if (solicitanteTienePrestamos)
+                        motivoRechazo = `Tiene ${(prestamosSolicitante?.prestamosActivos ?? 0) + (prestamosSolicitante?.prestamosVencidos ?? 0)} préstamo(s) pendiente(s) sin devolver.`
+                        else if (solicitanteTieneReposicion)
+                          motivoRechazo = 'Cuenta con reposicion pendiente'
                        }"
                        class="w-full flex items-center justify-center gap-2 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-xl transition-all"
                      >
@@ -1196,291 +1139,6 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
 
       </div>
     </div>
-
-    <!-- ═══════════════════ B: GENERAR DIRECTO ═══════════════════ -->
-    <div v-if="mainTab === 'generar'" class="space-y-5">
-
-      <div v-if="!certGenerado" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
- 
-
-        <div class="p-5 space-y-5">
-          <!-- Buscador de usuario -->
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1.5">Buscar estudiante <span class="text-red-400">*</span></label>
-            <div class="relative">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-              <input v-model="userQuery" type="text" placeholder="Buscar por nombre, CI o matrícula..."
-                :disabled="!!selectedUser"
-                class="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all disabled:bg-slate-50 disabled:text-slate-400"/>
-              <div v-if="userLoading" class="absolute right-3 top-1/2 -translate-y-1/2">
-                <svg class="w-4 h-4 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-              </div>
-              <!-- Dropdown -->
-              <div v-if="userDropdownOpen && userResults.length && !selectedUser"
-                class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
-                <button v-for="u in userResults" :key="u.id_usuario" @click="selectUser(u)"
-                  class="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left border-b border-slate-50 last:border-0">
-                  <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0">
-                    {{ u.persona.nombreCompleto.charAt(0).toUpperCase() }}
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-slate-800 capitalize" v-html="highlight(u.persona.nombreCompleto, userQuery)"/>
-                    <p class="text-xs text-slate-400">CI: {{ u.persona.ci }}<span v-if="u.persona.matricula"> · Mat: {{ u.persona.matricula }}</span></p>
-                  </div>
-                </button>
-              </div>
-              <div v-else-if="userDropdownOpen && !userResults.length && !userLoading && !selectedUser"
-                class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-md z-20 py-6 text-center">
-                <p class="text-sm text-slate-400">Sin resultados para "{{ userQuery }}"</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Usuario seleccionado -->
-          <div v-if="selectedUser" class="flex items-center gap-3 p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
-            <div class="w-11 h-11 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-              {{ selectedUser.persona.nombreCompleto.charAt(0).toUpperCase() }}
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-semibold text-slate-800 text-sm capitalize">{{ selectedUser.persona.nombreCompleto }}</p>
-              <p class="text-xs text-slate-500">CI: {{ selectedUser.persona.ci }}<span class="text-slate-400"> · @{{ selectedUser.username }}</span></p>
-            </div>
-            <button @click="resetUser" class="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1 flex-shrink-0">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-              Cambiar
-            </button>
-          </div>
-
-          <!-- Verificación automática -->
-          <template v-if="selectedUser">
-            <div v-if="verificandoEstudiante" class="space-y-1.5">
-              <div class="h-10 bg-slate-100 rounded-xl animate-pulse"/>
-              <p class="text-xs text-center text-slate-400">Verificando sanciones y certificados...</p>
-            </div>
-            <template v-else>
-              <!-- Suspensión -->
-              <div v-if="estudianteTieneSuspension" class="p-4 bg-red-50 border border-red-200 rounded-xl">
-                <div class="flex items-start gap-3">
-                  <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636"/>
-                  </svg>
-                  <div>
-                    <p class="text-sm font-bold text-red-800">Estudiante con suspensión activa</p>
-                    <p class="text-xs text-red-600 mt-0.5">
-                      Suspensión vigente
-                      <span v-if="estadoSancionUsuario?.fechaFinSuspensionMasProxima">
-                        hasta el <strong>{{ formatDate(estadoSancionUsuario.fechaFinSuspensionMasProxima) }}</strong>
-                      </span>. No se puede emitir el certificado.
-                    </p>
-                    <p v-if="estadoSancionUsuario?.tieneDeudaPendiente" class="text-xs text-red-500 mt-1">
-                      También tiene {{ estadoSancionUsuario.totalSancionesActivas }} multa(s) pendiente(s).
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Deuda (advertencia) -->
-              <div v-else-if="estudianteTieneDeuda" class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
-                <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-                <p class="text-xs text-amber-700 flex-1">
-                  Tiene <strong>{{ estadoSancionUsuario?.totalSancionesActivas }}</strong> multa(s) pendiente(s).
-                  Puedes generar el certificado, pero considera informarle.
-                </p>
-              </div>
-
-              <!-- OK -->
-              <div v-else-if="!estudianteTieneVigente" class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
-                <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                </svg>
-                <p class="text-xs text-emerald-700">Sin sanciones activas ni certificados vigentes. Puede generar.</p>
-              </div>
-
-              <!-- Ya tiene vigente -->
-              <div v-if="certificadosUsuario.length > 0"
-                class="flex items-center gap-3 p-3 rounded-xl border text-sm"
-                :class="estudianteTieneVigente ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600'">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <span class="flex-1 text-xs">
-                  <strong>{{ certificadosUsuario.length }}</strong> certificado(s)
-                  <span v-if="estudianteTieneVigente"> — <strong>{{ certificadosUsuario.filter(c => c.estadoCertificado === 'VIGENTE').length }} VIGENTE(s)</strong>, no se puede generar otro</span>
-                  <span v-else> — ninguno vigente</span>.
-                </span>
-                <button @click="showCertsModal = true"
-                  class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex-shrink-0"
-                  :class="estudianteTieneVigente ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                  </svg>
-                  Ver
-                </button>
-              </div>
-
-              <!-- Días de validez -->
-              <div v-if="!estudianteTieneSuspension && !estudianteTieneVigente">
-                <label class="block text-xs font-medium text-slate-600 mb-1.5">Días de validez</label>
-                <div class="flex items-center gap-3">
-                  <button @click="diasValidez = Math.max(1, diasValidez - 1)"
-                    class="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
-                  </button>
-                  <span class="text-lg font-bold text-slate-800 w-8 text-center">{{ diasValidez }}</span>
-                  <button @click="diasValidez = Math.min(30, diasValidez + 1)"
-                    class="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                  </button>
-                  <span class="text-xs text-slate-400">días (máx. 30)</span>
-                </div>
-              </div>
-            </template>
-          </template>
-
-          <!-- Error -->
-          <div v-if="certError" class="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-            {{ certError }}
-          </div>
-
-          <!-- Botón generar -->
-          <button @click="generarCertificado" :disabled="!puedeGenerar || generandoCert"
-            :class="['w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
-              puedeGenerar && !generandoCert
-                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 active:scale-[0.98]'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed']">
-            <svg v-if="generandoCert" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            {{ generandoCert ? 'Generando...'
-              : isAdmin && !targetBibliotecaId ? 'Selecciona una biblioteca'
-              : !selectedUser ? 'Selecciona un estudiante'
-              : estudianteTieneSuspension ? 'No disponible (suspensión activa)'
-              : estudianteTieneVigente ? 'Ya tiene certificado vigente'
-              : verificandoEstudiante ? 'Verificando...'
-              : 'Generar Certificado' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Certificado generado -->
-      <Transition name="fade">
-        <div v-if="certGenerado" class="space-y-4">
-          <div class="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-            <div class="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <p class="font-semibold text-emerald-800 text-sm">¡Certificado generado exitosamente!</p>
-              <p class="text-xs text-emerald-600 mt-0.5">
-                El certificado de <strong class="capitalize">{{ selectedUser?.persona.nombreCompleto }}</strong> fue emitido. El estudiante recibirá una notificación.
-              </p>
-            </div>
-          </div>
-
-          <!-- Preview del cert + acciones -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <h3 class="font-semibold text-slate-800 text-sm">Certificado emitido</h3>
-              </div>
-              <span :class="['text-xs font-bold px-2.5 py-0.5 rounded-full', estadoCertClasses(certGenerado.estadoCertificado)]">
-                {{ certGenerado.estadoCertificado }}
-              </span>
-            </div>
-
-            <div class="p-5 space-y-3 text-xs">
-              <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                  <p class="text-slate-400 mb-0.5">Estudiante</p>
-                  <p class="font-semibold text-slate-800 capitalize">{{ selectedUser?.persona.nombreCompleto }}</p>
-                  <p class="text-slate-500 mt-0.5">CI: {{ selectedUser?.persona.ci }}</p>
-                </div>
-                <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                  <p class="text-slate-400 mb-0.5">Código</p>
-                  <p class="font-mono font-semibold text-indigo-700 break-all">{{ certGenerado.codigo_verificacion }}</p>
-                </div>
-                <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                  <p class="text-slate-400 mb-0.5">Emitido</p>
-                  <p class="font-medium text-slate-700">{{ formatDateTime(certGenerado.fechaEmision) }}</p>
-                </div>
-                <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                  <p class="text-slate-400 mb-0.5">Vence</p>
-                  <p class="font-medium text-emerald-700">{{ formatDateTime(certGenerado.fechaVencimiento) }}</p>
-                </div>
-              </div>
-              <!-- QR mini -->
-              <div class="flex items-center justify-center gap-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <img v-if="qrUrl" :src="qrUrl" alt="QR" class="w-20 h-20 rounded-lg" loading="lazy"/>
-                <div v-else class="w-20 h-20 bg-slate-200 rounded-lg animate-pulse"/>
-                <div>
-                  <p class="text-xs font-semibold text-slate-700 mb-1">Código QR de verificación</p>
-                  <p class="text-xs text-slate-400 leading-relaxed">El estudiante puede escanear este QR para verificar la autenticidad del certificado.</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="px-5 pb-5 flex flex-col sm:flex-row gap-3">
-              <button @click="abrirVisor(certGenerado.id_certificado)"
-                class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 active:scale-[0.98]">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                PDF oficial
-              </button>
-              <button @click="abrirImprimir(certGenerado)"
-                class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                </svg>
-                Imprimir
-              </button>
-              <button @click="certGenerado = null; resetUser()"
-                class="sm:flex-none flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 text-slate-500 hover:bg-slate-50 text-sm font-medium rounded-xl transition-all">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                Nuevo
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
-    </div>
-
   </div>
 </template>
 

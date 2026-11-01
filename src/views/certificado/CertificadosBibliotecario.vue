@@ -28,6 +28,7 @@ interface EstadoSancion {
   usuarioId: number
   tieneSuspensionVigente: boolean
   tieneDeudaPendiente: boolean
+  tieneReposicionPendiente: boolean
   totalSancionesActivas: number
   fechaFinSuspensionMasProxima: string | null
 }
@@ -224,6 +225,9 @@ const estudianteTieneSuspension = computed(() =>
 const estudianteTieneDeuda = computed(() =>
   estadoSancionUsuario.value?.tieneDeudaPendiente ?? false
 )
+const estudianteTieneReposicion = computed(() =>
+  estadoSancionUsuario.value?.tieneReposicionPendiente ?? false
+)
 const estudianteTieneVigente = computed(() =>
   certificadosUsuario.value.some(c => c.estadoCertificado === 'VIGENTE')
 )
@@ -236,6 +240,7 @@ const puedeGenerar = computed(() => {
   if (!selectedRazonId.value) return false
   if (verificandoEstudiante.value) return false
   if (estudianteTieneSuspension.value) return false
+  if (estudianteTieneReposicion.value) return false
   if (estudianteTieneVigente.value) return false
   return true
 })
@@ -585,6 +590,45 @@ function estadoCertClasses(estado: string) {
               </div>
             </div>
 
+            <!-- REPOSICIÓN PENDIENTE → bloqueo duro -->
+            <div
+              v-else-if="estudianteTieneReposicion"
+              class="p-4 bg-red-50 border border-red-200 rounded-xl"
+            >
+              <div class="flex items-start gap-3">
+                <svg
+                  class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+
+                <div>
+                  <p class="text-sm font-bold text-red-800">
+                    Estudiante con reposición pendiente
+                  </p>
+
+                  <p class="text-xs text-red-600 mt-0.5">
+                    Este estudiante tiene un ejemplar pendiente de reposición.
+                    No se puede emitir el certificado hasta que regularice su situación.
+                  </p>
+
+                  <p
+                    v-if="estudianteTieneDeuda"
+                    class="text-xs text-red-500 mt-1"
+                  >
+                    También tiene una deuda pendiente de pago.
+                  </p>
+                </div>
+              </div>
+            </div>
             <!-- DEUDA PENDIENTE (advertencia, no bloquea generación) -->
             <div v-else-if="estudianteTieneDeuda"
               class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
@@ -685,10 +729,11 @@ function estadoCertClasses(estado: string) {
           {{ generandoCert ? 'Generando...'
             : isAdmin && !selectedBibliotecaId ? 'Selecciona una biblioteca'
               : !selectedUser ? 'Selecciona un estudiante'
-                : estudianteTieneSuspension ? 'No se puede generar (suspensión activa)'
-                  : estudianteTieneVigente ? 'Ya tiene un certificado vigente'
-                    : verificandoEstudiante ? 'Verificando...'
-                      : 'Generar Certificado' }}
+                : verificandoEstudiante ? 'Verificando...'
+                  : estudianteTieneSuspension ? 'No se puede generar (suspensión activa)'
+                    : estudianteTieneReposicion ? 'No se puede generar (reposición pendiente)'
+                      : estudianteTieneVigente ? 'Ya tiene un certificado vigente'
+                        : 'Generar Certificado' }}
         </button>
       </div>
     </div>
