@@ -53,9 +53,11 @@ interface ApiResponse<T> {
 }
 export interface EncargadoResponse {
   id_usuario: number;
+  idUsuario: number;
   username: string;
   nombreCompleto: string;
   rol: "PRINCIPAL" | "AUXILIAR";
+  respaldoUrl: string;
 }
 
 export interface BibliotecaResponse {

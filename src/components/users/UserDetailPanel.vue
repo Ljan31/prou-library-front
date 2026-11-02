@@ -110,9 +110,26 @@ async function fetchAllBibliotecas(): Promise<BibliotecaResponse[]> {
   return Array.isArray(raw) ? raw : (raw?.data ?? [])
 }
 
-const detailAvailableCarreras = computed(() =>
-  allCarreras.value.filter(c => !detailCarreras.value.some(uc => uc.id_carrera === c.id_carrera))
-)
+const detailAvailableCarreras = computed(() =>{
+    let carrerasPermitidas = allCarreras.value
+
+  // Bibliotecario: únicamente carreras de su biblioteca
+  if (isBIB.value && !isAdmin.value) {
+    carrerasPermitidas = allCarreras.value.filter(c =>
+      allBibliotecas.value.some(b =>
+        b.id_biblioteca === bibliotecaUsuario.value &&
+        b.carrera?.id_carrera === c.id_carrera
+      )
+    )
+  }
+
+  // Excluir carreras que el estudiante ya tiene asignadas
+  return carrerasPermitidas.filter(c =>
+    !detailCarreras.value.some(
+      uc => uc.id_carrera === c.id_carrera
+    )
+  )
+})
 
 // ══════════════════════════════════════════════════════════════════════════
 // REMOVER ENCARGADO DE BIBLIOTECA
@@ -184,6 +201,19 @@ async function handleAssignCarrera() {
   assignError.value = ''
   if (!assignCarreraId.value) { assignError.value = 'Selecciona una carrera'; return }
   if (!props.user) return
+   const carreraId = Number(assignCarreraId.value)
+
+  // Verificar que la carrera esté permitida
+  const carreraPermitida = detailAvailableCarreras.value.some(
+    c => c.id_carrera === carreraId
+  )
+
+  if (!carreraPermitida) {
+    assignError.value =
+      'No puedes asignar carreras que pertenecen a otra biblioteca.'
+    return
+  }
+
   assignLoading.value = true
   try {
     await carreraService.assign({
@@ -207,12 +237,40 @@ const carreraToRemove = ref<CarreraBasic | null>(null)
 const removeLoading = ref(false)
 
 function openConfirmRemove(carrera: CarreraBasic) {
+  const puedeRemover = carrerasRemovibles.value.some(
+    c => c.id_carrera === carrera.id_carrera
+  )
+
+  if (!puedeRemover) {
+    ui.toast.error(
+      'Acceso denegado',
+      'No puedes remover carreras que pertenecen a otra biblioteca.'
+    )
+    return
+  }
   carreraToRemove.value = carrera
   showConfirmRemove.value = true
 }
 
 async function handleRemoveCarrera() {
   if (!props.user || !carreraToRemove.value) return
+  
+  const carreraId = carreraToRemove.value.id_carrera
+
+  // Validar nuevamente los permisos antes de ejecutar la operación
+  const puedeRemover = carrerasRemovibles.value.some(
+    c => c.id_carrera === carreraId
+  )
+
+  if (!puedeRemover) {
+    ui.toast.error(
+      'Acceso denegado',
+      'No puedes remover esta carrera porque pertenece a otra biblioteca.'
+    )
+    showConfirmRemove.value = false
+    carreraToRemove.value = null
+    return
+  }
   removeLoading.value = true
   try {
     await carreraService.remove(props.user.id_usuario, carreraToRemove.value.id_carrera)
@@ -313,6 +371,24 @@ function openEncargadoEdit(entry: EncargadoEntry) {
   encargadoEditEntry.value = entry
   showEncargadoModal.value = true
 }
+
+// Carreras que pertenecen a la biblioteca que realiza la operación
+const carrerasRemovibles = computed(() => {
+  if (isAdmin.value) {
+    return detailCarreras.value
+  }
+
+  if (isBIB.value) {
+    return detailCarreras.value.filter(c =>
+      allBibliotecas.value.some(b =>
+        b.id_biblioteca === bibliotecaUsuario.value &&
+        b.carrera?.id_carrera === c.id_carrera
+      )
+    )
+  }
+
+  return []
+})
 </script>
 
 <template>
@@ -506,7 +582,8 @@ function openEncargadoEdit(entry: EncargadoEntry) {
               </svg>
               {{ c.nombre_carrera }}
               <span v-if="c.matricula" class="text-sky-400 font-mono">· {{ c.matricula }}</span>
-              <button v-if="(isAdmin || isBIB) "
+              <!-- <button v-if="(isAdmin || isBIB)" -->
+              <button v-if="carrerasRemovibles.some(rc => rc.id_carrera === c.id_carrera)"
                 class="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-sky-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                 @click="openConfirmRemove(c)">
                 <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -610,7 +687,8 @@ function openEncargadoEdit(entry: EncargadoEntry) {
 
 
     <EncargadoFormModal v-model="showEncargadoModal" :mode="encargadoModalMode" :user="user"
-      :is-estudiante="isEstudiante" :is-bibliotecario="isBibliotecario" :detail-carreras="detailCarreras"
+      :is-estudiante="isEstudiante" :is-bibliotecario="isBibliotecario" :is-operador-bibliotecario="isBIB"
+      :detail-carreras="detailCarreras"
       :edit-entry="encargadoEditEntry" :encargado-entries="encargadoEntries" @assigned="onEncargadoAssigned"
       @updated="onEncargadoUpdated" />
 
