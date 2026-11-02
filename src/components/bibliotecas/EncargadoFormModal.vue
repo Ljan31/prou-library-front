@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useUsers } from '@/composables/useUsers'
 import { useAuxAssign } from '@/composables/useAuxAssign'
 import { bibliotecasService } from '@/services/bibliotecas.service'
+import { useBibliotecaId } from '@/composables/useBibliotecaId'
 import type { BibliotecaResponse, EncargadoResponse } from '@/services/bibliotecas.service'
 import type { UserResponse } from '@/services/user.service'
 import type { CarreraBasic } from '@/services/estudiante.service'
@@ -20,6 +21,7 @@ const props = defineProps<{
   user: UserResponse | null
   isEstudiante: boolean
   isBibliotecario: boolean
+  isOperadorBibliotecario: boolean
   detailCarreras: CarreraBasic[]
   editEntry?: EncargadoEntry | null
   encargadoEntries?: EncargadoEntry[]
@@ -32,12 +34,13 @@ const emit = defineEmits<{
 }>()
 
 const ui = useUiStore()
+const bibliotecaUsuario = useBibliotecaId()
 const { allBibliotecas, refreshBibliotecas } = useUsers()
 const aux = useAuxAssign()
 aux.watchCarrera()
 
 // ─── Reset state when modal opens ────────────────────────────────────────
-watch(() => props.modelValue, (open) => {
+watch(() => props.modelValue, async(open) => {
   if (!open) return
   aux.resetAux()
   editRespaldoFile.value = null
@@ -45,8 +48,17 @@ watch(() => props.modelValue, (open) => {
   editLoading.value = false
   editError.value = ''
 
-  // Pre-load bibliotecas for bibliotecarios in create mode
-  if (props.mode === 'create' && props.isBibliotecario) {
+  if (props.mode === 'create' && props.isOperadorBibliotecario) {
+    await refreshBibliotecas()
+
+    const bib = bibliotecaOperador.value
+
+    if (bib) {
+      aux.auxBibliotecaId.value = bib.id_biblioteca
+    }
+  }
+
+  if (props.mode === 'create' && !props.isOperadorBibliotecario) {
     aux.loadAllBibliotecasForPicker()
   }
 })
@@ -55,12 +67,29 @@ function close() { emit('update:modelValue', false) }
 
 // ─── Library options for the selector ────────────────────────────────────
 const auxBibliotecaOptions = computed(() => {
-  if (props.isBibliotecario) {
-    return aux.auxBibliotecas.value.length ? aux.auxBibliotecas.value : allBibliotecas.value
+  const disponibles = aux.auxBibliotecas.value.length
+    ? aux.auxBibliotecas.value
+    : allBibliotecas.value
+
+  // El bibliotecario solo puede seleccionar su biblioteca actual
+  if (props.isOperadorBibliotecario) {
+    return disponibles.filter(
+      b => b.id_biblioteca === Number(bibliotecaUsuario.value)
+    )
   }
-  return aux.auxBibliotecas.value // filtered by carrera
+
+  // Administrador: conserva todas las opciones disponibles
+  return disponibles
 })
 
+// Biblioteca asignada directamente al bibliotecario
+const bibliotecaOperador = computed(() => {
+  if (!props.isOperadorBibliotecario) return null
+
+  return allBibliotecas.value.find(
+    b => b.id_biblioteca === Number(bibliotecaUsuario.value)
+  ) ?? null
+})
 // ─── Duplicate check (create mode) ───────────────────────────────────────
 const yaEstaAsignado = computed(() => {
   if (props.mode !== 'create' || !props.user || !aux.auxBibliotecaId.value) return false
@@ -79,8 +108,37 @@ const mensajeDuplicado = computed(() => {
 // ─── CREATE: assign encargado ─────────────────────────────────────────────
 async function handleAssign() {
   if (!props.user) return
-  const needsCarrera = props.isEstudiante
-  const ok = await aux.assignAux(props.user, needsCarrera)
+
+  if (
+    props.isOperadorBibliotecario &&
+    !bibliotecaOperador.value
+  ) {
+    ui.toast.error(
+      'Error',
+      'No tienes una biblioteca autorizada.'
+    )
+    return
+  }
+
+  const bibliotecaId = Number(aux.auxBibliotecaId.value)
+
+  const permitida = auxBibliotecaOptions.value.some(
+    b => b.id_biblioteca === bibliotecaId
+  )
+
+  if (!permitida) {
+    ui.toast.error('Acceso denegado', 'Biblioteca no autorizada.')
+    return
+  }
+
+  if (yaEstaAsignado.value) {
+    ui.toast.error('Asignación duplicada', mensajeDuplicado.value)
+    return
+  }
+// Para bibliotecarios no se exige seleccionar carrera manualmente.
+  const necesitaCarrera = props.isEstudiante && !props.isOperadorBibliotecario
+  const ok = await aux.assignAux(props.user, necesitaCarrera)
+
   if (ok) {
     emit('assigned')
     close()
@@ -182,7 +240,7 @@ const safeNombre = computed(() =>
             </div>
 
             <!-- Carrera (solo estudiantes) -->
-            <div v-if="isEstudiante">
+            <div v-if="isEstudiante && !isOperadorBibliotecario">
               <label class="block text-xs font-medium text-slate-600 mb-1.5">
                 Carrera del estudiante <span class="text-red-500">*</span>
               </label>
@@ -196,8 +254,40 @@ const safeNombre = computed(() =>
               </select>
             </div>
 
-            <!-- Biblioteca -->
-            <div>
+            <!-- Biblioteca del bibliotecario -->
+            <div v-if="isOperadorBibliotecario">
+              <label class="block text-xs font-medium text-slate-600 mb-1.5">
+                Biblioteca asignada
+              </label>
+
+              <div v-if="bibliotecaOperador"
+                class="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50">
+
+                <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-amber-600" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 9l9-6 9 6M5 10v10m14-10v10M3 21h18"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+
+                <div>
+                  <p class="text-sm font-semibold text-slate-800">
+                    {{ bibliotecaOperador.nombre }}
+                  </p>
+                  <p class="text-xs text-amber-600">
+                    Biblioteca autorizada
+                  </p>
+                </div>
+              </div>
+
+              <p v-else class="text-xs text-red-500">
+                No se encontró una biblioteca asignada al operador.
+              </p>
+            </div>
+
+            <!-- Selector para administradores -->
+            <div v-else>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">
                 Biblioteca <span class="text-red-500">*</span>
               </label>
@@ -245,7 +335,6 @@ const safeNombre = computed(() =>
                 </div>
               </template>
             </div>
-
             <!-- Resolución -->
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Imagen de resolución</label>
