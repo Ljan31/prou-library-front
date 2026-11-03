@@ -19,7 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Usuarios",
     to: "/usuarios",
     icon: "users",
-    roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+    roles: STAFF_ROLES,
   },
   {
     label: "Bibliotecas",
@@ -86,14 +86,14 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Reportes",
     to: "/reportes",
     icon: "chart-bar",
-    roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+    roles: STAFF_ROLES,
   },
   // Para Admin y Bibliotecario:
   {
     label: "Sanciones",
     to: "/sanciones",
     icon: "document-check",
-    roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+    roles: STAFF_ROLES,
   },
 
   // // Para Estudiante:

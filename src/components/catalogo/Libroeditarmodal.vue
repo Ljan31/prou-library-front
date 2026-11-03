@@ -36,7 +36,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const auth = useAuthStore()
 const ui = useUiStore()
-const { isAdmin, isBibliotecario } = usePermissions()
+const { isAdmin, isBibliotecario, isAuxiliar } = usePermissions()
 const { getUrl } = useMedia()
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -576,7 +576,7 @@ const categoriaActual = computed(() =>
            TAB 2 — EDICIONES
       ══════════════════════════════════════════════════════════════════ -->
       <div v-else-if="tabActiva === 'ediciones'" class="space-y-4">
-        <div v-if="isAdmin || isBibliotecario" class="flex justify-end mb-3">
+        <div v-if="isAdmin || (isBibliotecario || isAuxiliar)" class="flex justify-end mb-3">
           <button @click="abrirNuevaEdicion"
             class="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -610,7 +610,7 @@ const categoriaActual = computed(() =>
                     {{ ed.ejemplaresDisponibles ?? '?' }} / {{ ed.ejemplaresTotal ?? '?' }} disponibles
                   </p>
                 </div>
-                <div v-if="isAdmin || isBibliotecario" class="flex items-center gap-1 flex-shrink-0">
+                <div v-if="isAdmin || isBibliotecario || isAuxiliar" class="flex items-center gap-1 flex-shrink-0">
                   
                    <!-- Ver PDF -->
                   <button v-if="ed.pdfUrl" @click="abrirPdf(ed.pdfUrl)"
@@ -641,7 +641,7 @@ const categoriaActual = computed(() =>
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button v-if="isAdmin || isBibliotecario" @click="confirmarEliminarEdicion(ed)"
+                  <button v-if="isAdmin || isBibliotecario || isAuxiliar" @click="confirmarEliminarEdicion(ed)"
                     class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                     title="Eliminar">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -659,7 +659,7 @@ const categoriaActual = computed(() =>
            TAB 3 — EJEMPLARES
       ══════════════════════════════════════════════════════════════════ -->
       <div v-else-if="tabActiva === 'ejemplares'" class="space-y-4">
-        <div v-if="isAdmin || isBibliotecario" class="flex justify-end mb-3">
+        <div v-if="isAdmin || isBibliotecario || isAuxiliar" class="flex justify-end mb-3">
           <button @click="abrirNuevoEjemplar()"
             class="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -769,7 +769,7 @@ const categoriaActual = computed(() =>
 
               <!-- Editar -->
              
-              <div v-if="isAdmin || isBibliotecario" class="flex items-center gap-1.5 flex-shrink-0">
+              <div v-if="isAdmin || isBibliotecario || isAuxiliar" class="flex items-center gap-1.5 flex-shrink-0">
 
                 <!-- Historial -->
                 <button
@@ -804,7 +804,7 @@ const categoriaActual = computed(() =>
                       d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                 </button>
-                <button v-if="isAdmin || isBibliotecario" @click="confirmarEliminarEjemplar(ej)"
+                <button v-if="isAdmin || isBibliotecario || isAuxiliar" @click="confirmarEliminarEjemplar(ej)"
                   class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                   title="Eliminar">
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

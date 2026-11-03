@@ -14,7 +14,7 @@ const emit = defineEmits<{
 }>()
 
 const ui = useUiStore()
-const { isAdmin, isBibliotecario: isBIB} = usePermissions()
+const { isAdmin, isBibliotecario: isBIB, isAuxiliar} = usePermissions()
 const aux = useAuxAssign()
 const { roles, allCarreras, allBibliotecas, addUser, roleNameForId } = useUsers()
 const availableRoles = computed(() => {
@@ -22,7 +22,7 @@ const availableRoles = computed(() => {
     return roles.value
   }
 
-  if (isBIB.value) {
+  if (isBIB.value || isAuxiliar.value) {
     return roles.value.filter(
       role => role.name === 'ROLE_ESTUDIANTE'
     )
@@ -185,7 +185,7 @@ async function handleCreate() {
   const selectedRole = roleNameForId(form.roleId)
 
   if (
-    isBIB.value &&
+    (isBIB.value || isAuxiliar.value) &&
     selectedRole !== 'ROLE_ESTUDIANTE'
   ) {
     ui.toast.error(
@@ -195,7 +195,7 @@ async function handleCreate() {
     return
   }
 
-  if (!isAdmin.value && !isBIB.value) {
+  if (!isAdmin.value && !(isBIB.value || isAuxiliar.value)) {
     ui.toast.error(
       'Acceso denegado',
       'No tienes permiso para crear usuarios'

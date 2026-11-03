@@ -12,7 +12,7 @@ import UserCreateModal from '@/components/users/UserCreateModal.vue'
 import DeleteConfirmModal from '@/components/bibliotecas/DeleteConfirmModal.vue'
 
 const ui = useUiStore()
-const { isAdmin, isBibliotecario} = usePermissions()
+const { isAdmin, isBibliotecario, isAuxiliar} = usePermissions()
 
 const {
   users, roles, allCarreras, allBibliotecas,
@@ -136,7 +136,7 @@ async function confirmDelete() {
   userToDelete.value = null
 }
 const canCreateUser = computed(() =>
-  isAdmin.value || isBibliotecario.value
+  isAdmin.value || isBibliotecario.value || isAuxiliar
 )
 function isEstudiante(user: UserResponse): boolean {
   return user.roles?.some(

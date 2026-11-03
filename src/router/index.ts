@@ -79,7 +79,7 @@ const routes: RouteRecordRaw[] = [
         name: "usuarios",
         component: () => import("@/views/admin/UsuariosView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
           title: "Usuarios",
           breadcrumb: "Usuarios",
         },
@@ -99,7 +99,7 @@ const routes: RouteRecordRaw[] = [
         name: "reportes",
         component: () => import("@/views/admin/ReportesView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
           title: "Reportes",
           breadcrumb: "Reportes",
         },
@@ -130,7 +130,7 @@ const routes: RouteRecordRaw[] = [
             name: 'inventario',
             component: () => import('@/views/bibliotecario/InventarioView.vue'),
             meta: {
-              roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO'],
+              roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO', 'ROLE_AUXILIAR'],
               title: 'Inventario',
               breadcrumb: 'Inventario',
             },
@@ -140,7 +140,7 @@ const routes: RouteRecordRaw[] = [
             name: "inv-new",
             component: () => import("@/views/bibliotecario/NuevoLibroView.vue"),
             meta: {
-              roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+              roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", 'ROLE_AUXILIAR'],
               title: "Nuevo Libross",
               breadcrumb: "New Books",
             },
@@ -194,7 +194,7 @@ const routes: RouteRecordRaw[] = [
         name: "certificados",
         component: () => import("@/views/CertificadosView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_ESTUDIANTE"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_ESTUDIANTE", "ROLE_AUXILIAR"],
           title: "Certificados",
           breadcrumb: "Certificados",
         },
@@ -215,7 +215,7 @@ const routes: RouteRecordRaw[] = [
         name: "sanciones",
         component: () => import("@/views/sanciones/SancionesView.vue"),
         meta: {
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"],
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"],
           title: "Sanciones",
           breadcrumb: "Sanciones",
         },
@@ -263,7 +263,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/reservas/ReservasAdminView.vue"),
         meta: {
           requiresAuth: true,
-          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO"] as const,
+          roles: ["ROLE_ADMIN", "ROLE_BIBLIOTECARIO", "ROLE_AUXILIAR"] as const,
           title: "Gestión de Reservas",
           breadcrumb: "Reservas",
         },
@@ -273,7 +273,7 @@ const routes: RouteRecordRaw[] = [
         name: 'solicitudes-certificado',
         component: () => import('@/views/certificado/SolicitudesCertificadoView.vue'),
         meta: {
-          roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO'],
+          roles: ['ROLE_ADMIN', 'ROLE_BIBLIOTECARIO', "ROLE_AUXILIAR"],
           title: 'Solicitudes de Certificado',
         }
       },

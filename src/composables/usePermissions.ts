@@ -21,7 +21,8 @@ export function usePermissions() {
   const isAdmin = computed(() => auth.isAdmin);
   const isBibliotecario = computed(() => auth.isBibliotecario);
   const isEstudiante = computed(() => auth.isEstudiante);
+  const isAuxiliar = computed(() => auth.isAuxiliar);
   const isStaff = computed(() => auth.isAdmin || auth.isBibliotecario);
 
-  return { can, isAdmin, isBibliotecario, isEstudiante, isStaff };
+  return { can, isAdmin, isBibliotecario, isAuxiliar, isEstudiante, isStaff };
 }

@@ -2,8 +2,7 @@ import axios from 'axios';
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { authService, type LoginCredentials } from "@/services/auth.service";
-import type { AuthUser, RoleKey, MeResponseData } from "@/types";
-import type { Biblioteca } from "@/services/bibliotecas.service";
+import type { AuthUser, RoleKey, MeResponseData, Biblioteca } from "@/types";
 
 // ─── Role normalizer ──────────────────────────────────────────────────────
 function normalizeRoles(raw: unknown): RoleKey[] {
@@ -75,11 +74,13 @@ export const useAuthStore = defineStore("auth", () => {
   const isBibliotecario = computed(() =>
     roles.value.includes("ROLE_BIBLIOTECARIO"),
   );
+  const isAuxiliar = computed(() => roles.value.includes("ROLE_AUXILIAR"));
   const isEstudiante = computed(() => roles.value.includes("ROLE_ESTUDIANTE"));
   // const isAuxiliar = computed(() => roles.value.includes("ROLE_AUXILIAR"));
   const primaryRole = computed<RoleKey | null>(() => {
     if (isAdmin.value) return "ROLE_ADMIN";
     if (isBibliotecario.value) return "ROLE_BIBLIOTECARIO";
+    if (isAuxiliar.value) return "ROLE_AUXILIAR";
     if (isEstudiante.value) return "ROLE_ESTUDIANTE";
     return null;
   });
@@ -207,6 +208,7 @@ export const useAuthStore = defineStore("auth", () => {
     roles,
     isAdmin,
     isBibliotecario,
+    isAuxiliar,
     isEstudiante,
     primaryRole,
     displayName,

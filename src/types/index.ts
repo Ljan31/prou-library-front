@@ -14,8 +14,25 @@ export interface Persona {
 }
 
 export interface Biblioteca {
+  id: number
   id_biblioteca: number;
+  name: string;
+  idBiblioteca: number;
   nombre: string;
+  tipoBiblioteca: "CENTRAL" | "CARRERA" | "ESPECIALIZADA";
+  carrera?: {
+    id_carrera: number;
+    nombre_carrera: string;
+    codigo_carrera: string;
+  } | null;
+  direccion?: string;
+  telefono?: string;
+  email?: string;
+  logoUrl?: string;
+  horario_atencion?: string;
+  estado: "ACTIVA" | "INACTIVA";
+  ejemplaresTotal: number;
+  ejemplaresDisponibles: number;
 }
 
 export interface RoleObject {

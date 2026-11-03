@@ -35,7 +35,7 @@ import type {
 export function useInventario() {
   const ui = useUiStore()
   const auth = useAuthStore()
-  const { isAdmin, isBibliotecario } = usePermissions()
+  const { isAdmin, isBibliotecario, isAuxiliar } = usePermissions()
   const router = useRouter()
   const { getUrl } = useMedia()
 
@@ -115,22 +115,13 @@ export function useInventario() {
     cargando.value = true
     error.value = null
     try {
-      // if (isBibliotecario.value && !isAdmin.value && bibliotecaPropia.value) {
-      //   // Bibliotecario: solo ve su biblioteca
-      //   todos.value = await obtenerEjemplaresPorBiblioteca(bibliotecaPropia.value.id)
-      //   console.log('ejemplares', todos.value)
-      // } else {
-      //   // Admin: todos los ejemplares
-      //   todos.value = await obtenerEjemplares()
-      //   console.log('isadmin ejemplares', todos.value)
-      // }
       if (isAdmin.value) {
         if (filtroBiblioteca.value !== '') {
           todos.value = await obtenerEjemplaresPorBiblioteca(filtroBiblioteca.value as number)
         } else {
           todos.value = await obtenerEjemplares()
         }
-      } else if (isBibliotecario.value && bibliotecaPropia.value) {
+      } else if ((isBibliotecario.value || isAuxiliar.value) && bibliotecaPropia.value) {
         todos.value = await obtenerEjemplaresPorBiblioteca(bibliotecaPropia.value.id)
       } else {
         todos.value = []
@@ -538,6 +529,7 @@ export function useInventario() {
     auth,
     isAdmin,
     isBibliotecario,
+    isAuxiliar,
     router,
     getUrl,
 

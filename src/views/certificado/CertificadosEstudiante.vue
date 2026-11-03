@@ -406,7 +406,7 @@ function inputClass(field: string) {
   <div class="space-y-6">
 
     <!-- Subcomponentes -->
-    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false"/>
+    <CertificadoPdfViewer :show="pdfViewerShow" :certificado-id="pdfViewerCertId" @close="pdfViewerShow = false" tipo="certificado"/>
     <CertificadoPreview
       v-if="showPrint && printCert"
       :certificado="printCert"

@@ -63,6 +63,7 @@ export interface Ejemplar {
     idLibro?: number;
     titulo?: string;
     idioma?: string;
+    imagenPortada?: string;
   };
   biblioteca?: {
     idBiblioteca: number;
