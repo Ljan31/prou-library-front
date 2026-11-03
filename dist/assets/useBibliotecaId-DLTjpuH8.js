@@ -1,0 +1,1 @@
+import{o as e}from"./runtime-core.esm-bundler-CQGyeqYc.js";import{t}from"./auth.store-CawH1_BC.js";function n(){let n=t();return e(()=>{let e=n.user?.biblioteca;return(Array.isArray(e)?e[0]:e)?.id_biblioteca})}export{n as t};
