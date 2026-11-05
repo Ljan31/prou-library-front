@@ -8,12 +8,17 @@ import TicketPrestamo, { type Prestamo as PrestamoTicket, type UsuarioTicket } f
 import { estudianteService } from '@/services/estudiante.service'
 import api from '@/services/axios'
 import defaultBookImage from '../../assets/book-default.jpeg'
-
+import {
+  CONDICIONES, CONDICION_COLORS, TIPOS_PRESTAMO, TIPOS_DOCUMENTO,
+  type Condicion, type TipoDocumento, type ReglasConfig,
+  type EstadoSancion
+} from '@/constants/prestamo.constants'
 // ─── Breadcrumbs ────────────────────────────────────────────────────────────
 const ui = useUiStore()
 const auth = useAuthStore()
 const { getUrl } = useMedia()
 const bibliotecaUsuario = useBibliotecaId()
+
 onMounted(async () => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -23,41 +28,8 @@ onMounted(async () => {
   await loadBibliotecaConfig()
   fechaDevolucion.value = calcFechaDevolucion()
 })
-
-const CONDICIONES = ['EXCELENTE', 'BUENO', 'REGULAR', 'DAÑADO'] as const
-type Condicion = typeof CONDICIONES[number]
-
-const TIPOS_PRESTAMO = ['DOMICILIO', 'SALA'] as const
 type TipoPrestamo = typeof TIPOS_PRESTAMO[number]
 
-const TIPOS_DOCUMENTO = ['CI', 'MATRICULA'] as const
-type TipoDocumento = typeof TIPOS_DOCUMENTO[number]
-
-const condicionColors: Record<Condicion, string> = {
-  EXCELENTE: 'border-emerald-500 bg-emerald-50 text-emerald-700',
-  BUENO: 'border-blue-500 bg-blue-50 text-blue-700',
-  REGULAR: 'border-amber-500 bg-amber-50 text-amber-700',
-  DAÑADO: 'border-red-500 bg-red-50 text-red-700',
-}
-
-interface ReglasConfig {
-  idConfig: number
-  diasPrestamoMax: number | null
-  renovacionesMax: number | null
-  ejemplaresPermitidos: number | null
-  multaPorDia: number | null
-  multaMaxDias: number | null
-  diasSuspension: number | null
-}
-
-interface EstadoSancion {
-  usuarioId: number
-  tieneSuspensionVigente: boolean
-  tieneDeudaPendiente: boolean
-  tieneReposicionPendiente: boolean
-  totalSancionesActivas: number
-  fechaFinSuspensionMasProxima: string | null
-}
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface UsuarioResult {
   id_usuario: number
@@ -544,12 +516,26 @@ const loteCompleto = computed(() =>
 // ─── PASO 4: Confirmación ─────────────────────────────────────────────────────
 const fechaDevolucion = ref(calcFechaDevolucion())
 // const condicionEntrega = ref<Condicion>('BUENO')
-const tipoDocumento = ref<TipoDocumento>('CI')
+type DocSimple = Exclude<TipoDocumento, 'CI_Y_MATRICULA'>
+
+const documentosSeleccionados = ref<DocSimple[]>([])
 const observaciones = ref('')
 const confirmLoading = ref(false)
 const confirmError = ref<string | null>(null)
 const confirmSuccess = ref(false)
 // const prestamoCreado = ref<{ id_prestamo: number } | null>(null)
+
+function toggleDocumento(tipo: DocSimple) {
+  documentosSeleccionados.value = documentosSeleccionados.value.includes(tipo)
+    ? documentosSeleccionados.value.filter(t => t !== tipo)
+    : [...documentosSeleccionados.value, tipo]
+}
+
+const tipoDocumentoGarantia = computed<TipoDocumento | null>(() => {
+  const d = documentosSeleccionados.value
+  if (d.length === 2) return 'CI_Y_MATRICULA'
+  return d[0] ?? null
+})
 
 const canConfirm = computed(() =>
   !!selectedUser.value && loteCompleto.value && !!fechaDevolucion.value && !usuarioBloqueado.value &&
@@ -572,7 +558,7 @@ async function confirmarPrestamo() {
           bibliotecaId: biblId,
           tipoPrestamo: tipoPrestamo.value,
           condicionEntrega: item.condicionEntrega,
-          tipoDocumentoGarantia: tipoDocumento.value,
+          tipoDocumentoGarantia: tipoDocumentoGarantia.value,
           fechaDevolucionEstimada: tipoPrestamo.value === 'SALA' ? null : fechaDevolucion.value,
           observaciones: observaciones.value || 'Préstamo registrado',
         }).then(r => ({
@@ -584,7 +570,7 @@ async function confirmarPrestamo() {
     )
     prestamosParaTicket.value = resultados.map((p: any) => ({
       ...p,
-      tipoDocumentoGarantia: tipoDocumento.value,
+      tipoDocumentoGarantia: tipoDocumentoGarantia.value,
       fechaPrestamo: new Date().toISOString(),
       bibliotecarioPrestamo: {
         id_usuario: auth.user!.id,
@@ -627,7 +613,7 @@ function resetForm() {
   fechaDevolucion.value = calcFechaDevolucion()
   tipoPrestamo.value = 'DOMICILIO'
   // condicionEntrega.value = 'BUENO';
-  tipoDocumento.value = 'CI'
+  documentosSeleccionados.value = []
   observaciones.value = ''
   confirmSuccess.value = false
   confirmError.value = null
@@ -1560,7 +1546,7 @@ function abrirTicket() { showTicket.value = true }
                     <button v-for="c in CONDICIONES" :key="c" @click="item.condicionEntrega = c" :class="[
                       'py-2 rounded-lg text-xs font-semibold border-2 transition',
                       item.condicionEntrega === c
-                        ? condicionColors[c]
+                        ? CONDICION_COLORS[c]
                         : 'border-slate-200 text-slate-500 hover:border-slate-300'
                     ]">
                       {{ c }}
@@ -1590,15 +1576,20 @@ function abrirTicket() { showTicket.value = true }
 
             <!-- Documento de garantía -->
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-2">Documento de garantía <span
-                  class="text-red-400">*</span></label>
-              <div class="grid grid-cols-3 gap-2">
-                <button v-for="t in TIPOS_DOCUMENTO" :key="t" @click="tipoDocumento = t"
-                  :class="['py-2 rounded-xl border-2 text-xs font-semibold transition-all',
-                    tipoDocumento === t ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white']">
-                  {{ t === 'CI' ? '🪪 Carnet de Identidad' : '🎓 Matrícula' }}
+              <label class="block text-sm font-semibold text-slate-700 mb-2">
+                Documento de garantía <span class="text-red-400">*</span>
+              </label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button v-for="t in TIPOS_DOCUMENTO" :key="t.value" type="button" @click="toggleDocumento(t.value)"
+                  :aria-pressed="documentosSeleccionados.includes(t.value)"
+                  :class="['py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all text-left',
+                    documentosSeleccionados.includes(t.value)
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white']">
+                  {{ t.label }}
                 </button>
               </div>
+              <p class="text-xs text-slate-400 mt-2">Puedes seleccionar uno o ambos documentos.</p>
             </div>
 
             <!-- Fecha de devolución (solo DOMICILIO) -->
