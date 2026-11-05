@@ -1,3 +1,4 @@
+import type { Prestamo } from "@/components/bibliotecas/TicketPrestamo.vue";
 import api from "@/services/axios";
 import type {
   ReservaResponse,
@@ -77,7 +78,12 @@ export const reservasService = {
 
   convertir(
     payload: ConvertirReservaPayload,
-  ): Promise<{ data: ReservaResponse }> {
+  ): Promise<{ data: Prestamo }> {
     return api.post("/reservas/convertir", payload);
   },
+  // convertir(
+  //   payload: ConvertirReservaPayload,
+  // ): Promise<{ data: ReservaResponse }> {
+  //   return api.post("/reservas/convertir", payload);
+  // },
 };

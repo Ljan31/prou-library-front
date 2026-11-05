@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useMedia } from '@/composables/useMedia'
 import { useAuthStore } from '@/stores/auth.store'
-import TicketPrestamo, { type PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
+import { useBibliotecaId } from '@/composables/useBibliotecaId'
+import TicketPrestamo, { type Prestamo as PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
 import { estudianteService } from '@/services/estudiante.service'
 import api from '@/services/axios'
 import defaultBookImage from '../../assets/book-default.jpeg'
@@ -12,6 +13,7 @@ import defaultBookImage from '../../assets/book-default.jpeg'
 const ui = useUiStore()
 const auth = useAuthStore()
 const { getUrl } = useMedia()
+const bibliotecaUsuario = useBibliotecaId()
 onMounted(async () => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -67,10 +69,12 @@ interface UsuarioResult {
     matricula: string | null
     domicilio?: string
     celular?: string
+    email?: string
   }
 }
 
 interface LibroResult {
+  idLibro: number
   id_libro: number
   titulo: string
   isbn: string
@@ -84,16 +88,6 @@ interface Ejemplar {
   estadoEjemplar: string
   ubicacionFisica?: string
   edicion?: { titulo?: string; editorial?: string; edicion?: string; anoPublicacion?: number; isbn?: string; imagenPortada?: string }
-}
-interface Prestamo {
-  id_prestamo: number
-  estadoPrestamo: 'ACTIVO' | 'RENOVADO' | 'DEVUELTO'
-  vencido: boolean
-  usuario?: { persona?: { nombreCompleto?: string }; username?: string }
-  ejemplar?: { libro?: { titulo?: string }; codigo_ejemplar?: string }
-  fechaPrestamo?: string
-  fechaDevolucionEstimada?: string
-  fechaDevolucionReal?: string
 }
 // Item del lote de préstamo
 interface LoteItem {
@@ -116,7 +110,7 @@ const reglasDomicilio = ref<ReglasConfig | null>(null)
 const reglasSala = ref<ReglasConfig | null>(null)
 
 async function loadBibliotecaConfig() {
-  const biblId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca
+  const biblId = auth.isAdmin ? undefined : bibliotecaUsuario.value
   if (!biblId) return
   configLoading.value = true
   try {
@@ -218,7 +212,7 @@ async function selectUser(u: UsuarioResult) {
   sancionEstado.value = null
   // Verificar sanciones inmediatamente
   sancionLoading.value = true
-  const biblId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca
+  const biblId = auth.isAdmin ? undefined : bibliotecaUsuario.value
   try {
     console.log('user',u)
 
@@ -520,7 +514,6 @@ async function searchBooks(item: LoteItem, q: string) {
     const { data } = await api.get('/libros/search', { params })
     item.bookResults = data.data ?? []
     item.bookDropdownOpen = true
-    console.log('searchBooks', item.bookResults)
   } catch { item.bookResults = [] }
   finally { item.bookLoading = false }
 }
@@ -536,7 +529,6 @@ async function selectBook(item: LoteItem, b: LibroResult) {
       params: { bibliotecaId: biblId, estado: 'DISPONIBLE' }
     })
     item.ejemplares = data.data ?? []
-    console.log('item', item.ejemplares)
   } catch { item.ejemplares = [] }
   finally { item.ejemplaresLoading = false }
 }
@@ -569,7 +561,7 @@ async function confirmarPrestamo() {
   confirmError.value = null
   confirmSuccess.value = false
   prestamosParaTicket.value = []
-  const biblId = auth.user?.biblioteca?.id_biblioteca ?? auth.user?.biblioteca?.[0]?.id_biblioteca ?? 1
+  const biblId = auth.isAdmin ? undefined : bibliotecaUsuario.value
 
   try {
     const resultados = await Promise.all(
@@ -590,18 +582,19 @@ async function confirmarPrestamo() {
         }))
       )
     )
-
     prestamosParaTicket.value = resultados.map((p: any) => ({
       ...p,
       tipoDocumentoGarantia: tipoDocumento.value,
+      fechaPrestamo: new Date().toISOString(),
       bibliotecarioPrestamo: {
-        id_usuario: auth.user.id,
-        username: auth.user.username,
-        nombreCompleto: auth.user.persona.nombreCompleto,
-        ci: auth.user.persona.ci,
-        email: auth.user.persona.email ?? null
+        id_usuario: auth.user!.id,
+        username: auth.user!.username,
+        nombreCompleto: auth.user!.persona.nombreCompleto,
+        ci: auth.user!.persona.ci,
+        email: auth.user!.persona.email ?? null
       }
     }))
+
     usuarioParaTicket.value = selectedUser.value as UsuarioTicket
     confirmSuccess.value = true
     ui.toast.success('¡Préstamos registrados!', `Se registraron ${resultados.length} préstamo(s) correctamente`)
@@ -615,13 +608,13 @@ async function confirmarPrestamo() {
   }
 }
 
-const ejemplarYaSeleccionado = (idEjemplar, itemActual) => {
+const ejemplarYaSeleccionado = (idEjemplar: any, itemActual: any) => {
   return lote.value.some(item =>
     item.id !== itemActual.id &&
     item.ejemplar?.id_ejemplar === idEjemplar
   )
 }
-const seleccionarEjemplar = (item, ejemplar) => {
+const seleccionarEjemplar = (item: any, ejemplar: any) => {
   if (ejemplarYaSeleccionado(ejemplar.id_ejemplar, item)) {
     return
   }
@@ -648,41 +641,6 @@ const usuarioParaTicket = ref<UsuarioTicket | null>(null)
 // const prestamosCreados = ref<{ id_prestamo: number; ejemplar?: Ejemplar; libro?: LibroResult }[]>([])
 
 function abrirTicket() { showTicket.value = true }
-function cerrarTicket() { showTicket.value = false }
-
-function imprimirTicket() {
-  const el = document.getElementById('ticket-print-area')
-  if (!el) return
-  const w = window.open('', '_blank', 'width=380,height=700')
-  if (!w) return
-  w.document.write(`
-    <html><head><title>Ticket Préstamo SIGEB</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Courier New', monospace; font-size: 11px; width: 350px; padding: 12px; color: #000; }
-      .logo { text-align: center; font-weight: bold; font-size: 16px; letter-spacing: 2px; margin-bottom: 4px; }
-      .subtitle { text-align: center; font-size: 9px; color: #555; margin-bottom: 12px; border-bottom: 1px dashed #999; padding-bottom: 8px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      td { padding: 2px 4px; font-size: 10px; vertical-align: top; }
-      td:first-child { font-weight: bold; width: 38%; }
-      .divider { border-top: 1px dashed #999; margin: 8px 0; }
-      .section-title { font-weight: bold; font-size: 10px; margin: 6px 0 3px; text-transform: uppercase; }
-      .firma { margin-top: 28px; border-top: 1px solid #000; padding-top: 4px; text-align: center; font-size: 9px; }
-    </style></head><body>
-    ${el.innerHTML}
-    </body></html>
-  `)
-  w.document.close()
-  w.focus()
-  setTimeout(() => { w.print(); w.close() }, 300)
-}
-
-function formatDateTicket(s?: string) {
-  if (!s) return '—'
-  return new Date(s).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 </script>
 
@@ -1705,7 +1663,7 @@ const now = new Date().toLocaleDateString('es-BO', { day: '2-digit', month: '2-d
 
       <!-- ═══ TICKET MODAL (componente reutilizable) ═══ -->
       <TicketPrestamo v-model="showTicket" :prestamos="prestamosParaTicket" :usuario="usuarioParaTicket"
-        :tipo="tipoPrestamo" :fecha-devolucion="fechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" />
+        :tipo="tipoPrestamo" :fecha-devolucion="fechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" :logo="auth.user?.biblioteca?.[0]?.logoUrl"/>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- MODAL: CREAR USUARIO INLINE                                        -->

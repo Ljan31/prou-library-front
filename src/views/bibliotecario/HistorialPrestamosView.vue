@@ -2,11 +2,13 @@
 import { ref, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useMedia } from '@/composables/useMedia'
 import defaultBookImage from '../../assets/book-default.jpeg'
-import TicketPrestamo, { type PrestamoTicket, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
+import TicketPrestamo, {type Prestamo, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
 import api from '@/services/axios'
 const ui = useUiStore()
 const auth = useAuthStore()
+const { getUrl } = useMedia()
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -15,41 +17,6 @@ onMounted(() => {
   fetchPrestamos()
 })
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Prestamo {
-  id_prestamo: number
-  estadoPrestamo: 'ACTIVO' | 'RENOVADO' | 'DEVUELTO'
-  vencido: boolean
-  renovaciones?: number
-  condicionEntrega?: string
-  condicionDevolucion?: string
-  fechaPrestamo?: string
-  fechaDevolucionEstimada?: string
-  fechaDevolucionReal?: string
-  observaciones?: string
-  usuario?: {
-    id_usuario?: number
-    ci?: string | number
-    persona?: {
-      nombreCompleto?: string; domicilio?: string; celular?: string; matricula?: string
-      username?: string
-    }
-    ejemplar?: {
-      codigoEjemplar?: string
-      codigo_ejemplar?: string
-      estadoEjemplar?: string
-      ubicacionFisica?: string
-      libro?: { titulo?: string }
-      edicion?: {
-        titulo?: string; autor?: string; imagenPortada?: string
-        editorial?: string; edicion?: string; anoPublicacion?: number; isbn?: string
-      }
-    }
-    biblioteca?: { nombre?: string; id_biblioteca?: number }
-    bibliotecarioPrestamo?: { nombreCompleto?: string; ci?: string | number }
-    bibliotecarioDevolucion?: { nombreCompleto?: string; ci?: string | number }
-  }
-}
 // ─── Estado ───────────────────────────────────────────────────────────────────
 const prestamos = ref<Prestamo[]>([])
 const loading = ref(false)
@@ -110,7 +77,7 @@ const prestamosFiltrados = () => {
   if (!q) return prestamos.value
   return prestamos.value.filter(p => {
     const titulo = p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? ''
-    const nombre = p.usuario?.persona?.nombreCompleto ?? p.usuario?.username ?? ''
+    const nombre = p.usuario?.nombreCompleto ?? p.usuario?.username ?? ''
     const codigo = p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? ''
     const ci = p.usuario?.ci?.toString() ?? ''
     const id = String(p.id_prestamo)
@@ -125,34 +92,27 @@ function verDetalles(p: Prestamo) {
 
 // ─── Ticket (reimprimir desde historial) ──────────────────────────────────────
 const showTicket = ref(false)
-const ticketPrestamos = ref<PrestamoTicket[]>([])
+const ticketPrestamos = ref<Prestamo[]>([])
 const ticketUsuario = ref<UsuarioTicket | null>(null)
 const ticketTipo = ref<'DOMICILIO' | 'SALA'>('DOMICILIO')
 const ticketFechaDevolucion = ref('')
 
 function abrirTicket(p: Prestamo) {
-  // console.log('abrir', p)
-  ticketPrestamos.value = [{
-    id_prestamo: p.id_prestamo,
-    ejemplar: p.ejemplar as PrestamoTicket['ejemplar'],
-    libro: undefined,
-    bibliotecarioPrestamo: p.bibliotecarioPrestamo,
-    tipoDocumentoGarantia: p.tipoDocumentoGarantia,
-  }]
   const usr = p.usuario
   if (usr) {
     ticketUsuario.value = {
       id_usuario: usr.id_usuario ?? 0,
       persona: {
-        nombreCompleto: usr.persona?.nombreCompleto ?? usr.username ?? '',
+        nombreCompleto: usr.nombreCompleto ?? usr.username ?? '',
         ci: usr.ci ?? '',
-        matricula: usr.persona?.matricula ?? null,
-        domicilio: usr.persona?.domicilio,
-        celular: usr.persona?.celular,
+        matricula: usr.matricula ?? null,
+        domicilio: usr.domicilio,
+        celular: usr.celular,
       },
     }
   }
-  ticketTipo.value = p.tipoPrestamo ?? 'DOMICILIO'
+  ticketPrestamos.value = [p]
+  ticketTipo.value = p.tipoPrestamo === 'SALA' ? 'SALA' : 'DOMICILIO'
   ticketFechaDevolucion.value = p.fechaDevolucionEstimada ?? ''
   showTicket.value = true
 }
@@ -213,8 +173,15 @@ function estadoLabel(p: Prestamo) {
 
 function formatDate(s?: string) {
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })
-}
+
+  const [year, month, day] = s.substring(0, 10).split('-')
+
+  const meses = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
+  ]
+
+  return `${day} ${meses[Number(month) - 1]} ${year}`}
 
 function diasRestantes(fecha?: string): number | null {
   if (!fecha) return null
@@ -301,7 +268,7 @@ function condicionColor(c?: string) {
         <div class="flex flex-col sm:flex-row sm:items-start gap-4">
 
           <!-- Portada (si existe) -->
-          <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="p.ejemplar.edicion.imagenPortada" alt="portada"
+          <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="getUrl(p.ejemplar.edicion.imagenPortada)" alt="portada"
             class="w-12 h-16 object-cover rounded-lg border border-slate-100 flex-shrink-0 hidden sm:block" />
 
           <!-- Info principal -->
@@ -326,7 +293,7 @@ function condicionColor(c?: string) {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                <span class="capitalize">{{ p.usuario?.persona?.nombreCompleto ?? p.usuario?.username ?? '—' }}</span>
+                <span class="capitalize">{{ p.usuario?.nombreCompleto ?? p.usuario?.username ?? '—' }}</span>
               </span>
               <span class="flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -438,7 +405,7 @@ function condicionColor(c?: string) {
 
             <!-- Libro -->
             <div class="flex gap-4">
-              <img :src="prestamoSeleccionado.ejemplar?.edicion?.imagenPortada || defaultBookImage"
+              <img :src="getUrl(prestamoSeleccionado.ejemplar?.edicion?.imagenPortada) || defaultBookImage"
                 class="w-16 h-24 object-cover rounded-xl border" />
               <div class="flex-1 min-w-0">
                 <p class="font-semibold text-slate-800 leading-tight line-clamp-2">
@@ -473,7 +440,7 @@ function condicionColor(c?: string) {
               <div class="flex justify-between">
                 <span class="text-slate-500">Usuario</span>
                 <span class="font-medium text-right max-w-[60%] truncate">
-                  {{ prestamoSeleccionado.usuario?.persona?.nombreCompleto ??
+                  {{ prestamoSeleccionado.usuario?.nombreCompleto ??
                     prestamoSeleccionado.usuario?.username }}
                 </span>
                 <span class="text-slate-500">CI</span>
@@ -654,7 +621,7 @@ function condicionColor(c?: string) {
 
     <!-- ─── TICKET (componente reutilizable) ────────────────────────────────── -->
     <TicketPrestamo v-model="showTicket" :prestamos="ticketPrestamos" :usuario="ticketUsuario" :tipo="ticketTipo"
-      :fecha-devolucion="ticketFechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" />
+      :fecha-devolucion="ticketFechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" :logo="auth.user?.biblioteca?.[0]?.logoUrl"/>
 
   </div>
 </template>

@@ -31,8 +31,9 @@ export interface CrearReservaPayload {
 
 export interface ConvertirReservaPayload {
   reservaId: number;
-  condicionEntrega: "EXCELENTE" | "BUENO" | "REGULAR" | "MALO";
-  tipoDocumentoGarantia: "CI" | "CARNET_UNIVERSITARIO" | "PASAPORTE";
+  condicionEntrega: "EXCELENTE" | "BUENO" | "REGULAR" | "DAÑADO";
+  tipoPrestamo: "DOMICILIO" | "SALA";
+  tipoDocumentoGarantia: "CI" | "MATRICULA" | "CI_Y_MATRICULA";
   observaciones?: string;
   fechaDevolucionEstimada?: string;
 }
