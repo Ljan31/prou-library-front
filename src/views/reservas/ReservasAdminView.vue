@@ -7,14 +7,19 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { usePermissions } from '@/composables/usePermissions'
+import api from '@/services/axios'
 import { reservasService } from '@/services/reservas.service'
 import ConvertirReservaModal from '@/components/reservas/ConvertirReservaModal.vue'
 import type { ReservaResponse } from '@/types/reservas'
+import SPagination from '@/components/ui/SPagination.vue'
+import { usePagination, parsePageResponse, PAGINATION_MODE } from '@/composables/usePagination'
+import type { Biblioteca } from '@/services/bibliotecas.service'
 
 const router = useRouter()
 const ui = useUiStore()
 const auth = useAuthStore()
-
+const { isAdmin } = usePermissions()
 // ─── Estado ───────────────────────────────────────────────────────────────
 const todasLasReservas = ref<ReservaResponse[]>([])
 const cargando = ref(false)
@@ -22,8 +27,11 @@ const error = ref<string | null>(null)
 
 type EstadoFiltro = '' | 'ACTIVA' | 'NOTIFICADA' | 'ATENDIDA' | 'CANCELADA' | 'VENCIDA'
 const filtroEstado = ref<EstadoFiltro>('')
+const bibliotecas = ref<Biblioteca[]>([])
+const filtroBiblioteca = ref<number | ''>('')  // solo admin
 const busqueda = ref('')
-
+const busquedaDebounced = ref('')
+let busquedaDebounce: ReturnType<typeof setTimeout>
 const reservaAConvertir = ref<ReservaResponse | null>(null)
 
 // Biblioteca del bibliotecario
@@ -31,7 +39,12 @@ const misBibliotecaId = computed(() => {
   const ids = auth.user.biblioteca.map((b: any) => b.id_biblioteca) ?? []
   return ids[0] ?? null
 })
-
+async function fetchBibliotecas() {
+  try {
+    const { data } = await api.get('/bibliotecas')
+    bibliotecas.value = data.data ?? data ?? []
+  } catch { bibliotecas.value = [] }
+}
 // ─── Stats ────────────────────────────────────────────────────────────────
 const stats = computed(() => ({
   total: todasLasReservas.value.length,
@@ -44,43 +57,66 @@ const stats = computed(() => ({
 
 // ─── Filtrado local ───────────────────────────────────────────────────────
 const reservasFiltradas = computed(() => {
-  let r = todasLasReservas.value
+  const q = busquedaDebounced.value.trim().toLowerCase()
+  // let r = todasLasReservas.value
 
   if (filtroEstado.value) {
-    r = r.filter(x => x.estadoReserva === filtroEstado.value)
+    return todasLasReservas.value.filter(x => x.estadoReserva === filtroEstado.value)
   }
-
-  if (busqueda.value.trim()) {
-    const q = busqueda.value.toLowerCase()
-    r = r.filter(x =>
+ if (isServerPagination || !q) return todasLasReservas.value
+  // if (busqueda.value.trim()) {
+    // const q = busqueda.value.toLowerCase()
+    return todasLasReservas.value.filter(x =>
       x.usuarioNombreCompleto.toLowerCase().includes(q) ||
       x.libroTitulo.toLowerCase().includes(q) ||
       x.ejemplarCodigo?.toLowerCase().includes(q),
     )
-  }
+  // }
 
-  return r
+  // return r
 })
 
 onMounted(async () => {
   ui.setBreadcrumbs([{ label: 'Reservas' }])
   await cargar()
+  await fetchBibliotecas()
 })
 
 // Recargar cuando cambia el estado (para traer desde backend filtrado)
-watch(filtroEstado, cargar)
+// watch(filtroEstado, cargar)
+watch(busqueda, (v) => {
+  clearTimeout(busquedaDebounce)
+  busquedaDebounce = setTimeout(() => { busquedaDebounced.value = v }, 300)
+})
+const isServerPagination = PAGINATION_MODE === 'server'
+// ─── Paginación ───────────────────────────────────────────────────────────────
+const pagination = usePagination({ items: reservasFiltradas, pageSize: 10 })
+const { page, pageSize, total: totalItems, paginatedItems: reservasPagina } = pagination
+
+// Cualquier cambio de filtro vuelve a la página 1 (sync → evita un fetch doble)
+watch([filtroEstado, filtroBiblioteca, busquedaDebounced], () => { page.value = 1 }, { flush: 'sync' })
+
+// client: solo refetch al cambiar filtros del back · server: también página, tamaño y búsqueda
+const fetchTrigger = computed(() => isServerPagination
+  ? [filtroEstado.value, filtroBiblioteca.value, busquedaDebounced.value, page.value, pageSize.value]
+  : [filtroEstado.value, filtroBiblioteca.value])
+watch(fetchTrigger, cargar)
 
 async function cargar() {
   cargando.value = true
   error.value = null
   try {
-    const bibliotecaId = misBibliotecaId.value ?? 1
+    
+    const bibliotecaId = misBibliotecaId.value ??  filtroBiblioteca.value
     // Traer con el estado seleccionado (o sin filtro si es '')
+    
     const { data } = await reservasService.byBiblioteca(
       bibliotecaId,
       // filtroEstado.value || undefined,
     )
+    const parsed = parsePageResponse(data)
     todasLasReservas.value = data
+    if (isServerPagination) pagination.setTotal(parsed.total)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Error al cargar reservas'
     todasLasReservas.value = []
@@ -164,6 +200,15 @@ function inicialUsuario(nombre: string) {
         <h1 class="text-2xl font-semibold text-slate-900">Gestión de Reservas</h1>
         <p class="text-sm text-slate-500 mt-0.5">Cola de espera y retiros pendientes</p>
       </div>
+    </div>
+     <!-- ── Selector biblioteca (solo admin) ── -->
+    <div v-if="isAdmin" class="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
+      <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 flex-shrink-0">Admin</span>
+      <select v-model="filtroBiblioteca"
+        class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all">
+        <option :value="null">Seleccionar biblioteca...</option>
+        <option v-for="b in bibliotecas" :key="b.id_biblioteca" :value="b.id_biblioteca">{{ b.nombre }}</option>
+      </select>
     </div>
     <!-- ─── Stats ──────────────────────────────────────────────────────── -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -280,7 +325,7 @@ function inicialUsuario(nombre: string) {
         </div>
 
         <div class="divide-y divide-slate-50">
-          <div v-for="r in reservasFiltradas" :key="r.idReserva"
+          <div v-for="r in reservasPagina" :key="r.idReserva"
             class="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_1fr_1fr_auto] sm:items-center gap-3 sm:gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors">
             <!-- Usuario -->
             <div class="flex items-center gap-3 min-w-0">
@@ -353,7 +398,15 @@ function inicialUsuario(nombre: string) {
         </div>
       </template>
     </div>
-
+     <!-- Paginación -->
+    <div class="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+      <SPagination v-model:page="page" v-model:page-size="pageSize" :total="totalItems" :loading="cargando"
+        item-label="certificado(s)">
+        <template #summary-extra>
+          <span v-if="busquedaDebounced" class="text-slate-400">· filtrado por "{{ busquedaDebounced }}"</span>
+        </template>
+      </SPagination>
+    </div>
     <!-- Modal registrar retiro -->
     <ConvertirReservaModal v-if="reservaAConvertir" :reserva="reservaAConvertir" @close="reservaAConvertir = null"
       @convertida="onConvertida" />

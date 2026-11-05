@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMedia } from '@/composables/useMedia'
+import { usePagination, parsePageResponse, PAGINATION_MODE } from '@/composables/usePagination'
+import SPagination from '@/components/ui/SPagination.vue'
 import defaultBookImage from '../../assets/book-default.jpeg'
-import TicketPrestamo, {type Prestamo, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
+import TicketPrestamo, { type Prestamo, type UsuarioTicket } from '@/components/bibliotecas/TicketPrestamo.vue'
 import api from '@/services/axios'
+
 const ui = useUiStore()
 const auth = useAuthStore()
 const { getUrl } = useMedia()
+
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Préstamos', to: '/prestamos' },
@@ -17,73 +21,123 @@ onMounted(() => {
   fetchPrestamos()
 })
 
-// ─── Estado ───────────────────────────────────────────────────────────────────
+// ─── Filtros ──────────────────────────────────────────────────────────────────
+type FiltroEstado = 'TODOS' | 'ACTIVO' | 'RENOVADO' | 'DEVUELTO' | 'VENCIDO'
+const FILTROS: { v: FiltroEstado; l: string }[] = [
+  { v: 'TODOS', l: 'Todos' },
+  { v: 'ACTIVO', l: 'Activo' },
+  { v: 'RENOVADO', l: 'Renovado' },
+  { v: 'DEVUELTO', l: 'Devuelto' },
+  { v: 'VENCIDO', l: 'Vencido' },
+]
+
+const filtroEstado = ref<FiltroEstado>('TODOS')
+const busqueda = ref('')
+const busquedaDebounced = ref('')
+let busquedaTimer: ReturnType<typeof setTimeout>
+
+watch(busqueda, (v) => {
+  clearTimeout(busquedaTimer)
+  busquedaTimer = setTimeout(() => { busquedaDebounced.value = v }, 300)
+})
+
+// ─── Datos ────────────────────────────────────────────────────────────────────
 const prestamos = ref<Prestamo[]>([])
 const loading = ref(false)
-const filtroEstado = ref<'TODOS' | 'ACTIVO' | 'RENOVADO' | 'DEVUELTO' | 'VENCIDO'>('TODOS')
-const searchQuery = ref('')
+const error = ref<string | null>(null)
 
-// Modal de detalles
-const modalDetalleOpen = ref(false)
-const prestamoSeleccionado = ref<Prestamo | null>(null)
+const isServerPagination = PAGINATION_MODE === 'server'
 
-async function fetchPrestamos() {
-  loading.value = true
-  try {
-    const roles = auth.user?.roles ?? []
-    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
-    let url = ''
-
-    const esAdmin = roles.includes('ROLE_ADMIN')
-    const esBiblio = roles.includes('ROLE_BIBLIOTECARIO') || roles.includes('ROLE_AUXILIAR')
-
-    if (esAdmin) {
-      // 🔹 ADMIN
-      url = '/prestamos'
-
-      if (filtroEstado.value !== 'TODOS' && filtroEstado.value !== 'VENCIDO') {
-        url = `/prestamos/estado/${filtroEstado.value}`
-      }
-
-    } else if (esBiblio) {
-      // 🔹 BIBLIOTECARIO / AUXILIAR
-      if (!bibliotecaId) {
-        prestamos.value = []
-        return
-      }
-
-      url = `/prestamos/biblioteca/${bibliotecaId}`
-
-      if (filtroEstado.value !== 'TODOS') {
-        url += `?estado=${filtroEstado.value}`
-      }
-    }
-    const { data } = await api.get(url)
-    let list: Prestamo[] = data.data ?? data ?? []
-    if (filtroEstado.value === 'VENCIDO') list = list.filter(p => p.vencido)
-    prestamos.value = list
-  } catch {
-    prestamos.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-watch(filtroEstado, fetchPrestamos)
-
-// Filtro local por búsqueda
-const prestamosFiltrados = () => {
-  const q = searchQuery.value.toLowerCase()
-  if (!q) return prestamos.value
+// Filtro local por búsqueda. En modo server lo resuelve el back (param `q`).
+const prestamosFiltrados = computed(() => {
+  const q = busquedaDebounced.value.trim().toLowerCase()
+  if (isServerPagination || !q) return prestamos.value
   return prestamos.value.filter(p => {
     const titulo = p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? ''
     const nombre = p.usuario?.nombreCompleto ?? p.usuario?.username ?? ''
     const codigo = p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? ''
     const ci = p.usuario?.ci?.toString() ?? ''
     const id = String(p.id_prestamo)
-    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q) || ci.includes(q) || id.includes(q)
+    return titulo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q) ||
+      codigo.toLowerCase().includes(q) || ci.includes(q) || id.includes(q)
   })
+})
+
+// ─── Paginación ───────────────────────────────────────────────────────────────
+const pagination = usePagination({ items: prestamosFiltrados, pageSize: 10 })
+const { page, pageSize, total: totalItems, paginatedItems: prestamosPagina } = pagination
+
+// Cualquier cambio de filtro vuelve a la página 1 (sync → evita un fetch doble)
+watch([filtroEstado, busquedaDebounced], () => { page.value = 1 }, { flush: 'sync' })
+
+// client: solo refetch al cambiar el estado · server: también búsqueda, página y tamaño
+const fetchTrigger = computed(() => isServerPagination
+  ? [filtroEstado.value, busquedaDebounced.value, page.value, pageSize.value]
+  : [filtroEstado.value])
+watch(fetchTrigger, fetchPrestamos)
+
+async function fetchPrestamos() {
+  loading.value = true
+  error.value = null
+  try {
+    const roles = auth.user?.roles ?? []
+    const bibliotecaId = auth.user?.biblioteca?.[0]?.id_biblioteca
+    const esAdmin = roles.includes('ROLE_ADMIN')
+    const esBiblio = roles.includes('ROLE_BIBLIOTECARIO') || roles.includes('ROLE_AUXILIAR')
+
+    const estado = filtroEstado.value
+    // VENCIDO no es un estado del back: se deriva de `p.vencido`
+    const filtraPorEstado = estado !== 'TODOS' && estado !== 'VENCIDO'
+    const params: Record<string, unknown> = {}
+    let url = ''
+
+    if (esAdmin) {
+      url = filtraPorEstado ? `/prestamos/estado/${estado}` : '/prestamos'
+    } else if (esBiblio && bibliotecaId) {
+      url = `/prestamos/biblioteca/${bibliotecaId}`
+      if (filtraPorEstado) params.estado = estado
+    } else {
+      prestamos.value = []
+      if (isServerPagination) pagination.setTotal(0)
+      return
+    }
+
+    // Cuando el back soporte paginación: page/size + búsqueda del lado del servidor
+    if (isServerPagination) {
+      Object.assign(params, pagination.apiParams.value)
+      if (busquedaDebounced.value.trim()) params.q = busquedaDebounced.value.trim()
+      if (estado === 'VENCIDO') params.vencido = true // TODO: confirmar nombre del param con el back
+    }
+
+    const { data } = await api.get(url, { params })
+    const parsed = parsePageResponse<Prestamo>(data)
+
+    // En modo client el filtro "vencido" se aplica aquí; en server lo hace el back
+    prestamos.value = !isServerPagination && estado === 'VENCIDO'
+      ? parsed.items.filter(p => p.vencido)
+      : parsed.items
+    if (isServerPagination) pagination.setTotal(parsed.total)
+  } catch (e: unknown) {
+    error.value = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      ?? 'No se pudo cargar el historial de préstamos'
+    prestamos.value = []
+  } finally {
+    loading.value = false
+  }
 }
+
+// ─── Stats rápidas ────────────────────────────────────────────────────────────
+// ⚠️ En modo server reflejan solo la página cargada; deberían venir del back.
+const stats = computed(() => ({
+  total: prestamos.value.length,
+  activos: prestamos.value.filter(p => p.estadoPrestamo !== 'DEVUELTO' && !p.vencido).length,
+  vencidos: prestamos.value.filter(p => p.vencido && p.estadoPrestamo !== 'DEVUELTO').length,
+  devueltos: prestamos.value.filter(p => p.estadoPrestamo === 'DEVUELTO').length,
+}))
+
+// ─── Modal de detalles ────────────────────────────────────────────────────────
+const modalDetalleOpen = ref(false)
+const prestamoSeleccionado = ref<Prestamo | null>(null)
 
 function verDetalles(p: Prestamo) {
   prestamoSeleccionado.value = p
@@ -117,7 +171,7 @@ function abrirTicket(p: Prestamo) {
   showTicket.value = true
 }
 
-// ─── Renovar ─────────────────────────────────────────────────────────────────
+// ─── Renovar ──────────────────────────────────────────────────────────────────
 const renovarModal = ref(false)
 const prestamoARenovar = ref<Prestamo | null>(null)
 const motivoRenovacion = ref('')
@@ -154,14 +208,11 @@ async function confirmarRenovacion() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const FILTROS = ['TODOS', 'ACTIVO', 'RENOVADO', 'DEVUELTO', 'VENCIDO'] as const
-
 function estadoClasses(p: Prestamo) {
   if (p.vencido && p.estadoPrestamo !== 'DEVUELTO') return 'bg-red-100 text-red-700'
   switch (p.estadoPrestamo) {
     case 'ACTIVO': return 'bg-emerald-100 text-emerald-700'
     case 'RENOVADO': return 'bg-blue-100 text-blue-700'
-    case 'DEVUELTO': return 'bg-slate-100 text-slate-600'
     default: return 'bg-slate-100 text-slate-600'
   }
 }
@@ -173,20 +224,20 @@ function estadoLabel(p: Prestamo) {
 
 function formatDate(s?: string) {
   if (!s) return '—'
-
   const [year, month, day] = s.substring(0, 10).split('-')
-
-  const meses = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
-  ]
-
-  return `${day} ${meses[Number(month) - 1]} ${year}`}
+  const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  return `${day} ${meses[Number(month) - 1]} ${year}`
+}
 
 function diasRestantes(fecha?: string): number | null {
   if (!fecha) return null
-  const diff = new Date(fecha).getTime() - Date.now()
-  return Math.ceil(diff / 86400000)
+  return Math.ceil((new Date(fecha).getTime() - Date.now()) / 86400000)
+}
+
+function venceClasses(p: Prestamo) {
+  if (p.vencido) return 'text-red-500 font-medium'
+  if ((diasRestantes(p.fechaDevolucionEstimada) ?? 99) <= 3) return 'text-amber-500 font-medium'
+  return 'text-slate-500'
 }
 
 function condicionColor(c?: string) {
@@ -203,176 +254,235 @@ function condicionColor(c?: string) {
 <template>
   <div class="space-y-5">
 
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <!-- <h1 class="text-2xl font-bold text-slate-900">Historial de Préstamos</h1> -->
-        <p class="text-sm text-slate-500"></p>
+    <!-- Stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-400 mb-1">Total</p>
+        <p class="text-2xl font-bold text-slate-800">{{ stats.total }}</p>
       </div>
+      <div class="bg-white rounded-xl border border-emerald-200 p-4">
+        <p class="text-xs text-slate-400 mb-1">En curso</p>
+        <p class="text-2xl font-bold text-emerald-600">{{ stats.activos }}</p>
+      </div>
+      <div class="bg-white rounded-xl border border-red-200 p-4">
+        <p class="text-xs text-slate-400 mb-1">Vencidos</p>
+        <p class="text-2xl font-bold text-red-500">{{ stats.vencidos }}</p>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-400 mb-1">Devueltos</p>
+        <p class="text-2xl font-bold text-slate-600">{{ stats.devueltos }}</p>
+      </div>
+    </div>
 
-      <!-- Buscador -->
-      <div class="relative w-full sm:w-80">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor"
-          viewBox="0 0 24 24">
+    <!-- Filtros -->
+    <div class="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-3">
+
+      <!-- Búsqueda -->
+      <div class="relative flex-1">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none"
+          stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <input v-model="searchQuery" type="text" placeholder="Buscar por libro, usuario o código..."
-          class="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+        <input v-model="busqueda" type="text" placeholder="Buscar por libro, usuario, CI o código..."
+          class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all" />
       </div>
-    </div>
 
-    <!-- Filtros de estado -->
-    <div class="flex flex-wrap gap-2">
-      <button v-for="f in FILTROS" :key="f" @click="filtroEstado = f" :class="[
-        'px-5 py-2 rounded-2xl text-sm font-medium transition-all border',
-        filtroEstado === f
-          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-      ]">
-        {{ f === 'TODOS' ? 'Todos' : f }}
+      <!-- Filtro estado -->
+      <div class="flex flex-wrap gap-1">
+        <button v-for="f in FILTROS" :key="f.v" @click="filtroEstado = f.v" :class="['px-3 h-9 rounded-lg text-xs font-medium transition-all border',
+          filtroEstado === f.v
+            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600']">
+          {{ f.l }}
+        </button>
+      </div>
+
+      <!-- Refresh -->
+      <button @click="fetchPrestamos"
+        class="h-9 px-3 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-all"
+        title="Actualizar" aria-label="Actualizar">
+        <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
       </button>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="space-y-3">
-      <div v-for="i in 4" :key="i" class="bg-white rounded-2xl border border-slate-200 p-4">
-        <div class="flex gap-4 animate-pulse">
-          <div class="w-12 h-16 bg-slate-100 rounded-lg flex-shrink-0" />
-          <div class="flex-1 space-y-2 pt-1">
-            <div class="h-4 bg-slate-100 rounded w-1/3" />
-            <div class="h-3.5 bg-slate-100 rounded w-3/4" />
-            <div class="h-3 bg-slate-100 rounded w-1/2" />
+    <!-- Tabla / Lista -->
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+
+      <!-- Loading skeletons -->
+      <div v-if="loading" class="p-4 space-y-3">
+        <div v-for="i in 5" :key="i" class="flex items-center gap-4">
+          <div class="w-8 h-11 rounded bg-slate-100 animate-pulse shrink-0" />
+          <div class="flex-1 space-y-1.5">
+            <div class="h-3 bg-slate-100 rounded animate-pulse w-2/5" />
+            <div class="h-2.5 bg-slate-100 rounded animate-pulse w-1/3" />
           </div>
+          <div class="h-6 w-16 bg-slate-100 rounded-full animate-pulse" />
+          <div class="h-6 w-12 bg-slate-100 rounded animate-pulse" />
         </div>
       </div>
-    </div>
 
-    <!-- Sin datos -->
-    <div v-else-if="!prestamosFiltrados().length"
-      class="bg-white rounded-2xl border border-slate-200 py-16 text-center">
-      <div class="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-        <svg class="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <!-- Error -->
+      <div v-else-if="error" class="flex flex-col items-center justify-center py-16 gap-3">
+        <svg class="w-10 h-10 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <p class="text-sm text-slate-500">{{ error }}</p>
+        <button @click="fetchPrestamos" class="text-sm text-indigo-600 hover:underline">Reintentar</button>
+      </div>
+
+      <!-- Empty -->
+      <div v-else-if="!prestamosFiltrados.length" class="flex flex-col items-center justify-center py-16 gap-3">
+        <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
         </svg>
+        <p class="text-sm font-medium text-slate-500">No se encontraron préstamos</p>
+        <p class="text-xs text-slate-400">Prueba con otros filtros</p>
       </div>
-      <p class="font-medium text-slate-500">No hay préstamos</p>
-      <p class="text-sm text-slate-400 mt-1">No se encontraron registros con este filtro</p>
-    </div>
 
-    <!-- Lista de préstamos -->
-    <div v-else class="space-y-3">
-      <div v-for="p in prestamosFiltrados()" :key="p.id_prestamo"
-        class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all p-4">
-        <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+      <!-- Tabla de datos -->
+      <div v-else class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/60">
+              <th class="text-left text-xs font-medium text-slate-500 px-4 py-3">Libro</th>
+              <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 hidden md:table-cell">Usuario</th>
+              <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 hidden lg:table-cell">Prestado</th>
+              <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 hidden sm:table-cell">Vence</th>
+              <th class="text-left text-xs font-medium text-slate-500 px-4 py-3 hidden xl:table-cell">Condición</th>
+              <th class="text-left text-xs font-medium text-slate-500 px-4 py-3">Estado</th>
+              <th class="text-right text-xs font-medium text-slate-500 px-4 py-3">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-50">
+            <tr v-for="p in prestamosPagina" :key="p.id_prestamo" class="hover:bg-slate-50/60 transition-colors">
 
-          <!-- Portada (si existe) -->
-          <img v-if="p.ejemplar?.edicion?.imagenPortada" :src="getUrl(p.ejemplar.edicion.imagenPortada)" alt="portada"
-            class="w-12 h-16 object-cover rounded-lg border border-slate-100 flex-shrink-0 hidden sm:block" />
+              <!-- Libro -->
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <img :src="getUrl(p.ejemplar?.edicion?.imagenPortada) || defaultBookImage" alt=""
+                    class="w-8 h-11 object-cover rounded border border-slate-100 shrink-0" />
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-800 text-sm truncate max-w-[16rem]">
+                      {{ p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? 'Libro desconocido' }}
+                    </p>
+                    <p class="text-xs text-slate-400">
+                      <span class="font-mono text-indigo-600">{{ p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? '—' }}</span>
+                      · #{{ p.id_prestamo }}
+                    </p>
+                  </div>
+                </div>
+              </td>
 
-          <!-- Info principal -->
-          <div class="flex-1 min-w-0 space-y-1.5">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span :class="['text-xs font-bold px-2.5 py-0.5 rounded-full', estadoClasses(p)]">
-                {{ estadoLabel(p) }}
-              </span>
-              <span class="text-xs text-slate-400">#{{ p.id_prestamo }}</span>
-              <span v-if="p.renovaciones && p.renovaciones > 0" class="text-xs text-blue-500 font-medium">
-                {{ p.renovaciones }}x renovado
-              </span>
-            </div>
+              <!-- Usuario -->
+              <td class="px-4 py-3 hidden md:table-cell">
+                <div class="flex items-center gap-2.5">
+                  <div
+                    class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs shrink-0">
+                    {{ ((p.usuario?.nombreCompleto ?? p.usuario?.username)?.[0] ?? '?').toUpperCase() }}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-800 text-sm truncate capitalize">
+                      {{ p.usuario?.nombreCompleto ?? p.usuario?.username ?? '—' }}
+                    </p>
+                    <p class="text-xs text-slate-400">CI: {{ p.usuario?.ci ?? '—' }}</p>
+                  </div>
+                </div>
+              </td>
 
-            <p class="font-semibold text-slate-800 truncate">
-              {{ p.ejemplar?.edicion?.titulo ?? p.ejemplar?.libro?.titulo ?? 'Libro desconocido' }}
-            </p>
+              <!-- Prestado -->
+              <td class="px-4 py-3 text-xs text-slate-500 hidden lg:table-cell">
+                {{ formatDate(p.fechaPrestamo) }}
+              </td>
 
-            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-              <span class="flex items-center gap-1">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span class="capitalize">{{ p.usuario?.nombreCompleto ?? p.usuario?.username ?? '—' }}</span>
-              </span>
-              <span class="flex items-center gap-1">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                </svg>
-                {{ p.ejemplar?.codigoEjemplar ?? p.ejemplar?.codigo_ejemplar ?? '—' }}
-              </span>
-              <span class="flex items-center gap-1">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Prestado: {{ formatDate(p.fechaPrestamo) }}
-              </span>
-              <!-- Fecha vence con alerta -->
-              <span v-if="p.fechaDevolucionEstimada && p.estadoPrestamo !== 'DEVUELTO'"
-                :class="['flex items-center gap-1 font-medium', p.vencido ? 'text-red-500' : (diasRestantes(p.fechaDevolucionEstimada) ?? 99) <= 3 ? 'text-amber-500' : 'text-slate-500']">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Vence: {{ formatDate(p.fechaDevolucionEstimada) }}
-                <span v-if="!p.vencido && (diasRestantes(p.fechaDevolucionEstimada) ?? 99) <= 3">
-                  ({{ diasRestantes(p.fechaDevolucionEstimada) }}d)
+              <!-- Vence / Devuelto -->
+              <td class="px-4 py-3 hidden sm:table-cell">
+                <span v-if="p.estadoPrestamo === 'DEVUELTO'" class="text-xs text-slate-400">
+                  Devuelto {{ formatDate(p.fechaDevolucionReal) }}
                 </span>
-              </span>
+                <span v-else class="text-xs" :class="venceClasses(p)">
+                  {{ formatDate(p.fechaDevolucionEstimada) }}
+                  <span v-if="!p.vencido && (diasRestantes(p.fechaDevolucionEstimada) ?? 99) <= 3">
+                    ({{ diasRestantes(p.fechaDevolucionEstimada) }}d)
+                  </span>
+                </span>
+              </td>
+
               <!-- Condición -->
-              <span v-if="p.condicionEntrega" class="flex items-center gap-1">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
-                <span :class="condicionColor(p.condicionEntrega)">{{ p.condicionEntrega }}</span>
-                <span v-if="p.condicionDevolucion"> → <span :class="condicionColor(p.condicionDevolucion)">{{
-                  p.condicionDevolucion }}</span></span>
-              </span>
-            </div>
-          </div>
+              <td class="px-4 py-3 text-xs hidden xl:table-cell">
+                <template v-if="p.condicionEntrega">
+                  <span :class="condicionColor(p.condicionEntrega)">{{ p.condicionEntrega }}</span>
+                  <span v-if="p.condicionDevolucion" class="text-slate-400"> → <span
+                      :class="condicionColor(p.condicionDevolucion)">{{ p.condicionDevolucion }}</span></span>
+                </template>
+                <span v-else class="text-slate-300">—</span>
+              </td>
 
-          <!-- Acciones -->
-          <div class="flex gap-2 flex-shrink-0 sm:flex-col sm:items-end">
-            <!-- Renovar (solo activos no vencidos) -->
-            <button @click="verDetalles(p)"
-              class="px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-colors flex items-center gap-2">
-              Ver detalles
-            </button>
+              <!-- Estado -->
+              <td class="px-4 py-3">
+                <span :class="['text-xs font-bold px-2.5 py-0.5 rounded-full', estadoClasses(p)]">
+                  {{ estadoLabel(p) }}
+                </span>
+                <p v-if="p.renovaciones && p.renovaciones > 0" class="text-xs text-blue-500 mt-1">
+                  {{ p.renovaciones }}x renovado
+                </p>
+              </td>
 
-            <!-- Reimprimir ticket (solo préstamos no de sala con fecha) -->
-            <button v-if="p.estadoPrestamo !== 'DEVUELTO' || p.tipoPrestamo === 'DOMICILIO'" @click="abrirTicket(p)"
-              class="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Ticket
-            </button>
+              <!-- Acciones -->
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-1.5">
+                  <!-- Ver detalles -->
+                  <button @click="verDetalles(p)"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                    title="Ver detalles" aria-label="Ver detalles">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
 
-            <button v-if="p.estadoPrestamo !== 'DEVUELTO' && !p.vencido" @click="abrirRenovar(p)"
-              class="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Renovar
-            </button>
-            <!-- Devuelto -->
-            <span v-if="p.estadoPrestamo === 'DEVUELTO'" class="text-xs text-slate-400 whitespace-nowrap">
-              Devuelto: {{ formatDate(p.fechaDevolucionReal) }}
-            </span>
-            <!-- Vencido sin devolver -->
-            <span v-if="p.vencido && p.estadoPrestamo !== 'DEVUELTO'"
-              class="text-xs font-semibold text-red-500 flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01" />
-              </svg>
-              Vencido
-            </span>
-          </div>
+                  <!-- Ticket -->
+                  <button v-if="p.estadoPrestamo !== 'DEVUELTO' || p.tipoPrestamo === 'DOMICILIO'"
+                    @click="abrirTicket(p)"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    title="Ver ticket" aria-label="Ver ticket">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                  </button>
+
+                  <!-- Renovar -->
+                  <button v-if="p.estadoPrestamo !== 'DEVUELTO' && !p.vencido" @click="abrirRenovar(p)"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title="Renovar préstamo" aria-label="Renovar préstamo">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Paginación -->
+        <div class="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+          <SPagination v-model:page="page" v-model:page-size="pageSize" :total="totalItems" :loading="loading"
+            item-label="préstamo(s)">
+            <template #summary-extra>
+              <span v-if="busquedaDebounced" class="text-slate-400">· filtrado por "{{ busquedaDebounced }}"</span>
+            </template>
+          </SPagination>
         </div>
       </div>
     </div>
@@ -388,16 +498,11 @@ function condicionColor(c?: string) {
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                📄
-              </div>
-              <span class="font-semibold text-slate-800">
-                Detalle #{{ prestamoSeleccionado.id_prestamo }}
-              </span>
+              <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">📄</div>
+              <span class="font-semibold text-slate-800">Detalle #{{ prestamoSeleccionado.id_prestamo }}</span>
             </div>
-            <button @click="modalDetalleOpen = false" class="text-slate-400 hover:text-slate-600 transition-colors">
-              ✕
-            </button>
+            <button @click="modalDetalleOpen = false" class="text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label="Cerrar">✕</button>
           </div>
 
           <!-- Contenido -->
@@ -406,7 +511,7 @@ function condicionColor(c?: string) {
             <!-- Libro -->
             <div class="flex gap-4">
               <img :src="getUrl(prestamoSeleccionado.ejemplar?.edicion?.imagenPortada) || defaultBookImage"
-                class="w-16 h-24 object-cover rounded-xl border" />
+                class="w-16 h-24 object-cover rounded-xl border" alt="" />
               <div class="flex-1 min-w-0">
                 <p class="font-semibold text-slate-800 leading-tight line-clamp-2">
                   {{ prestamoSeleccionado.ejemplar?.edicion?.titulo ?? prestamoSeleccionado.ejemplar?.libro?.titulo }}
@@ -436,12 +541,10 @@ function condicionColor(c?: string) {
 
             <!-- Info rápida -->
             <div class="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
-
               <div class="flex justify-between">
                 <span class="text-slate-500">Usuario</span>
                 <span class="font-medium text-right max-w-[60%] truncate">
-                  {{ prestamoSeleccionado.usuario?.nombreCompleto ??
-                    prestamoSeleccionado.usuario?.username }}
+                  {{ prestamoSeleccionado.usuario?.nombreCompleto ?? prestamoSeleccionado.usuario?.username }}
                 </span>
                 <span class="text-slate-500">CI</span>
                 <span class="px-2 py-0.5 bg-slate-200 rounded text-xs font-mono">
@@ -451,17 +554,12 @@ function condicionColor(c?: string) {
 
               <div class="flex justify-between">
                 <span class="text-slate-500">Prestado</span>
-                <span class="font-medium">
-                  {{ formatDate(prestamoSeleccionado.fechaPrestamo) }}
-                </span>
+                <span class="font-medium">{{ formatDate(prestamoSeleccionado.fechaPrestamo) }}</span>
               </div>
 
               <div class="flex justify-between">
                 <span class="text-slate-500">Vence</span>
-                <span :class="[
-                  'font-medium',
-                  prestamoSeleccionado.vencido ? 'text-red-500' : ''
-                ]">
+                <span :class="['font-medium', prestamoSeleccionado.vencido ? 'text-red-500' : '']">
                   {{ formatDate(prestamoSeleccionado.fechaDevolucionEstimada) }}
                 </span>
               </div>
@@ -472,45 +570,37 @@ function condicionColor(c?: string) {
                   {{ formatDate(prestamoSeleccionado.fechaDevolucionReal) }}
                 </span>
               </div>
-
             </div>
-            <div class="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
 
+            <div class="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
               <div class="flex justify-between">
                 <span class="text-slate-500">Atendido por</span>
                 <span class="font-medium text-right max-w-[60%] truncate">
                   {{ prestamoSeleccionado.bibliotecarioPrestamo?.nombreCompleto ?? '—' }}
                 </span>
                 <span class="text-slate-500">CI</span>
-                <span class="font-medium">
-                  {{ prestamoSeleccionado.bibliotecarioPrestamo?.ci ?? '—' }}
-                </span>
+                <span class="font-medium">{{ prestamoSeleccionado.bibliotecarioPrestamo?.ci ?? '—' }}</span>
               </div>
 
-              <!-- 🆕 devolución -->
               <div v-if="prestamoSeleccionado.bibliotecarioDevolucion" class="flex justify-between">
                 <span class="text-slate-500">Recibido por</span>
                 <span class="font-medium text-right max-w-[60%] truncate">
                   {{ prestamoSeleccionado.bibliotecarioDevolucion?.nombreCompleto }}
                 </span>
                 <span class="text-slate-500">CI</span>
-                <span class="font-medium">
-                  {{ prestamoSeleccionado.bibliotecarioDevolucion?.ci ?? '—' }}
-                </span>
+                <span class="font-medium">{{ prestamoSeleccionado.bibliotecarioDevolucion?.ci ?? '—' }}</span>
               </div>
-
             </div>
+
             <!-- Condición -->
             <div v-if="prestamoSeleccionado.condicionEntrega" class="space-y-2 text-sm">
               <p class="text-xs text-slate-500">Condición</p>
-
               <div class="flex justify-between">
                 <span class="text-slate-500">Entrega</span>
                 <span :class="condicionColor(prestamoSeleccionado.condicionEntrega)" class="font-medium">
                   {{ prestamoSeleccionado.condicionEntrega }}
                 </span>
               </div>
-
               <div v-if="prestamoSeleccionado.condicionDevolucion" class="flex justify-between">
                 <span class="text-slate-500">Devolución</span>
                 <span :class="condicionColor(prestamoSeleccionado.condicionDevolucion)" class="font-medium">
@@ -518,6 +608,7 @@ function condicionColor(c?: string) {
                 </span>
               </div>
             </div>
+
             <!-- Observaciones -->
             <div v-if="prestamoSeleccionado.observaciones"
               class="bg-amber-50 rounded-xl p-4 text-sm border border-amber-100">
@@ -525,9 +616,9 @@ function condicionColor(c?: string) {
               <p class="text-slate-700 text-xs leading-relaxed">{{ prestamoSeleccionado.observaciones }}</p>
             </div>
           </div>
-          <div class="p-4 border-t border-slate-100 flex gap-2 flex-shrink-0">
 
-
+          <!-- Footer -->
+          <div class="p-4 border-t border-slate-100 flex gap-2 shrink-0">
             <button @click="abrirTicket(prestamoSeleccionado!); modalDetalleOpen = false"
               class="px-4 py-2 text-sm font-semibold bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -536,15 +627,11 @@ function condicionColor(c?: string) {
               </svg>
               Ticket
             </button>
-            <!-- Footer -->
-            <!-- <div class="p-4 border-t border-slate-100 flex justify-end"> -->
             <button @click="modalDetalleOpen = false"
               class="flex-1 px-5 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-colors">
               Cerrar
             </button>
           </div>
-          <!-- </div> -->
-
         </div>
       </div>
     </Teleport>
@@ -565,7 +652,8 @@ function condicionColor(c?: string) {
               </div>
               <span class="font-semibold text-slate-800">Renovar Préstamo</span>
             </div>
-            <button @click="cerrarRenovar" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <button @click="cerrarRenovar" class="text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label="Cerrar">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -573,7 +661,6 @@ function condicionColor(c?: string) {
           </div>
 
           <div class="p-6 space-y-4">
-            <!-- Info del préstamo -->
             <div v-if="prestamoARenovar" class="bg-slate-50 rounded-xl p-4 space-y-1.5 text-sm">
               <div class="flex justify-between gap-2">
                 <span class="text-slate-500">Préstamo</span>
@@ -591,7 +678,6 @@ function condicionColor(c?: string) {
               </div>
             </div>
 
-            <!-- Motivo -->
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Motivo de renovación (opcional)</label>
               <textarea v-model="motivoRenovacion" rows="3"
@@ -621,22 +707,16 @@ function condicionColor(c?: string) {
 
     <!-- ─── TICKET (componente reutilizable) ────────────────────────────────── -->
     <TicketPrestamo v-model="showTicket" :prestamos="ticketPrestamos" :usuario="ticketUsuario" :tipo="ticketTipo"
-      :fecha-devolucion="ticketFechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]" :logo="auth.user?.biblioteca?.[0]?.logoUrl"/>
+      :fecha-devolucion="ticketFechaDevolucion" :biblioteca-nombre="auth.bibliotecaNombre[0]"
+      :logo="auth.user?.biblioteca?.[0]?.logoUrl" />
 
   </div>
 </template>
 
 <style scoped>
 @keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.95) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .animate-scale-in {

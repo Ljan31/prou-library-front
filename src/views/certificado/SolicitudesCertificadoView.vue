@@ -8,6 +8,8 @@ import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
 import CertificadoPreview from './CertificadoPreview.vue'
 import { normalizeRequisitos } from '@/services/razon-certificado.service'
+import SPagination from '@/components/ui/SPagination.vue'
+import { usePagination, parsePageResponse, PAGINATION_MODE } from '@/composables/usePagination'
 const ui = useUiStore()
 const auth = useAuthStore()
 const { isAdmin } = usePermissions()
@@ -119,18 +121,20 @@ const targetBibliotecaId = computed(() =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 type EstadoFiltro = '' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'
+const isServerPagination = PAGINATION_MODE === 'server'
 const filtroEstado = ref<EstadoFiltro>('')
 const busqueda = ref('')
+const busquedaDebounced = ref('')
 const solicitudes = ref<Solicitud[]>([])
 const cargando = ref(false)
 const errorCarga = ref<string | null>(null)
 let busquedaDebounce: ReturnType<typeof setTimeout>
 
-watch(busqueda, () => {
+
+watch(busqueda, (v) => {
   clearTimeout(busquedaDebounce)
-  busquedaDebounce = setTimeout(cargarSolicitudes, 350)
+  busquedaDebounce = setTimeout(() => { busquedaDebounced.value = v }, 350)
 })
-watch([filtroEstado, targetBibliotecaId], cargarSolicitudes)
 
 async function cargarSolicitudes() {
   const bibId = targetBibliotecaId.value
@@ -140,8 +144,16 @@ async function cargarSolicitudes() {
   try {
     const params: Record<string, unknown> = {}
     if (filtroEstado.value) params.estado = filtroEstado.value
+
+    if (isServerPagination) {
+      Object.assign(params, pagination.apiParams.value)
+      if (busquedaDebounced.value.trim()) params.q = busquedaDebounced.value.trim()
+    }
+
     const { data } = await api.get(`/solicitudes-certificado/biblioteca/${bibId}`, { params })
-    solicitudes.value = data.data ?? data ?? []
+    const parsed = parsePageResponse<Solicitud>(data)
+    solicitudes.value = parsed.items
+    if (isServerPagination) pagination.setTotal(parsed.total)
   } catch (e: unknown) {
     errorCarga.value = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       ?? 'No se pudieron cargar las solicitudes'
@@ -150,11 +162,10 @@ async function cargarSolicitudes() {
     cargando.value = false
   }
 }
-
 // Filtro local por búsqueda
 const solicitudesFiltradas = computed(() => {
-  if (!busqueda.value.trim()) return solicitudes.value
-  const q = busqueda.value.toLowerCase()
+  const q = busquedaDebounced.value.trim().toLowerCase()
+  if (isServerPagination || !q) return solicitudes.value
   return solicitudes.value.filter(s =>
     `${s.nombres} ${s.apellidos}`.toLowerCase().includes(q) ||
     s.ci.includes(q) ||
@@ -162,6 +173,19 @@ const solicitudesFiltradas = computed(() => {
     s.razonNombre.toLowerCase().includes(q)
   )
 })
+
+// ─── Paginación ───
+const pagination = usePagination({ items: solicitudesFiltradas, pageSize: 10 })
+const { page, pageSize, total: totalItems, paginatedItems: solicitudesPagina } = pagination
+
+// Cualquier cambio de filtro vuelve a la página 1
+watch([filtroEstado, targetBibliotecaId, busquedaDebounced], () => { page.value = 1 }, { flush: 'sync' })
+
+// client: refetch solo al cambiar filtros del back · server: también página, tamaño y búsqueda
+const fetchTrigger = computed(() => isServerPagination
+  ? [filtroEstado.value, targetBibliotecaId.value, busquedaDebounced.value, page.value, pageSize.value]
+  : [filtroEstado.value, targetBibliotecaId.value])
+watch(fetchTrigger, cargarSolicitudes)
 
 // Stats de solicitudes
 const statsSOlicitudes = computed(() => ({
@@ -641,7 +665,7 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
           <!-- Filas -->
           <div v-else class="divide-y divide-slate-50 max-h-[520px] overflow-y-auto">
             <button
-              v-for="s in solicitudesFiltradas"
+              v-for="s in solicitudesPagina"
               :key="s.id"
               @click="verDetalle(s)"
               :class="[
@@ -675,7 +699,18 @@ const ESTADO_SOL_CONFIG: Record<EstadoSolicitud, { label: string; badge: string;
 
           <!-- Contador -->
           <div v-if="solicitudesFiltradas.length" class="px-4 py-2.5 border-t border-slate-100 bg-slate-50/60">
-            <p class="text-xs text-slate-400">{{ solicitudesFiltradas.length }} solicitud(es)</p>
+            <!-- <p class="text-xs text-slate-400">{{ solicitudesFiltradas.length }} solicitud(es)</p> -->
+             <SPagination
+              v-model:page="page"
+              v-model:page-size="pageSize"
+              :total="totalItems"
+              :loading="cargando"
+              item-label="solicitud(es)"
+            >
+              <template #summary-extra>
+                <span v-if="busquedaDebounced" class="text-slate-400">· filtrado por "{{ busquedaDebounced }}"</span>
+              </template>
+            </SPagination>
           </div>
         </div>
 

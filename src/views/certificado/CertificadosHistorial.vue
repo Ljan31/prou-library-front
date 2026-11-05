@@ -6,6 +6,8 @@ import { useUiStore } from '@/stores/ui.store'
 import api from '@/services/axios'
 import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
+import SPagination from '@/components/ui/SPagination.vue'
+import { usePagination, parsePageResponse, PAGINATION_MODE } from '@/composables/usePagination'
 
 const auth = useAuthStore()
 const { isAdmin, isBibliotecario } = usePermissions()
@@ -50,20 +52,45 @@ async function fetchBibliotecas() {
 const filtroEstado = ref<'' | 'VIGENTE' | 'VENCIDO' | 'ANULADO'>('')
 const filtroBiblioteca = ref<number | ''>('')  // solo admin
 const busqueda = ref('')
+const busquedaDebounced = ref('')
 let busquedaDebounce: ReturnType<typeof setTimeout>
 
-watch(busqueda, () => {
+watch(busqueda, (v) => {
   clearTimeout(busquedaDebounce)
-  busquedaDebounce = setTimeout(fetchCertificados, 400)
+  busquedaDebounce = setTimeout(() => { busquedaDebounced.value = v }, 300)
 })
-watch([filtroEstado, filtroBiblioteca], fetchCertificados)
 
 // ─── Datos ────────────────────────────────────────────────────────────────────
 const certificados = ref<Certificado[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 
+const isServerPagination = PAGINATION_MODE === 'server'
 const bibliotecarioId = computed(() => auth.user?.biblioteca?.[0]?.id_biblioteca ?? null)
+
+// Filtro local por búsqueda (nombre o código). En modo server lo resuelve el back.
+const certificadosFiltrados = computed(() => {
+  const q = busquedaDebounced.value.trim().toLowerCase()
+  if (isServerPagination || !q) return certificados.value
+  return certificados.value.filter(c =>
+    c.usuario?.nombreCompleto?.toLowerCase().includes(q) ||
+    c.codigo_verificacion.toLowerCase().includes(q) ||
+    String(c.usuario?.ci ?? '').includes(q)
+  )
+})
+
+// ─── Paginación ───────────────────────────────────────────────────────────────
+const pagination = usePagination({ items: certificadosFiltrados, pageSize: 10 })
+const { page, pageSize, total: totalItems, paginatedItems: certificadosPagina } = pagination
+
+// Cualquier cambio de filtro vuelve a la página 1 (sync → evita un fetch doble)
+watch([filtroEstado, filtroBiblioteca, busquedaDebounced], () => { page.value = 1 }, { flush: 'sync' })
+
+// client: solo refetch al cambiar filtros del back · server: también página, tamaño y búsqueda
+const fetchTrigger = computed(() => isServerPagination
+  ? [filtroEstado.value, filtroBiblioteca.value, busquedaDebounced.value, page.value, pageSize.value]
+  : [filtroEstado.value, filtroBiblioteca.value])
+watch(fetchTrigger, fetchCertificados)
 
 async function fetchCertificados() {
   loading.value = true
@@ -76,15 +103,22 @@ async function fetchCertificados() {
       // Admin: puede filtrar por biblioteca o traer todos
       const bibId = filtroBiblioteca.value || null
       url = bibId ? `/certificados/biblioteca/${bibId}` : '/certificados'
-      if (filtroEstado.value) params.estado = filtroEstado.value
     } else {
       // Bibliotecario: solo su biblioteca
       url = `/certificados/biblioteca/${bibliotecarioId.value}`
-      if (filtroEstado.value) params.estado = filtroEstado.value
+    }
+    if (filtroEstado.value) params.estado = filtroEstado.value
+
+    // Cuando el back soporte paginación: page/size + búsqueda del lado del servidor
+    if (isServerPagination) {
+      Object.assign(params, pagination.apiParams.value)
+      if (busquedaDebounced.value.trim()) params.q = busquedaDebounced.value.trim()
     }
 
     const { data } = await api.get(url, { params })
-    certificados.value = data.data ?? []
+    const parsed = parsePageResponse<Certificado>(data)
+    certificados.value = parsed.items
+    if (isServerPagination) pagination.setTotal(parsed.total)
   } catch (e: unknown) {
     error.value = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       ?? 'No se pudieron cargar los certificados'
@@ -93,17 +127,6 @@ async function fetchCertificados() {
     loading.value = false
   }
 }
-
-// Filtro local por búsqueda (nombre o código)
-const certificadosFiltrados = computed(() => {
-  if (!busqueda.value.trim()) return certificados.value
-  const q = busqueda.value.toLowerCase()
-  return certificados.value.filter(c =>
-    c.usuario?.nombreCompleto?.toLowerCase().includes(q) ||
-    c.codigo_verificacion.toLowerCase().includes(q) ||
-    String(c.usuario?.ci ?? '').includes(q)
-  )
-})
 
 // ─── Anular ───────────────────────────────────────────────────────────────────
 const anulandoId = ref<number | null>(null)
@@ -484,7 +507,7 @@ function estadoCertClasses(estado: string) {
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">
-            <tr v-for="c in certificadosFiltrados" :key="c.id_certificado"
+            <tr v-for="c in certificadosPagina" :key="c.id_certificado"
               class="hover:bg-slate-50/60 transition-colors">
               <!-- Estudiante -->
               <td class="px-4 py-3">
@@ -579,12 +602,14 @@ function estadoCertClasses(estado: string) {
           </tbody>
         </table>
 
-        <!-- Contador de resultados -->
+        <!-- Paginación -->
         <div class="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-          <p class="text-xs text-slate-400">
-            Mostrando {{ certificadosFiltrados.length }} de {{ certificados.length }} certificado(s)
-            <span v-if="busqueda"> · filtrado por "{{ busqueda }}"</span>
-          </p>
+          <SPagination v-model:page="page" v-model:page-size="pageSize" :total="totalItems" :loading="loading"
+            item-label="certificado(s)">
+            <template #summary-extra>
+              <span v-if="busquedaDebounced" class="text-slate-400">· filtrado por "{{ busquedaDebounced }}"</span>
+            </template>
+          </SPagination>
         </div>
       </div>
     </div>
