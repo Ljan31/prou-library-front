@@ -1,4 +1,4 @@
-import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
+import { computed, nextTick, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { devolucionService } from '@/services/devolucion.service'
 import {
@@ -84,6 +84,16 @@ export function useFormularioDevolucion(
     decisionTipo.value = 'APLICADA'
   }
 
+  /**
+   * La pérdida ya está registrada (p. ej. al volver a abrir el préstamo):
+   * fuerza el estado PERDIDO y marca la decisión sin que el watcher la reinicie.
+   */
+  async function marcarPerdidaRegistrada() {
+    estadoEjemplar.value = 'DISPONIBLE'
+    await nextTick()
+    marcarSancionAplicada()
+  }
+
   /** Prepara el formulario para un préstamo recién seleccionado. */
   function reiniciar(p: Prestamo) {
     const entrega = p.condicionEntrega as Condicion | undefined
@@ -143,7 +153,9 @@ export function useFormularioDevolucion(
     reiniciar,
     limpiarMensajes,
     omitirSancion,
+    resetDecision,
     marcarSancionAplicada,
+    marcarPerdidaRegistrada,
     confirmar,
   }
 }

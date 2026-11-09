@@ -9,6 +9,8 @@ defineProps<{
   resultado: DevolucionResultado | null
   hayDeterioro: boolean
   perdido: boolean
+  /** Ya se registró una sanción/reposición antes de devolver */
+  sancionRegistrada?: boolean
 }>()
 defineEmits<{ sancion: [motivo: MotivoSancion]; nueva: [] }>()
 </script>
@@ -42,7 +44,7 @@ defineEmits<{ sancion: [motivo: MotivoSancion]; nueva: [] }>()
       </div>
 
       <!-- Deterioro / pérdida: ofrecer sanción post-devolución -->
-      <div v-if="hayDeterioro || perdido" class="space-y-3">
+      <div v-if="(hayDeterioro || perdido) && !sancionRegistrada" class="space-y-3">
         <div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 text-left">
           <DevIcon name="warning" class="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>

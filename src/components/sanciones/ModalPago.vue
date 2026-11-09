@@ -7,7 +7,11 @@ import { useSancionStore } from '@/stores/sancion.store'
 import { esReposicion, formatFecha, formatMonto, montoSancion } from '@/utils/sancion.utils'
 import type { SancionResponse } from '@/types/notificacion.types'
 
-const props = defineProps<{ sancion: SancionResponse | null }>()
+const props = defineProps<{
+  sancion: SancionResponse | null
+  /** Si es una reposición, el préstamo se devuelve inmediatamente después del pago */
+  devolver?: boolean
+}>()
 const emit = defineEmits<{ pagado: [sancion: SancionResponse] }>()
 const open = defineModel<boolean>({ required: true })
 
@@ -104,6 +108,12 @@ async function confirmar() {
       <SInput v-model="observaciones" type="textarea" label="Observaciones (opcional)"
         placeholder="Ej: Pagado en caja central, comprobante Nº ..." />
 
+      <p v-if="repos && devolver"
+        class="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-xs text-indigo-800">
+        Al confirmar el pago, la reposición queda resuelta y la <strong>devolución del préstamo se registrará
+        de inmediato</strong>.
+      </p>
+
       <!-- El pago de multa no levanta la suspensión -->
       <p v-if="!repos && sancion.suspensionVigente"
         class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
@@ -115,7 +125,7 @@ async function confirmar() {
     <template #footer>
       <SButton variant="secondary" :disabled="loading" @click="open = false">Cancelar</SButton>
       <SButton variant="success" :loading="loading" @click="confirmar">
-        Confirmar pago · {{ formatMonto(monto) }}
+        {{ repos && devolver ? 'Pagar y devolver' : 'Confirmar pago' }} · {{ formatMonto(monto) }}
       </SButton>
     </template>
   </SModal>

@@ -40,7 +40,7 @@ const acciones = computed<Accion[]>(() => {
     lista.push({ clave: 'reposicion-fisica', variant: 'outline', label: props.compact ? 'Reposición física' : 'Registrar reposición física' })
   }
   // Solo ADMIN puede condonar
-  if (s.estado === 'ACTIVA' && auth.isAdmin) {
+  if (s.estado === 'ACTIVA' && auth.isBibliotecario) {
     lista.push({ clave: 'condonar', variant: 'danger', label: 'Condonar' })
   }
   return lista

@@ -19,8 +19,7 @@ defineEmits<{ pagar: []; fisica: [] }>()
           Valor de reposición: <strong>{{ formatMonto(montoSancion(sancion)) }}</strong>
         </p>
         <p class="text-xs text-red-600 mt-1">
-          La devolución se habilita cuando el usuario regularice la reposición. La condición y el estado
-          físico permanecen bloqueados hasta entonces.
+          Al regularizar la reposición, el ejemplar se devuelve de inmediato. Mientras tanto, la condición y el estado físico permanecen bloqueados.
         </p>
       </div>
     </div>

@@ -27,6 +27,7 @@ import { useSancionManual } from '@/composables/devoluciones/useSancionManual'
 import type { MotivoSancion } from '@/constants/devolucion.constants'
 import type { Prestamo } from '@/types/devolucion.types'
 import type { SancionResponse } from '@/types/notificacion.types'
+import { esReposicion } from '@/utils/sancion.utils'
 
 const ui = useUiStore()
 
@@ -66,9 +67,20 @@ function alRegistrarReposicion() {
 }
 
 /** Refresca lo que cambia al resolver una sanción (pago o reposición física). */
-function alResolverSancion() {
+async function alResolverSancion() {
   pendientes.cargar()
-  sanciones.cargar()
+  await sanciones.cargar()
+}
+
+/** Reposición regularizada (pago o ejemplar físico): se devuelve de inmediato. */
+async function alResolverReposicion() {
+  await sanciones.cargar()
+  await form.confirmar()
+}
+
+async function alPagar() {
+  if (sancionAPagar.value && esReposicion(sancionAPagar.value)) await alResolverReposicion()
+  else await alResolverSancion()
 }
 
 const sancionManual = reactive(
@@ -76,11 +88,15 @@ const sancionManual = reactive(
 )
 
 // ─── Acciones ─────────────────────────────────────────────────────────────────
-function seleccionar(p: Prestamo) {
+async function seleccionar(p: Prestamo) {
   prestamo.value = p
   sanciones.reiniciar()
   form.reiniciar(p)
-  sanciones.cargar()
+  await sanciones.cargar()
+  // Si ya se había registrado la pérdida, se retoma el flujo donde quedó
+  if (prestamo.value?.id_prestamo === p.id_prestamo && sanciones.reposicion) {
+    await form.marcarPerdidaRegistrada()
+  }
 }
 
 function limpiarSeleccion() {
@@ -173,7 +189,7 @@ onMounted(() => {
 
         <DevolucionExito v-else-if="form.success" :prestamo="prestamo" :resultado="form.resultado"
           :hay-deterioro="form.hayDeterioro" :perdido="form.ejemplarPerdido"
-          @sancion="abrirSancion" @nueva="nuevaDevolucion" />
+          :sancion-registrada="form.decisionTipo === 'APLICADA'" @sancion="abrirSancion" @nueva="nuevaDevolucion" />
 
         <div v-else class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <PrestamoHeader :prestamo="prestamo" @close="limpiarSeleccion" />
@@ -196,6 +212,7 @@ onMounted(() => {
 
             <DecisionSancionCard v-if="form.requiereSancion" :decision-tomada="form.decisionTomada"
               :tipo="form.decisionTipo" :perdido="form.ejemplarPerdido"
+              :reposicion-pendiente="sanciones.requiereReposicion" @cambiar="form.resetDecision"
               @aplicar="abrirSancion(form.ejemplarPerdido ? 'PERDIDA_EJEMPLAR' : 'DANIO_EJEMPLAR')"
               @omitir="form.omitirSancion" />
 
@@ -224,7 +241,8 @@ onMounted(() => {
     </div>
 
     <!-- Modales -->
-    <ModalPago v-model="pagoAbierto" :sancion="sancionAPagar" @pagado="alResolverSancion" />
+    <ModalPago v-model="pagoAbierto" :sancion="sancionAPagar"
+      :devolver="!!sancionAPagar && esReposicion(sancionAPagar)" @pagado="alPagar" />
 
     <ModalSancionDanio v-model="sancionManual.open" v-model:monto="sancionManual.monto"
       v-model:observaciones="sancionManual.observaciones" :prestamo="prestamo"
@@ -232,7 +250,7 @@ onMounted(() => {
 
     <ModalRegistrarPerdida v-model="perdidaAbierta" :prestamo="prestamo" @registrado="alRegistrarReposicion" />
 
-    <ModalReposicionFisica v-model="fisicaAbierta" :sancion="sanciones.reposicionBloqueante"
-      @registrado="alResolverSancion" />
+    <ModalReposicionFisica v-model="fisicaAbierta" :sancion="sanciones.reposicionBloqueante" devolver
+      @registrado="alResolverReposicion" />
   </div>
 </template>

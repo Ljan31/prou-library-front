@@ -121,8 +121,8 @@ const thClass = 'px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase trac
           <p class="text-sm text-slate-500 mt-0.5">Multas, suspensiones y reposiciones de ejemplares</p>
         </div>
         <div class="flex gap-2">
-          <SButton variant="outline" @click="perdidaAbierta = true">Registrar pérdida</SButton>
-          <SButton variant="danger" icon-left="plus" @click="manualAbierto = true">Nueva sanción</SButton>
+          <SButton variant="danger" icon-left="plus" @click="perdidaAbierta = true">Registrar pérdida</SButton>
+          <!-- <SButton variant="danger" icon-left="plus" @click="manualAbierto = true">Nueva sanción</SButton> -->
         </div>
       </div>
 

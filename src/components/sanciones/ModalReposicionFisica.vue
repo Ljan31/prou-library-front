@@ -7,7 +7,11 @@ import { useSancionStore } from '@/stores/sancion.store'
 import { formatMonto, montoSancion } from '@/utils/sancion.utils'
 import type { SancionResponse } from '@/types/notificacion.types'
 
-const props = defineProps<{ sancion: SancionResponse | null }>()
+const props = defineProps<{
+  sancion: SancionResponse | null
+  /** El préstamo se devuelve inmediatamente después de confirmar (vista Devoluciones) */
+  devolver?: boolean
+}>()
 const emit = defineEmits<{ registrado: [sancion: SancionResponse] }>()
 const open = defineModel<boolean>({ required: true })
 
@@ -43,7 +47,7 @@ async function confirmar() {
 </script>
 
 <template>
-  <SModal v-model="open" title="Registrar reposición física" size="md">
+  <SModal v-model="open" title="Registrar reposición física.." size="md">
     <div v-if="sancion" class="space-y-5">
       <div class="rounded-xl bg-slate-50 p-4 space-y-1.5 text-sm">
         <div class="flex justify-between gap-4">
@@ -69,7 +73,8 @@ async function confirmar() {
         <ul class="list-disc pl-4 space-y-0.5">
           <li>La reposición queda resuelta con un ejemplar de reemplazo.</li>
           <li>El inventario se actualiza con el nuevo ejemplar.</li>
-          <li>Se desbloquea la devolución del préstamo.</li>
+          <li v-if="devolver">La devolución del préstamo se registrará de inmediato.</li>
+          <li v-else>El préstamo quedará habilitado para su devolución.</li>
         </ul>
       </div>
 
@@ -86,7 +91,7 @@ async function confirmar() {
     <template #footer>
       <SButton variant="secondary" :disabled="loading" @click="open = false">Cancelar</SButton>
       <SButton variant="success" :loading="loading" :disabled="!recibido" @click="confirmar">
-        Confirmar reposición
+        {{ devolver ? 'Confirmar y devolver' : 'Confirmar reposición' }}
       </SButton>
     </template>
   </SModal>
