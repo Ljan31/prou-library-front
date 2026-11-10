@@ -2,13 +2,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { reporteService } from '@/services/reporte.service'
 import SCard from '@/components/ui/SCard.vue'
 import SBadge from '@/components/ui/SBadge.vue'
 import SButton from '@/components/ui/SButton.vue'
 import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import ReportePdfModal from '@/components/reportes/ReportePdfModal.vue'
-import { reporteService } from '@/services/reporte.service'
+import ReporteGraficos from '@/components/reportes/ReporteGraficos.vue'
+import { useReporteGraficos } from '@/composables/useReporteGraficos'
+import type { TipoReporte, FiltroAplicado } from '@/types/reportes'
+import { parseISO } from 'date-fns'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -19,21 +23,6 @@ onMounted(() => {
 })
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type TipoReporte =
-  | 'prestamos-activos'
-  | 'devoluciones-pendientes'
-  | 'prestamos-por-vencer'
-  | 'prestamos'
-  | 'historial'
-  | 'libros-mas-prestados'
-  | 'libros-menos-prestados'
-  | 'inventario'
-  | 'estado-ejemplares'
-  | 'deterioro-ejemplares'
-  | 'ejemplares-sin-circulacion'
-  | 'sanciones'
-  | 'certificados'
 
 type PasoVista = 'configurar' | 'previsualizar'
 
@@ -118,6 +107,7 @@ const fFechaInicio     = ref('')
 const fFechaFin        = ref('')
 const fDias            = ref(3)
 const fUsuarioId       = ref<number | null>(null)
+const fLibroId         = ref<number | null>(null)
 const fCategoriaId     = ref<number | null>(null)
 const fClasificacion   = ref('')
 
@@ -132,6 +122,7 @@ function resetFiltros() {
   fFechaFin.value        = ''
   fDias.value            = 3
   fUsuarioId.value       = null
+  fLibroId.value         = null
   fCategoriaId.value     = null
   fClasificacion.value   = ''
 }
@@ -146,6 +137,7 @@ const mostrarTipoPrestamo  = computed(() => tipoActivo.value === 'historial')
 const mostrarTipoSancion   = computed(() => tipoActivo.value === 'sanciones')
 const mostrarDias          = computed(() => tipoActivo.value === 'prestamos-por-vencer')
 const mostrarUsuarioId     = computed(() => tipoActivo.value === 'historial')
+const mostrarLibroId       = mostrarUsuarioId
 const mostrarCategoriaId   = computed(() => tipoActivo.value === 'inventario')
 const mostrarClasificacion = computed(() => tipoActivo.value === 'inventario')
 
@@ -155,9 +147,19 @@ const loadingPreview = ref(false)
 const previewError   = ref<string | null>(null)
 const previewData    = ref<Record<string, unknown> | null>(null)  // datos crudos del backend
 
+const {
+  items: graficoItems,
+  aviso: graficoAviso,
+  cargar: cargarGraficos,
+  reintentar: reintentarGrafico,
+  esperar: esperarGraficos,
+  limpiar: limpiarGraficos,
+} = useReporteGraficos()
+
 function resetPreview() {
   previewData.value  = null
   previewError.value = null
+  limpiarGraficos()
 }
 
 // Accesos tipados cómodos
@@ -189,7 +191,7 @@ async function generarPreview() {
     else if (t === 'devoluciones-pendientes') res = await reporteService.devolucionesPendientes(bId)
     else if (t === 'prestamos-por-vencer')  res = await reporteService.prestamosPorVencer(bId, fDias.value)
     else if (t === 'prestamos')             res = await reporteService.prestamos({ bibliotecaId: bId, estado: fEstadoPrestamo.value || null, fechaInicio: fFechaInicio.value || null, fechaFin: fFechaFin.value || null })
-    else if (t === 'historial')             res = await reporteService.historialPrestamos({ bibliotecaId: bId, usuarioId: fUsuarioId.value, estado: fEstadoPrestamo.value || null, tipoPrestamo: fTipoPrestamo.value || null, fechaInicio: fFechaInicio.value || null, fechaFin: fFechaFin.value || null })
+    else if (t === 'historial')             res = await reporteService.historialPrestamos({ bibliotecaId: bId, usuarioId: fUsuarioId.value || null, libroId: fLibroId.value || null, estado: fEstadoPrestamo.value || null, tipoPrestamo: fTipoPrestamo.value || null, fechaInicio: fFechaInicio.value || null, fechaFin: fFechaFin.value || null })
     else if (t === 'libros-mas-prestados')  res = await reporteService.librosMasPrestados(bId)
     else if (t === 'libros-menos-prestados')res = await reporteService.librosMenosPrestados(bId)
     else if (t === 'inventario')            res = await reporteService.inventario({ bibliotecaId: bId, categoriaId: fCategoriaId.value, estado: fEstadoEjemplar.value || null, clasificacionDecimal: fClasificacion.value || null })
@@ -201,6 +203,7 @@ async function generarPreview() {
 
     previewData.value = res?.data?.data ?? res?.data
     paso.value = 'previsualizar'
+    lanzarGraficos()
   } catch (e: any) {
     previewError.value = e?.response?.data?.message ?? 'Error al obtener los datos del reporte'
     ui.toast.error('Error', previewError.value ?? '')
@@ -255,7 +258,7 @@ function badgeDias(p: any): { label: string; cls: string } | null {
 
 function fechaCorta(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })
+  return parseISO(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function volverAConfigurar() {
@@ -286,8 +289,10 @@ function descargarCSV() {
         `${p.idPrestamo},"${p.usuario}","${p.ci}","${p.libro}","${p.isbn}","${p.biblioteca}","${p.fechaPrestamo}","${p.fechaDevolucionEstimada}","${p.fechaDevolucionReal ?? ''}","${p.estadoPrestamo}","${p.tipoPrestamo}",${p.diasRetraso}`
       ).join('\n')
     } else if (t === 'libros-mas-prestados' || t === 'libros-menos-prestados') {
-      csv = 'ID,Título,ISBN,Cantidad préstamos\n'
-      csv += listaLibros.value.map((l: any) => `${l.idLibro},"${l.titulo}","${l.isbn}",${l.cantidadPrestamos}`).join('\n')
+      // csv = 'ID,Título,ISBN,Cantidad préstamos\n'
+      // csv += listaLibros.value.map((l: any) => `${l.idLibro},"${l.titulo}","${l.isbn}",${l.cantidadPrestamos}`).join('\n')
+      csv = 'ID,Título,Cantidad préstamos\n'
+      csv += listaLibros.value.map((l: any) => `${l.idLibro},"${l.titulo}",${l.cantidadPrestamos}`).join('\n')
     } else if (t === 'inventario') {
       csv = 'ID,Código,Título,ISBN,Biblioteca,Estado,Clasificación,Ubicación\n'
       csv += listaInv.value.map((e: any) =>
@@ -342,10 +347,76 @@ const mostrarModalPdf = ref(false)
 const datosPdf = computed(() => previewData.value ?? {})
 
 const tituloBibliotecaActiva = computed(() => {
-  if (!bibliotecaIdForm.value) return ''
-  return bibliotecas.value.find(b => b.id === bibliotecaIdForm.value)?.nombre ?? ''
+   if (!bibliotecaIdForm.value) {
+    const nombre = auth.bibliotecaNombre
+    return Array.isArray(nombre) ? nombre[0] ?? '' : nombre || ''
+  }
+
+  const biblioteca = bibliotecas.value.find(
+    b => b.id === bibliotecaIdForm.value
+  )
+
+  const nombre = biblioteca?.nombre ?? auth.bibliotecaNombre ?? ''
+
+  return Array.isArray(nombre) ? nombre[0] ?? '' : nombre
 })
-</script>
+
+// ─── Filtros aplicados (rotulan gráficos y PDF) ──────────────────────────────
+
+const dmy = (iso: string) => iso.split('-').reverse().join('/')
+
+const filtrosAplicados = computed<FiltroAplicado[]>(() => {
+  const l: FiltroAplicado[] = [
+    { label: 'Biblioteca', value: tituloBibliotecaActiva.value || (bibliotecaIdForm.value ? `ID ${bibliotecaIdForm.value}` : 'Todas') },
+  ]
+  if (mostrarDias.value)      l.push({ label: 'Ventana', value: `${fDias.value} días` })
+  if (fEstadoPrestamo.value)  l.push({ label: 'Estado', value: fEstadoPrestamo.value })
+  if (fTipoPrestamo.value)    l.push({ label: 'Tipo', value: fTipoPrestamo.value })
+  if (fEstadoEjemplar.value)  l.push({ label: 'Estado ejemplar', value: fEstadoEjemplar.value })
+  if (fClasificacion.value)   l.push({ label: 'Clasificación', value: fClasificacion.value })
+  if (fEstadoSancion.value)   l.push({ label: 'Estado', value: fEstadoSancion.value })
+  if (fTipoSancion.value)     l.push({ label: 'Tipo', value: fTipoSancion.value })
+  if (fEstadoCert.value)      l.push({ label: 'Estado', value: fEstadoCert.value })
+  if (fUsuarioId.value)       l.push({ label: 'Usuario (ID)', value: String(fUsuarioId.value) })
+  if (fLibroId.value)         l.push({ label: 'Libro (ID)', value: String(fLibroId.value) })
+  if (fFechaInicio.value || fFechaFin.value) {
+    l.push({
+      label: 'Período',
+      value: `${fFechaInicio.value ? dmy(fFechaInicio.value) : '…'} a ${fFechaFin.value ? dmy(fFechaFin.value) : '…'}`,
+    })
+  }
+  return l
+})
+
+const rotuloGraficos = computed(() =>
+  filtrosAplicados.value.map(f => `${f.label}: ${f.value}`).join(' · ')
+)
+
+// ─── Gráficos: mismos filtros que la tabla ────────────────────────────────────
+
+function lanzarGraficos() {
+  if (!tipoActivo.value) return
+  cargarGraficos(tipoActivo.value, {
+    bibliotecaId:   bibliotecaIdForm.value,
+    fechaInicio:    fFechaInicio.value,
+    fechaFin:       fFechaFin.value,
+    estadoPrestamo: fEstadoPrestamo.value,
+    tipoPrestamo:   fTipoPrestamo.value,
+    estadoSancion:  fEstadoSancion.value,
+    tipoSancion:    fTipoSancion.value,
+    usuarioId:      fUsuarioId.value || null,
+    libroId:        fLibroId.value || null,
+    data:           previewData.value,
+  })
+}
+
+// El PDF espera a que TODOS los gráficos terminen (ok o error) antes de abrirse
+const esperandoPdf = ref(false)
+async function abrirPdf() {
+  esperandoPdf.value = true
+  try { await esperarGraficos() } finally { esperandoPdf.value = false }
+  mostrarModalPdf.value = true
+}</script>
 
 <template>
   <div class="page-container">
@@ -361,7 +432,7 @@ const tituloBibliotecaActiva = computed(() => {
           <svg class="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Volver
         </SButton>
-        <SButton variant="outline" size="sm" @click="mostrarModalPdf = true">
+        <SButton variant="outline" size="sm" :loading="esperandoPdf" @click="abrirPdf">
           <svg class="w-4 h-4 mr-1.5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
           </svg>
@@ -424,7 +495,7 @@ const tituloBibliotecaActiva = computed(() => {
           <div v-else class="space-y-4">
 
             <!-- Biblioteca -->
-            <div>
+            <div v-if="!auth.isBibliotecario">
               <label class="block text-xs font-medium text-slate-500 mb-1.5">Biblioteca</label>
               <select
                 v-model="bibliotecaIdForm"
@@ -516,6 +587,13 @@ const tituloBibliotecaActiva = computed(() => {
               <input v-model.number="fUsuarioId" type="number" placeholder="Ej. 12" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
             </div>
 
+            <!-- ID Libro (historial) -->
+            <div v-if="mostrarLibroId">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5">ID de libro <span class="text-slate-400">(opcional)</span></label>
+              <input v-model.number="fLibroId" type="number" placeholder="Ej. 45" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+              <p class="text-xs text-slate-400 mt-1">Al filtrar por usuario o libro no se muestran gráficos.</p>
+            </div>
+
           </div>
 
           <!-- Error -->
@@ -561,6 +639,14 @@ const tituloBibliotecaActiva = computed(() => {
             <p class="text-2xl font-bold text-slate-900 tabular-nums">{{ (v as number).toLocaleString() }}</p>
           </SCard>
         </div>
+
+        <!-- ── Gráficos (después de la tabla en carga; antes en pantalla y PDF) ── -->
+        <ReporteGraficos
+          :items="graficoItems"
+          :aviso="graficoAviso"
+          :rotulo="rotuloGraficos"
+          @reintentar="reintentarGrafico"
+        />
 
         <!-- ── Tabla: reportes operativos (prestamos-activos, devoluciones, por-vencer) ── -->
         <template v-if="['prestamos-activos','devoluciones-pendientes','prestamos-por-vencer'].includes(tipoActivo ?? '')">
@@ -673,7 +759,9 @@ const tituloBibliotecaActiva = computed(() => {
                       :class="idx < 3 ? 'bg-indigo-500' : 'bg-indigo-300'"
                       :style="{ width: ((libro.cantidadPrestamos / maxPrestamos) * 100).toFixed(1) + '%' }"/>
                   </div>
-                  <p class="text-xs text-slate-400 mt-0.5">ISBN: {{ libro.isbn }}</p>
+                  <!-- 
+                    <p class="text-xs text-slate-400 mt-0.5">ISBN: {{ libro.isbn }}</p>
+                    -->
                 </div>
               </div>
             </div>
@@ -952,6 +1040,8 @@ const tituloBibliotecaActiva = computed(() => {
       v-model="mostrarModalPdf"
       :tipo="tipoActivo ?? ''"
       :datos="datosPdf"
+      :graficos="graficoItems"
+      :filtros="filtrosAplicados"
       :titulo-biblioteca="tituloBibliotecaActiva"
     />
 

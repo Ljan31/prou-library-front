@@ -1,0 +1,1 @@
+import{n as e}from"./estudiante.service-BS2HejcY.js";export{e as estudianteService};

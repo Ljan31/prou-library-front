@@ -1,0 +1,1 @@
+import{Ct as e,h as t,k as n,u as r,xt as i}from"./runtime-core.esm-bundler-BIOE5VuY.js";var a=t({__name:`SSkeleton`,props:{width:{},height:{},rounded:{type:Boolean,default:!1}},setup(t){return(a,o)=>(n(),r(`div`,{class:i([`skeleton`,t.rounded?`rounded-full`:`rounded-lg`]),style:e({width:t.width??`100%`,height:t.height??`1rem`})},null,6))}});export{a as t};
