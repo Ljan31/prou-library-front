@@ -29,6 +29,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { usePermissions } from '@/composables/usePermissions'
 import { estadoEjemplarConfig } from '@/utils/catalogo'
 import type { Categoria, Edicion, Ejemplar } from '@/types/catalogo'
+import { validarSoloLetras } from '@/utils/validators'
 
 // ── Props / emits ─────────────────────────────────────────────────────────
 const props = defineProps<{ libroId: number }>()
@@ -500,6 +501,7 @@ const categoriaActual = computed(() =>
             <input v-model="busquedaAutor" type="text" placeholder="Buscar o crear autor..." maxlength="50"
               @focus="mostrarDropdownAutor = busquedaAutor.length > 0"
               @blur="cerrarDropdownAutor"
+              @input="busquedaAutor = validarSoloLetras(busquedaAutor)"
               class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
             <div v-if="mostrarDropdownAutor"

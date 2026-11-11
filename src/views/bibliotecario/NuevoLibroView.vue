@@ -10,6 +10,7 @@ import api from '@/services/axios'
 import { obtenerCategorias } from '@/services/categorias.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
 import type { Categoria } from '@/types/catalogo'
+import { validarSoloLetras } from '@/utils/validators'
 
 const router = useRouter()
 const route  = useRoute()
@@ -518,6 +519,7 @@ function cancelar() { router.push('/inventario') }
                   <input v-model="busquedaAutor" type="text" maxlength="50"
                     placeholder="Buscar autor o escribir nombre nuevo..."
                     @focus="showDropAutor = busquedaAutor.length > 0" @blur="cerrarDropdownAutor"
+                    @input="busquedaAutor = validarSoloLetras(busquedaAutor)"
                     class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
                   <div v-if="showDropAutor"
                     class="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
