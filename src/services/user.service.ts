@@ -7,7 +7,7 @@ export interface PersonaData {
   apellido_pat: string;
   apellido_mat: string;
   nombreCompleto?: string;
-  ci: number;
+  ci: number | string;
   celular: string;
   email: string;
 }

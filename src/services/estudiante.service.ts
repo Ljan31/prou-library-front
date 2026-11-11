@@ -22,7 +22,7 @@ export interface CreateEstudiantePayload {
     nombre: string;
     apellido_pat: string;
     apellido_mat?: string;
-    ci: number;
+    ci: number | string;
     celular?: string;
     email: string;
   };

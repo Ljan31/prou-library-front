@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { estudianteService, carreraService } from '@/services/estudiante.service'
+import { validarCI, validarFormatoCI, validarSoloLetras } from '@/utils/validators'
 import type { CarreraBasic, UserCarreraItem } from '@/services/estudiante.service'
 
 const router = useRouter()
@@ -95,7 +96,9 @@ function validatePersona(): boolean {
   Object.keys(errPersona).forEach(k => delete errPersona[k])
   if (!persona.nombre.trim()) errPersona.nombre = 'Requerido'
   if (!persona.apellido_pat.trim()) errPersona.apellido_pat = 'Requerido'
-  if (!persona.ci.trim() || isNaN(Number(persona.ci))) errPersona.ci = 'CI numérico requerido'
+  if (!persona.ci.trim() || !validarFormatoCI(persona.ci)) {
+    errPersona.ci = 'Ingrese un CI válido (Ej. 6565204 o 6565204-2A)'
+  }
   if (!persona.email.trim()) errPersona.email = 'Requerido'
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(persona.email)) errPersona.email = 'Email inválido'
   return Object.keys(errPersona).length === 0
@@ -146,7 +149,7 @@ async function handleSubmit() {
         nombre: persona.nombre.trim(),
         apellido_pat: persona.apellido_pat.trim(),
         apellido_mat: persona.apellido_mat.trim() || undefined,
-        ci: Number(persona.ci),
+        ci: persona.ci,
         celular: persona.celular.trim() || undefined,
         email: persona.email.trim(),
       },
@@ -396,7 +399,7 @@ const passwordStrength = computed(() => {
                       <input v-model="persona.nombre" type="text" placeholder="Carlos" maxlength="20"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.nombre ? 'border-red-500/60' : 'border-white/10'"
-                        @input="delete errPersona.nombre" />
+                        @input="persona.nombre = validarSoloLetras(persona.nombre); delete errPersona.nombre" />
                       <p v-if="errPersona.nombre" class="text-xs text-red-400 mt-0.5">{{ errPersona.nombre }}</p>
                     </div>
 
@@ -404,11 +407,11 @@ const passwordStrength = computed(() => {
                     <div>
                       <label class="block text-xs font-medium text-slate-300 mb-1">CI <span
                           class="text-red-400">*</span></label>
-                      <input v-model="persona.ci" type="text" placeholder="7564823" inputmode="numeric" maxlength="10"
+                      <input v-model="persona.ci" type="text" placeholder="7564823" inputmode="numeric" maxlength="13"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.ci ? 'border-red-500/60' : 'border-white/10'"
                          @input="
-                            persona.ci = persona.ci.replace(/\D/g, '').slice(0, 10);
+                            persona.ci = validarCI(persona.ci);
                             delete errPersona.ci;
                           " />
                       <p v-if="errPersona.ci" class="text-xs text-red-400 mt-0.5">{{ errPersona.ci }}</p>
@@ -421,8 +424,8 @@ const passwordStrength = computed(() => {
                       <input v-model="persona.apellido_pat" type="text" placeholder="Ramos" maxlength="25"
                         class="w-full h-9 px-3 text-sm rounded-lg border text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50"
                         :class="errPersona.apellido_pat ? 'border-red-500/60' : 'border-white/10'"
-                        @input="delete errPersona.apellido_pat" />
-                      <p v-if="errPersona.apellido_pat" class="text-xs text-red-400 mt-0.5">{{ errPersona.apellido_pat
+                        @input="persona.apellido_pat = validarSoloLetras(persona.apellido_pat); delete errPersona.apellido_pat" />
+                        <p v-if="errPersona.apellido_pat" class="text-xs text-red-400 mt-0.5">{{ errPersona.apellido_pat
                       }}</p>
                     </div>
 
@@ -430,8 +433,9 @@ const passwordStrength = computed(() => {
                     <div>
                       <label class="block text-xs font-medium text-slate-300 mb-1">Ap. Materno</label>
                       <input v-model="persona.apellido_mat" type="text" placeholder="Vargas" maxlength="25"
-                        class="w-full h-9 px-3 text-sm rounded-lg border border-white/10 text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50" />
-                    </div>
+                      class="w-full h-9 px-3 text-sm rounded-lg border border-white/10 text-white placeholder:text-slate-500 bg-white/6 outline-none transition-all focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50" 
+                      @input="persona.apellido_mat = validarSoloLetras(persona.apellido_mat); delete errPersona.apellido_mat" />
+                      </div>
 
                     <!-- Email -->
                     <div class="col-span-2">

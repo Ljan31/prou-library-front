@@ -7,6 +7,7 @@ import { useAuxAssign } from '@/composables/useAuxAssign'
 import { userService } from '@/services/user.service'
 import { carreraService } from '@/services/estudiante.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
+import { validarCI, validarFormatoCI, validarSoloLetras } from '@/utils/validators'
 import type { UserResponse, UpdateUserPayload } from '@/services/user.service'
 import type { CarreraBasic } from '@/services/estudiante.service'
 import type { BibliotecaResponse } from '@/services/bibliotecas.service'
@@ -122,10 +123,10 @@ function validate(): boolean {
     errors.username = 'No debe contener espacios'
   }
   if (!form.nombre.trim()) errors.nombre = 'Requerido'
-    if (!form.ci.trim()) {
+  if (!form.ci.trim()) {
     errors.ci = 'Requerido'
-  } else if (!/^\d{5,20}$/.test(form.ci)) {
-    errors.ci = 'Debe contener entre 5 y 10 dígitos'
+  } else if (!validarFormatoCI(form.ci)) {
+    errors.ci = 'Ingrese un CI válido (Ej. 6565204 o 6565204-2A)'
   }
   if (!form.apellido_pat.trim()) errors.apellido_pat = 'Requerido'
   if (isAdmin.value) {
@@ -296,7 +297,7 @@ async function copyTempPassword() {
                 <input v-model="form.nombre" type="text" maxlength="20"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.nombre ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
-                  @input="delete errors.nombre" />
+                  @input="form.nombre = validarSoloLetras(form.nombre); delete errors.nombre" />
                 <p v-if="errors.nombre" class="text-xs text-red-500 mt-0.5">{{ errors.nombre }}</p>
               </div>
               <div>
@@ -305,12 +306,13 @@ async function copyTempPassword() {
                 <input v-model="form.apellido_pat" type="text" maxlength="20"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.apellido_pat ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
-                  @input="delete errors.apellido_pat" />
+                  @input="form.apellido_pat = validarSoloLetras(form.apellido_pat); delete errors.apellido_pat" />
                 <p v-if="errors.apellido_pat" class="text-xs text-red-500 mt-0.5">{{ errors.apellido_pat }}</p>
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Ap. Materno</label>
                 <input v-model="form.apellido_mat" type="text" maxlength="20"
+                  @input="form.apellido_mat = validarSoloLetras(form.apellido_mat)"
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
               <div>
@@ -330,10 +332,8 @@ async function copyTempPassword() {
                 <input
                   v-model="form.ci"
                   type="text"
-                  @input="
-                      form.ci = form.ci.replace(/\D/g, '').slice(0, 10);
-                      delete errors.ci
-                    "
+                  maxlength="13" 
+                  @input="form.ci = validarCI(form.ci); delete errors.ci"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all"
                   :class="[
                     'bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400',

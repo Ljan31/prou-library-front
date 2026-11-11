@@ -6,6 +6,7 @@ import { useAuxAssign } from '@/composables/useAuxAssign'
 import { userService } from '@/services/user.service'
 import { usePermissions } from '@/composables/usePermissions'
 import type { CreateUserPayload } from '@/services/user.service'
+import { validarCI, validarFormatoCI, validarSoloLetras } from '@/utils/validators'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{
@@ -154,8 +155,8 @@ if (!form.password) {
   // CI
   if (!form.ci.trim()) {
     errors.ci = 'Requerido'
-  } else if (!/^\d{5,20}$/.test(form.ci)) {
-    errors.ci = 'Debe contener entre 5 y 20 dígitos'
+  } else if (!validarFormatoCI(form.ci)) {
+    errors.ci = 'Ingrese un CI válido (Ej. 6565204 o 6565204-2A)'
   }
 
   // Email
@@ -215,7 +216,7 @@ async function handleCreate() {
           nombre: form.nombre,
           apellido_pat: form.apellido_pat,
           apellido_mat: form.apellido_mat || undefined,
-          ci: Number(form.ci),
+          ci: form.ci,
           celular: form.celular || undefined,
           email: form.email,
         },
@@ -233,7 +234,7 @@ async function handleCreate() {
           nombre: form.nombre,
           apellido_pat: form.apellido_pat,
           apellido_mat: form.apellido_mat,
-          ci: Number(form.ci),
+          ci: form.ci,
           celular: form.celular,
           email: form.email,
         },
@@ -372,7 +373,7 @@ async function handleCreate() {
                 <input v-model="form.nombre" type="text" placeholder="Nombre"  maxlength="25"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.nombre ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
-                  @input="delete errors.nombre" />
+                  @input="form.nombre = validarSoloLetras(form.nombre); delete errors.nombre" />
                 <p v-if="errors.nombre" class="text-xs text-red-500 mt-0.5">{{ errors.nombre }}</p>
               </div>
               <div>
@@ -381,22 +382,23 @@ async function handleCreate() {
                 <input v-model="form.apellido_pat" type="text" placeholder="Ap. Paterno" maxlength="25"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.apellido_pat ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
-                  @input="delete errors.apellido_pat" />
+                  @input="form.apellido_pat = validarSoloLetras(form.apellido_pat); delete errors.apellido_pat" />
                 <p v-if="errors.apellido_pat" class="text-xs text-red-500 mt-0.5">{{ errors.apellido_pat }}</p>
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Ap. Materno</label>
                 <input v-model="form.apellido_mat" type="text" placeholder="Ap. Materno" maxlength="25"
+                 @input="form.apellido_mat = validarSoloLetras(form.apellido_mat)"
                   class="w-full h-9 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">CI <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.ci" type="text" placeholder="Número de CI" inputmode="numeric" maxlength="10"
+                <input v-model="form.ci" type="text" placeholder="Número de CI" inputmode="numeric" maxlength="13"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.ci ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                     @input="
-                      form.ci = form.ci.replace(/\D/g, '').slice(0, 10);
+                      form.ci = validarCI(form.ci);
                       delete errors.ci;
                     " />
                 <p v-if="errors.ci" class="text-xs text-red-500 mt-0.5">{{ errors.ci }}</p>

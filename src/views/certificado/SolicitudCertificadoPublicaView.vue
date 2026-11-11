@@ -9,6 +9,7 @@
 import { ref, computed, watch } from 'vue'
 import apiPublic from '@/services/axios-public'
 import {razonCertificadoService} from '@/services/razon-certificado.service'
+import { validarSoloLetras, validarCI, validarSoloNumeros } from '@/utils/validators'
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Biblioteca {
   id_biblioteca: number
@@ -512,12 +513,14 @@ const selectArrow   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">Nombre(s) <span class="text-red-400">*</span></label>
                   <input v-model="form.nombres" type="text" autocomplete="given-name" placeholder="Ej. Carlos Alberto"
+                    @input="form.nombres = validarSoloLetras(form.nombres)" maxlength="25"
                     :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputCls('nombres')]" />
                   <p v-if="errors.nombres" class="text-xs text-red-500 mt-1">{{ errors.nombres }}</p>
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">Apellido(s) <span class="text-red-400">*</span></label>
                   <input v-model="form.apellidos" type="text" autocomplete="family-name" placeholder="Ej. Mamani López"
+                    @input="form.apellidos = validarSoloLetras(form.apellidos)" maxlength="25"
                     :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputCls('apellidos')]" />
                   <p v-if="errors.apellidos" class="text-xs text-red-500 mt-1">{{ errors.apellidos }}</p>
                 </div>
@@ -527,12 +530,14 @@ const selectArrow   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">Carnet de Identidad <span class="text-red-400">*</span></label>
                   <input v-model="form.ci" type="text" autocomplete="off" placeholder="Ej. 12345678"
+                    :maxlength="13" @input="form.ci = validarCI(form.ci)"
                     :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputCls('ci')]" />
                   <p v-if="errors.ci" class="text-xs text-red-500 mt-1">{{ errors.ci }}</p>
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">N° Matrícula <span class="text-slate-400 font-normal">(opcional)</span></label>
-                  <input v-model="form.matricula" type="text" autocomplete="off" placeholder="Ej. 20230125"
+                  <input v-model="form.matricula" type="number" inputmode="numeric" autocomplete="off" placeholder="Ej. 20230125" maxlength="10"
+                    @input="form.matricula = validarSoloNumeros(form.matricula)"
                     class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all" />
                 </div>
               </div>
@@ -540,14 +545,15 @@ const selectArrow   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">Correo electrónico <span class="text-slate-400 font-normal">(opcional)</span></label>
-                  <input v-model="form.email" type="email" autocomplete="email" placeholder="correo@ejemplo.com"
+                  <input v-model="form.email" type="email" autocomplete="email" placeholder="correo@ejemplo.com" maxlength="40"
                     :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputCls('email')]" />
                   <p v-if="errors.email" class="text-xs text-red-500 mt-1">{{ errors.email }}</p>
                   <p v-else class="text-[10px] text-slate-400 mt-1">Para recibir notificación cuando esté listo.</p>
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">Teléfono / Celular <span class="text-slate-400 font-normal">(opcional)</span></label>
-                  <input v-model="form.telefono" type="tel" autocomplete="tel" placeholder="Ej. 76543210"
+                  <input v-model="form.telefono" type="tel" autocomplete="tel" placeholder="Ej. 76543210" maxlength="10"
+                    @input="form.telefono = validarSoloNumeros(form.telefono)"
                     class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all" />
                 </div>
               </div>

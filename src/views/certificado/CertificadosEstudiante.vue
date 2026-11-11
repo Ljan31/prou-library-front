@@ -24,7 +24,7 @@ import {
 import CertificadosModal from './CertificadosModal.vue'
 import CertificadoPdfViewer from './CertificadoPdfViewer.vue'
 import CertificadoPreview from './CertificadoPreview.vue'
-
+import { validarSoloLetras, validarCI, validarSoloNumeros } from '@/utils/validators'
 const ui = useUiStore()
 const auth = useAuthStore()
 const { isEstudiante } = usePermissions()
@@ -268,11 +268,11 @@ const form = ref({
 function autocompletarFormulario() {
   const p = auth.user?.persona
   if (!p) return
-  // Separar nombreCompleto en nombres / apellidos por la mitad
-  const partes = (p.nombreCompleto ?? '').trim().split(' ')
-  const mitad = Math.ceil(partes.length / 2)
-  form.value.nombres   = partes.slice(0, mitad).join(' ')
-  form.value.apellidos = partes.slice(mitad).join(' ')
+  form.value.nombres = p.nombre ?? ''
+  form.value.apellidos = [
+    p.apellido_pat,
+    p.apellido_mat
+  ].filter(Boolean).join(' ')
   form.value.ci        = String(p.ci ?? '')
   form.value.matricula = p.matricula ?? ''
   form.value.email     = p.email ?? ''
@@ -1093,35 +1093,40 @@ function inputClass(field: string) {
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Nombres <span class="text-red-400">*</span></label>
               <input v-model="form.nombres" type="text" placeholder="Ej. Carlos Alberto"
+              @input="form.nombres = validarSoloLetras(form.nombres)" maxlength="25"
                 :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputClass('nombres')]"/>
               <p v-if="formErrors.nombres" class="text-xs text-red-500 mt-1">{{ formErrors.nombres }}</p>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Apellidos <span class="text-red-400">*</span></label>
               <input v-model="form.apellidos" type="text" placeholder="Ej. Mamani López"
+                @input="form.apellidos = validarSoloLetras(form.apellidos)" maxlength="25"
                 :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputClass('apellidos')]"/>
               <p v-if="formErrors.apellidos" class="text-xs text-red-500 mt-1">{{ formErrors.apellidos }}</p>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Carnet de Identidad <span class="text-red-400">*</span></label>
-              <input v-model="form.ci" type="text" placeholder="Ej. 12345678"
+              <input v-model="form.ci" type="text" placeholder="Ej. 6565204-1A"
+                :maxlength="13" @input="form.ci = validarCI(form.ci)"
                 :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputClass('ci')]"/>
               <p v-if="formErrors.ci" class="text-xs text-red-500 mt-1">{{ formErrors.ci }}</p>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">N° de Matrícula <span class="text-slate-400">(opcional)</span></label>
-              <input v-model="form.matricula" type="text" placeholder="Ej. 20230125"
+              <input v-model="form.matricula" type="text" inputmode="numeric" placeholder="Ej. 20230125" maxlength="10"
+                @input="form.matricula = validarSoloNumeros(form.matricula)"
                 class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"/>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Correo electrónico <span class="text-slate-400">(opcional)</span></label>
-              <input v-model="form.email" type="email" placeholder="correo@ejemplo.com"
+              <input v-model="form.email" type="email" placeholder="correo@ejemplo.com" maxlength="40"
                 class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"/>
               <p class="text-[10px] text-slate-400 mt-1">Para recibir notificación cuando el certificado esté listo.</p>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Teléfono <span class="text-slate-400">(opcional)</span></label>
-              <input v-model="form.telefono" type="tel" placeholder="Ej. 76543210"
+              <input v-model="form.telefono" type="text" inputmode="numeric" placeholder="Ej. 76543210"  maxlength="10"
+                @input="form.telefono = validarSoloNumeros(form.telefono)"
                 class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"/>
             </div>
           </div>
