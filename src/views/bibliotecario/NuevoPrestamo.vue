@@ -628,6 +628,19 @@ const usuarioParaTicket = ref<UsuarioTicket | null>(null)
 
 function abrirTicket() { showTicket.value = true }
 
+const showCancelarModal = ref(false)
+
+function cancelarPrestamo() {
+  showCancelarModal.value = true
+}
+
+function confirmarCancelacion() {
+  showCancelarModal.value = false
+  showTicket.value = false
+  resetForm()
+  ui.toast.info('Préstamo cancelado', 'Se descartó el registro del préstamo')
+}
+
 </script>
 
 <template>
@@ -734,7 +747,7 @@ function abrirTicket() { showTicket.value = true }
                     d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <svg v-else class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor"
-                  viewBox="0 0 24 24">
+                  viewBox="0 0 24 24" v-on:click="resetUser">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -1452,6 +1465,14 @@ function abrirTicket() { showTicket.value = true }
             class="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
             Volver
           </button>
+          <button
+            @click="cancelarPrestamo"
+            class="px-5 py-2.5 rounded-xl border border-red-200
+                  text-sm font-semibold text-red-600
+                  hover:bg-red-50 cursor-pointer transition-colors"
+          >
+            Cancelar préstamo
+          </button>
           <button @click="step = 3" :disabled="!loteCompleto"
             :class="['flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
               loteCompleto ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-400 cursor-not-allowed']">
@@ -1633,6 +1654,14 @@ function abrirTicket() { showTicket.value = true }
             <button @click="step = 2"
               class="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
               Volver
+            </button>
+            <button
+              @click="cancelarPrestamo"
+              class="px-5 py-2.5 rounded-xl border border-red-200
+                text-sm font-semibold text-red-600
+              hover:bg-red-50 cursor-pointer transition-colors"
+            >
+              Cancelar préstamo
             </button>
             <button @click="confirmarPrestamo" :disabled="!canConfirm || confirmLoading" :class="['flex-1 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
               canConfirm && !confirmLoading
@@ -1821,7 +1850,61 @@ function abrirTicket() { showTicket.value = true }
     </Teleport>
 
     </div>
+    <Teleport to="body">
+      <div
+        v-if="showCancelarModal"
+        class="fixed inset-0 z-[60] flex items-center
+               justify-center p-4 bg-black/50 backdrop-blur-sm"
+        @click.self="showCancelarModal = false"
+      >
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+    
+          <div class="w-12 h-12 rounded-full bg-red-100
+                      flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-red-600" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </div>
+    
+          <h3 class="text-lg font-bold text-slate-800">
+            ¿Cancelar préstamo?
+          </h3>
+    
+          <p class="text-sm text-slate-500 mt-2">
+            ¿Estás seguro de que deseas cancelar este proceso?
+            Se perderán los datos ingresados y tendrás que
+            comenzar nuevamente.
+          </p>
+    
+          <div class="flex gap-3 mt-6">
+            <button
+              @click="showCancelarModal = false"
+              class="flex-1 py-2.5 rounded-xl border
+                     border-slate-200 text-sm font-semibold
+                     text-slate-600 hover:bg-slate-50"
+            >
+              Seguir registrando
+            </button>
+    
+            <button
+              @click="confirmarCancelacion"
+              class="flex-1 py-2.5 rounded-xl bg-red-600
+                     hover:bg-red-700 text-white
+                     text-sm font-semibold"
+            >
+              Sí, cancelar
+            </button>
+          </div>
+    
+        </div>
+      </div>
+    </Teleport>
   </div>
+  
+
 </template>
 <style scoped>
 @keyframes slide-up {
