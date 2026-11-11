@@ -76,3 +76,23 @@ export const BoxIcon: IconComponent = createIcon([
   h('polyline', { points: "3.27 6.96 12 12.01 20.73 6.96" }),
   h('line', { x1: "12", y1: "22.08", x2: "12", y2: "12" })
 ])
+export const AlertTriangleIcon: IconComponent = createIcon([
+  h('path', {
+    d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+  }),
+  h('line', { x1: "12", y1: "9", x2: "12", y2: "13" }),
+  h('line', { x1: "12", y1: "17", x2: "12.01", y2: "17" })
+])
+
+export const CalendarIcon: IconComponent = createIcon([
+  h('rect', {
+    x: "3",
+    y: "4",
+    width: "18",
+    height: "18",
+    rx: "2"
+  }),
+  h('line', { x1: "16", y1: "2", x2: "16", y2: "6" }),
+  h('line', { x1: "8", y1: "2", x2: "8", y2: "6" }),
+  h('line', { x1: "3", y1: "10", x2: "21", y2: "10" })
+])

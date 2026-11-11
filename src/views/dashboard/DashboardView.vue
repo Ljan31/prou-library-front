@@ -8,7 +8,6 @@ import SButton from '@/components/ui/SButton.vue'
 import { BookIcon, BookmarkIcon, DocumentCheckIcon, UsersIcon, LibraryIcon, ChartIcon, PlusIcon, ReturnIcon, BoxIcon } from './icons'
 
 import { useDashboard } from '@/composables/useDashboard'
-import { formatNumber } from '@/utils/format'
 import DashboardIndicators from '@/components/dashboard/DashboardIndicators.vue'
 import PrestamosPorMesChart from '@/components/dashboard/charts/PrestamosPorMesChart.vue'
 import PrestamosPorEstadoChart from '@/components/dashboard/charts/PrestamosPorEstadoChart.vue'
@@ -17,6 +16,7 @@ import PrestamosPorTipoChart from '@/components/dashboard/charts/PrestamosPorTip
 import PrestamosPorBibliotecaChart from '@/components/dashboard/charts/PrestamosPorBibliotecaChart.vue'
 import DevolucionesPorMesChart from '@/components/dashboard/charts/DevolucionesPorMesChart.vue'
 import CondicionDevolucionesChart from '@/components/dashboard/charts/CondicionDevolucionesChart.vue'
+import EstudianteDashboard from '@/components/dashboard/EstudianteDashboard.vue'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -102,8 +102,11 @@ const quickLinks = computed(() => {
       </div> -->
     </template>
 
+    <!-- Dashboard del estudiante / lector -->
+    <EstudianteDashboard v-if="!isStaff" class="mb-7" />
+
     <!-- Acceso rápido -->
-    <!-- <section class="mb-7" aria-labelledby="quick-title">
+    <section class="mb-7" aria-labelledby="quick-title">
       <h2 id="quick-title" class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Acceso rápido</h2>
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <RouterLink
@@ -119,7 +122,7 @@ const quickLinks = computed(() => {
           </div>
         </RouterLink>
       </div>
-    </section> -->
+    </section>
 
     <!-- Gráficas (solo staff) -->
     <section v-if="isStaff && !error" aria-label="Estadísticas" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
