@@ -4,6 +4,7 @@ import type { Libro } from "@/types/catalogo";
 // ─── Tipos ────────────────────────────────────────────────────────────────
 
 export interface BusquedaLibrosParams {
+  busqueda?: string;
   titulo?: string;
   categoriaId?: number;
   isbn?: string; // busca dentro de las ediciones
@@ -128,11 +129,14 @@ export async function buscarLibros(
   // ── Intento 1: búsqueda avanzada ──
   try {
     const body: Record<string, unknown> = {};
-    if (filtros.titulo?.trim()) body.titulo = filtros.titulo.trim();
+    // if (filtros.titulo?.trim()) body.titulo = filtros.titulo.trim();
     if (filtros.categoriaId) body.categoriaId = filtros.categoriaId;
     if (filtros.isbn?.trim()) body.isbn = filtros.isbn.trim();
-    if (filtros.autor?.trim()) body.autor = filtros.autor.trim();
+    // if (filtros.autor?.trim()) body.autor = filtros.autor.trim();
     if (filtros.anoPublicacion) body.anoPublicacion = filtros.anoPublicacion;
+    if (filtros.busqueda?.trim()) {
+      body.busqueda = filtros.busqueda.trim();
+    }
     const res = await api.post(
       `/libros/busqueda-avanzada?page=${pageBackend}&size=${size}&sort=${sort}`,
       body,

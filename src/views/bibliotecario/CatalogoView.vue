@@ -104,9 +104,9 @@ async function ejecutarBusqueda() {
   errorLibros.value = null
   try {
     const resultado = await buscarLibros({
-      titulo: busqueda.value,
+      busqueda: busqueda.value,
       categoriaId: categoriaFiltro.value ? Number(categoriaFiltro.value) : undefined,
-      autor: busqueda.value || undefined,
+      // autor: busqueda.value || undefined,
       anoPublicacion: anioFiltro.value ?? undefined,
       pagina: pagina.value,
       size: porPagina,
