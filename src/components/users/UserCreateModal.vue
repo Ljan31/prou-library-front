@@ -6,7 +6,7 @@ import { useAuxAssign } from '@/composables/useAuxAssign'
 import { userService } from '@/services/user.service'
 import { usePermissions } from '@/composables/usePermissions'
 import type { CreateUserPayload } from '@/services/user.service'
-import { validarCI, validarFormatoCI, validarSoloLetras } from '@/utils/validators'
+import { validarCI, validarFormatoCI, validarSoloLetras, validarSoloNumeros } from '@/utils/validators'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{
@@ -406,7 +406,7 @@ async function handleCreate() {
               <div class="col-span-2">
                 <label class="block text-xs font-medium text-slate-600 mb-1">Email <span
                     class="text-red-500">*</span></label>
-                <input v-model="form.email" type="email" placeholder="email@dominio.com" maxlength="20"
+                <input v-model="form.email" type="email" placeholder="email@dominio.com" maxlength="35"
                   class="w-full h-9 px-3 text-sm rounded-lg border outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   :class="errors.email ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'"
                   @input="delete errors.email" />
@@ -476,7 +476,8 @@ async function handleCreate() {
                     {{ c.nombre_carrera }}
                   </option>
                 </select>
-                <input v-model="form._pickerMatricula" type="text" placeholder="Matrícula"  maxlength="10"
+                <input v-model="form._pickerMatricula" type="text" placeholder="Matrícula" inputmode="numeric"  maxlength="10"
+                  @input="form._pickerMatricula = validarSoloNumeros(form._pickerMatricula)"
                   class="w-28 h-9 px-2 text-sm rounded-lg border border-sky-200 bg-white text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400" />
                 <button
                   class="h-9 px-3 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-500 transition-colors disabled:opacity-40 shrink-0"

@@ -1119,7 +1119,7 @@ function inputClass(field: string) {
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Correo electrónico <span class="text-slate-400">(opcional)</span></label>
-              <input v-model="form.email" type="email" placeholder="correo@ejemplo.com" maxlength="40"
+              <input v-model="form.email" type="email" placeholder="correo@ejemplo.com" maxlength="50"
                 class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"/>
               <p class="text-[10px] text-slate-400 mt-1">Para recibir notificación cuando el certificado esté listo.</p>
             </div>

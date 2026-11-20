@@ -536,7 +536,7 @@ const selectArrow   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">N° Matrícula <span class="text-slate-400 font-normal">(opcional)</span></label>
-                  <input v-model="form.matricula" type="number" inputmode="numeric" autocomplete="off" placeholder="Ej. 20230125" maxlength="10"
+                  <input v-model="form.matricula" type="text" inputmode="numeric" placeholder="Ej. 20230125" maxlength="10"
                     @input="form.matricula = validarSoloNumeros(form.matricula)"
                     class="w-full px-3 py-2.5 text-sm border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all" />
                 </div>
@@ -545,7 +545,7 @@ const selectArrow   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1.5">Correo electrónico <span class="text-slate-400 font-normal">(opcional)</span></label>
-                  <input v-model="form.email" type="email" autocomplete="email" placeholder="correo@ejemplo.com" maxlength="40"
+                  <input v-model="form.email" type="email" autocomplete="email" placeholder="correo@ejemplo.com" maxlength="50"
                     :class="['w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 transition-all', inputCls('email')]" />
                   <p v-if="errors.email" class="text-xs text-red-500 mt-1">{{ errors.email }}</p>
                   <p v-else class="text-[10px] text-slate-400 mt-1">Para recibir notificación cuando esté listo.</p>

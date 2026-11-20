@@ -14,6 +14,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RespaldoViewerModal from '@/components/bibliotecas/RespaldoViewerModal.vue'
 import EncargadoFormModal from '@/components/bibliotecas/EncargadoFormModal.vue'
 import { errMsg } from '@/services/error-handler'
+import { validarSoloNumeros } from '@/utils/validators'
 const props = defineProps<{ user: UserResponse | null }>()
 const emit = defineEmits<{ close: [] }>()
 
@@ -636,7 +637,8 @@ const carrerasRemovibles = computed(() => {
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1.5">Matrícula</label>
-              <input v-model="assignMatricula" type="text" placeholder="Ej. 2024-001234 (opcional)"
+              <input v-model="assignMatricula" type="text" placeholder="Ej. 2024-001234 (opcional)" inputmode="numeric" maxlength="10"
+                @input="assignMatricula = validarSoloNumeros(assignMatricula)"
                 class="w-full h-10 px-3 text-sm rounded-lg border border-slate-200 bg-slate-50 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
             </div>
           </div>
