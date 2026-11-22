@@ -3,7 +3,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { usePermissions } from '@/composables/usePermissions'
 import { useReservasStore } from '@/stores/reservas.store'
 import SButton from '@/components/ui/SButton.vue'
 import SInput from '@/components/ui/SInput.vue'
@@ -13,7 +12,6 @@ import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import LibroReservaCard from '@/components/reservas/LibroReservaCard.vue'
 import ReservaModalConfirm from '@/components/reservas/ReservaModalConfirm.vue'
-import LibroCard from '@/components/catalogo/LibroCard.vue'
 import LibroFormModal from '@/components/catalogo/LibroFormModal.vue'
 import LibroDetalleModal from '@/components/catalogo/LibroDetalleModal.vue'
 import type { Libro, Categoria } from '@/types/catalogo'
@@ -25,7 +23,6 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 const ui = useUiStore()
 const auth = useAuthStore()
 const router = useRouter()
-const { isAdmin, isBibliotecario } = usePermissions()
 const reservasStore = useReservasStore()
 
 // ─── Estado UI ────────────────────────────────────────────────────────────

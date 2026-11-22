@@ -4,10 +4,13 @@ import BaseModal from './BaseModal.vue'
 import { crearEdicion, actualizarEdicion } from '@/services/ediciones.service'
 import { useMedia } from '@/composables/useMedia'
 import type { Edicion } from '@/types/catalogo'
+import { validarSoloNumeros } from '@/utils/validators'
 
 const props = defineProps<{
   edicion: Edicion | null
   libroId: number
+  isbnObligatorio?: boolean
+  edicionesExistentes?: Edicion[]
 }>()
 
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -104,8 +107,31 @@ function onPortadaChange(ev: Event) {
 
 function validar(): boolean {
   limpiarErrores()
-  // if (!form.isbn.trim()) errores.isbn = 'El ISBN es requerido'
-  if (!form.editorial.trim()) errores.editorial = 'La editorial es requerida'
+  const isbn = form.isbn.trim().replace(/-/g, '')
+
+  // ISBN obligatorio según escenario
+  if (props.isbnObligatorio && !isbn) {
+    errores.isbn = 'El ISBN es obligatorio'
+  }
+
+  // Validación de formato ISBN-10 o ISBN-13
+  if (isbn && !/^(?:\d{10}|\d{13})$/.test(isbn)) {
+    errores.isbn = 'El ISBN debe tener 10 o 13 dígitos'
+  }
+
+   // Validar que no se repita entre las ediciones
+  if (isbn) {
+    const duplicado = props.edicionesExistentes?.some(e =>
+      e.isbn?.replace(/-/g, '') === isbn &&
+      e.idEdicion !== props.edicion?.idEdicion
+    )
+
+    if (duplicado) {
+      errores.isbn = 'Este ISBN ya está registrado en otra edición'
+    }
+  }
+
+  // if (!form.editorial.trim()) errores.editorial = 'La editorial es requerida'
   const anio = new Date().getFullYear()
   if (!form.anoPublicacion || form.anoPublicacion < 1000 || form.anoPublicacion > anio + 1)
     errores.anoPublicacion = 'Año inválido'
@@ -237,16 +263,21 @@ async function guardar() {
       </div>
       <!-- ── Datos de la edición ────────────────────────────────────────── -->
       <div class="grid grid-cols-2 gap-3">
-        <!-- <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">ISBN *</label>
-          <input v-model="form.isbn" type="text" placeholder="978-0-262-03384-8" maxlength="17" minlength="10"
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-slate-600 mb-1">
+            ISBN
+            <span v-if="isbnObligatorio" class="text-red-500">*</span>
+            <span v-else class="text-slate-400">(opcional)</span>
+          </label>
+          <input v-model="form.isbn" type="text" placeholder="9780262033848" maxlength="20" 
+            @input="form.isbn = validarSoloNumeros(form.isbn)"
             class="w-full text-sm rounded-lg border px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.isbn ? 'border-red-400' : 'border-slate-200'" />
           <p v-if="errores.isbn" class="text-xs text-red-500 mt-1">{{ errores.isbn }}</p>
-        </div> -->
+        </div>
 
         <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Editorial *</label>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Editorial</label>
           <input v-model="form.editorial" type="text" placeholder="MIT Press" maxlength="50"
             class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.editorial ? 'border-red-400' : 'border-slate-200'" />
@@ -254,7 +285,7 @@ async function guardar() {
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Año *</label>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Año</label>
           <input v-model.number="form.anoPublicacion" type="number"
             class="w-full text-sm rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             :class="errores.anoPublicacion ? 'border-red-400' : 'border-slate-200'" />

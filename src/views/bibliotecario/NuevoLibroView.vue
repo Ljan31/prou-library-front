@@ -40,6 +40,8 @@ onMounted(async () => {
 // ══════════════════════════════════════════════════════════════════════════
 // DATOS AUXILIARES
 // ══════════════════════════════════════════════════════════════════════════
+// Configuración del ISBN
+const ISBN_OBLIGATORIO = true
 const categorias  = ref<Categoria[]>([])
 const bibliotecas = ref<{ id: number; nombre: string }[]>([])
 const cargandoInicial = ref(false)
@@ -173,6 +175,8 @@ interface EdicionItem {
   editorial:          string
   edicionTexto:       string
   anoPublicacion:     number
+  isbn:               string
+  errorIsbn:          string
   cantidadEjemplares: number
   // archivos propios de esta edición
   portadaFile:        File | null
@@ -202,6 +206,8 @@ function crearEdicionVacia(numero = 1): EdicionItem {
     editorial:          '',
     edicionTexto:      ordinalEdicion(numero),
     anoPublicacion:     new Date().getFullYear(),
+    isbn:               '',
+    errorIsbn:          '',
     cantidadEjemplares: 1,
     portadaFile:        null,
     portadaPreview:     '',
@@ -349,11 +355,16 @@ const errorGuardar = ref('')
 
 async function guardar() {
   if (!validar()) return
+  if (!validarIsbn()) {
+    ui.toast.error('Validación', 'Revisa los ISBN de las ediciones')
+    return
+  }
   guardando.value = true; errorGuardar.value = ''
   try {
     const edicionesPayload = ediciones.value.map((ed) => ({
       editorial:      ed.editorial.trim() || undefined,
       edicion:        ed.edicionTexto.trim() || undefined,
+      isbn:            ed.isbn.trim() || null,
       anoPublicacion: ed.anoPublicacion,
       ejemplares: Array.from({ length: ed.cantidadEjemplares }, (_, i) => ({
         bibliotecaId:         ej.bibliotecaId,
@@ -405,9 +416,50 @@ async function guardar() {
   } catch (e: unknown) {
     const err = e as any
     errorGuardar.value = err?.response?.data?.message ?? (e instanceof Error ? e.message : 'Error al guardar')
+     ui.toast.error('Error al Guardar', errorGuardar.value)
   } finally {
     guardando.value = false
   }
+}
+
+function validarIsbn(): boolean {
+
+  let valido = true
+
+  // Limpiar errores anteriores
+  ediciones.value.forEach((ed: any) => {
+    ed.errorIsbn = ''
+  })
+
+  const isbns = new Map<string, number>()
+
+  ediciones.value.forEach((ed, idx) => {
+
+    const isbn = ed.isbn.trim()
+
+    // Escenario 1: ISBN obligatorio
+    if (ISBN_OBLIGATORIO && !isbn) {
+      ed.errorIsbn = 'El ISBN es obligatorio'
+      valido = false
+      return
+    }
+
+    // Escenario 2: ISBN opcional
+    if (!isbn) return
+
+    // Comprobar duplicados entre las ediciones del formulario
+    const isbnNormalizado = isbn.toUpperCase()
+
+    if (isbns.has(isbnNormalizado)) {
+      ed.errorIsbn = `Este ISBN ya está registrado en la edición ${isbns.get(isbnNormalizado)! + 1}`
+      valido = false
+    } else {
+      isbns.set(isbnNormalizado, idx)
+    }
+
+  })
+
+  return valido
 }
 
 function cancelar() { router.push('/inventario') }
@@ -702,21 +754,60 @@ function cancelar() { router.push('/inventario') }
 
                 <!-- Campos textuales -->
                 <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+                  <!-- Editorial -->
                   <div class="sm:col-span-3">
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Editorial</label>
-                    <input v-model="ed.editorial" type="text" placeholder="Ej. Siglo XXI Editores"
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                      Editorial
+                    </label>
+                    <input v-model="ed.editorial" type="text"
+                      placeholder="Ej. Siglo XXI Editores"
                       class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
                   </div>
+
+                  <!-- Número de edición -->
                   <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Nº edición</label>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                      Nº edición
+                    </label>
                     <input v-model="ed.edicionTexto" type="text" placeholder="1ra, 2da…"
                       class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
                   </div>
+
+                  <!-- Año -->
                   <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Año</label>
-                    <input v-model.number="ed.anoPublicacion" type="number" :min="1800" :max="new Date().getFullYear() + 1"
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                      Año
+                    </label>
+                    <input v-model.number="ed.anoPublicacion" type="number"
+                      :min="1800" :max="new Date().getFullYear() + 1"
                       class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
                   </div>
+
+                  <!-- ISBN -->
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                      ISBN <span class="text-slate-400 font-normal"></span>
+                      <span v-if="ISBN_OBLIGATORIO" class="text-red-500">*</span>
+                      <span v-else class="text-slate-400 font-normal">(opcional)</span>
+                    </label>
+                    <input
+                      v-model="ed.isbn"
+                      type="text"
+                      maxlength="20"
+                      placeholder="9788497592208"
+                      :class="[
+                        'w-full text-sm rounded-xl border px-3 py-2.5 focus:outline-none focus:ring-2',
+                        ed.errorIsbn
+                          ? 'border-red-400 bg-red-50 focus:ring-red-400'
+                          : 'border-slate-200 focus:ring-indigo-500'
+                      ]"
+                    />
+                    <p v-if="ed.errorIsbn" class="text-xs text-red-500 mt-1">
+                      {{ ed.errorIsbn }}
+                    </p>
+                  </div>
+
                 </div>
 
                 <!-- PDF -->

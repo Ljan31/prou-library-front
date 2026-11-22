@@ -39,10 +39,10 @@ import { computed } from 'vue'
   <div v-if="vista === 'grid'"
     class="group bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md hover:border-indigo-200 transition-all duration-200 flex flex-col">
     <!-- Portada -->
-    <div class="relative bg-gradient-to-br from-slate-100 to-indigo-50 aspect-[3/4] overflow-hidden">
+    <div class="relative bg-gradient-to-br from-slate-100 to-indigo-50 aspect-[3/4] overflow-hidden"  @click="emit('ver', libro)" >
       <img v-if="portada" :src="portada" :alt="libro.titulo"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"
-        @click="emit('ver', libro)" />
+       />
       <div v-else class="w-full h-full flex items-center justify-center">
         <svg class="w-12 h-12 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"

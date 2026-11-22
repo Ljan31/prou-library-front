@@ -209,14 +209,20 @@ async function guardarInfo() {
   if (!formInfo.titulo.trim()) { erroresInfo.titulo = 'El título es requerido'; return }
   guardandoInfo.value = true
   try {
-    await api.put(`/libros/${props.libroId}`, {
+    const payload = {
       titulo: formInfo.titulo.trim(),
       idioma: formInfo.idioma,
       categoriaId: formInfo.categoriaId || undefined,
       descripcion: formInfo.descripcion.trim() || undefined,
-      autorIds: autores.value.filter(a => !a.nuevo && a.idAutor).map(a => a.idAutor),
-      autores: autores.value.filter(a => a.nuevo).map(a => ({ nombre: a.nombre })),
-    })
+      autorIds: autores.value
+        .filter(a => !a.nuevo && a.idAutor)
+        .map(a => a.idAutor),
+      autores: autores.value
+        .filter(a => a.nuevo)
+        .map(a => ({ nombre: a.nombre })),
+    }
+
+    await api.put(`/libros/${props.libroId}`, payload)
     emit('saved')
   } catch (e: unknown) {
     const err = e as any
@@ -902,6 +908,7 @@ const categoriaActual = computed(() =>
 
     <!-- Sub-modales fuera del BaseModal principal -->
     <EdicionFormModal v-if="subModal === 'edicion-form'" :edicion="edicionEditando" :libro-id="props.libroId"
+    :isbn-obligatorio="true" :ediciones-existentes="ediciones"
       @close="cerrar" @saved="onEdicionGuardada" />
 
     <EjemplarFormModal v-if="subModal === 'ejemplar-form'" :ejemplar="ejemplarEditando" :ediciones="ediciones"

@@ -11,6 +11,7 @@ import SCard from '@/components/ui/SCard.vue'
 import SSkeleton from '@/components/feedback/SSkeleton.vue'
 import SEmptyState from '@/components/feedback/SEmptyState.vue'
 import LibroReservaCard from '@/components/reservas/LibroReservaCard.vue'
+import LibroDetalleModal from '@/components/catalogo/LibroDetalleModal.vue'
 import ReservaModalConfirm from '@/components/reservas/ReservaModalConfirm.vue'
 import ModalReservaNoAuth from '@/components/reservas/ModalReservaNoAuth.vue'
 import type { Libro, Categoria } from '@/types/catalogo'
@@ -54,6 +55,9 @@ const opcionesCategorias = computed(() => [
   }))
 ])
 
+// Modal de detalle público
+const mostrarDetalle = ref(false)
+const libroDetalle = ref<Libro | null>(null)
 
 // ─── Carga inicial ────────────────────────────────────────────────────────
 onMounted(async () => {
@@ -172,6 +176,19 @@ function resetFiltros() {
   pagina.value = 1
   cargarCatalogo()
 }
+
+function abrirDetalle(libro: LibroPublico) {
+  // El modal de detalle necesita el objeto Libro completo.
+  // Aquí asumimos que LibroPublico contiene los datos necesarios.
+  libroDetalle.value = libro as unknown as Libro
+  mostrarDetalle.value = true
+}
+
+function cerrarDetalle() {
+  mostrarDetalle.value = false
+  libroDetalle.value = null
+}
+
 </script>
 
 <template>
@@ -289,7 +306,7 @@ function resetFiltros() {
       <div v-else>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
           <LibroReservaCard v-for="libro in libros" :key="libro.idLibro" :libro="libro"
-            :ya-reservado="libroIdsReservados.has(libro.idLibro)" @reservar="iniciarReserva" />
+            :ya-reservado="libroIdsReservados.has(libro.idLibro)" @reservar="iniciarReserva" @ver="abrirDetalle" />
         </div>
 
         <!-- Paginación -->
@@ -312,6 +329,13 @@ function resetFiltros() {
       @confirmada="onReservaConfirmada" />
     <ModalReservaNoAuth :visible="mostrarModalAuth" @close="mostrarModalAuth = false"
       @login="router.push({ name: 'login', query: { redirect: '/catalogo' } })" @register="router.push('/register')" />
+
+    <!-- Modal de detalle público -->
+    <LibroDetalleModal
+      v-if="mostrarDetalle && libroDetalle"
+      :libro="libroDetalle"
+      @close="cerrarDetalle"
+    />
   </div>
 </template>
 <style></style>

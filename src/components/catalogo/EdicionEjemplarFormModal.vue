@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { usePermissions } from '@/composables/usePermissions'
 import { useMedia } from '@/composables/useMedia'
 import type { Ejemplar, Edicion } from '@/types/catalogo'
+import { useUiStore } from '@/stores/ui.store'
 
 // ─────────────────────────────────────────────────────────────────────────
 // Este modal reemplaza a EjemplarFormModal SOLO en el flujo de edición
@@ -31,8 +32,9 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const { getUrl } = useMedia()
 const auth = useAuthStore()
+const ui = useUiStore()
 const { isAdmin, isBibliotecario } = usePermissions()
-
+const isbnObligatorio = true
 const guardando = ref(false)
 const errorGeneral = ref('')
 // Errores separados por sección para no mezclar validaciones
@@ -126,12 +128,53 @@ function validarEdicion(): boolean {
   // Si el usuario reasignó el ejemplar a una edición distinta de la
   // cargada, no validamos ni enviamos cambios de edición.
   if (!edicionSeleccionadaEsLaOriginal.value) return true
-  // if (!formEdicion.isbn.trim()) erroresEdicion.isbn = 'El ISBN es requerido'
+  
+
+  const isbn = formEdicion.isbn.trim()
+
+  if (isbnObligatorio && !isbn) {
+    erroresEdicion.isbn = 'El ISBN es obligatorio'
+  }
+
+  if (isbn) {
+    const isbnLimpio = isbn.replace(/[-\s]/g, '')
+
+    if (!/^(?:\d{10}|\d{13})$/.test(isbnLimpio)) {
+      erroresEdicion.isbn = 'El ISBN debe tener 10 o 13 dígitos'
+    }
+  }
+
   // if (!formEdicion.editorial.trim()) erroresEdicion.editorial = 'La editorial es requerida'
   const anio = new Date().getFullYear()
   if (!formEdicion.anoPublicacion || formEdicion.anoPublicacion < 1000 || formEdicion.anoPublicacion > anio + 1)
     erroresEdicion.anoPublicacion = 'Año inválido'
   return Object.keys(erroresEdicion).length === 0
+}
+
+function validarIsbnDuplicado(): boolean {
+  const isbn = formEdicion.isbn.replace(/[-\s]/g, '').trim()
+
+  if (!isbn) return true
+
+  const duplicado = props.ediciones?.some(ed => {
+    // Excluir la edición que estamos modificando
+    if (ed.idEdicion === edicionOriginal.value?.idEdicion) {
+      return false
+    }
+
+    const isbnExistente = (ed.isbn ?? '')
+      .replace(/[-\s]/g, '')
+      .trim()
+
+    return isbnExistente === isbn
+  })
+
+  if (duplicado) {
+    erroresEdicion.isbn = 'Este ISBN ya está registrado en otra edición'
+    return false
+  }
+
+  return true
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -243,8 +286,9 @@ const pasoConError = ref<'edicion' | 'ejemplar' | null>(null)
 async function guardar() {
   limpiarErrores()
   const edicionOk = validarEdicion()
+  const isbnOk = validarIsbnDuplicado()
   const ejemplarOk = validarEjemplar()
-  if (!edicionOk || !ejemplarOk) return
+  if (!edicionOk || !isbnOk ||!ejemplarOk) return
 
   guardando.value = true
   errorGeneral.value = ''
@@ -305,6 +349,7 @@ async function guardar() {
         ? 'Error al actualizar el ejemplar: '
         : ''
     errorGeneral.value = prefijo + msg
+     ui.toast.error('Error', msg)
   } finally {
     guardando.value = false
   }
@@ -395,6 +440,30 @@ async function guardar() {
           <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-wide border-b border-slate-100 pb-1.5">
             Datos de la edición
           </h3>
+          <!-- ISBN -->
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">
+              ISBN
+              <span v-if="isbnObligatorio" class="text-red-500">*</span>
+              <span v-else class="text-slate-400">(opcional)</span>
+            </label>
+
+            <input
+              v-model="formEdicion.isbn"
+              type="text"
+              placeholder="978-0-262-03384-8"
+              maxlength="17"
+              class="w-full text-sm font-mono rounded-lg border px-3 py-2
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              :class="erroresEdicion.isbn
+                ? 'border-red-400'
+                : 'border-slate-200'"
+            />
+
+            <p v-if="erroresEdicion.isbn" class="text-xs text-red-500 mt-1">
+              {{ erroresEdicion.isbn }}
+            </p>
+          </div>
           <!-- Editorial -->
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">
