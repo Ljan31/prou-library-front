@@ -1,7 +1,7 @@
 import type { Ejemplar } from '@/types/catalogo'
 
 /** Vista activa dentro del inventario: catálogo agrupado por libro o listado plano de ejemplares. */
-export type Vista = 'libros' | 'ejemplares'
+export type Vista = 'libros' | 'ejemplares' | 'autores' | 'categorias'
 
 /** Opción de biblioteca usada en el filtro de administrador. */
 export interface BibliotecaOpcion {

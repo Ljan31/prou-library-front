@@ -1,0 +1,1 @@
+import{t as e}from"./SolicitudesCertificadoView-adKeO76y.js";export{e as default};

@@ -19,6 +19,9 @@ import LibroRapidoModal from '@/components/inventario/LibroRapidoModal.vue'
 
 import { estadoEjemplarConfig } from '@/utils/catalogo'
 import { useInventario } from '@/composables/useInventario'
+import { computed } from 'vue'
+import AutoresGestion from '@/components/catalogo/AutoresGestion.vue'
+import CategoriasGestion from '@/components/catalogo/CategoriasGestion.vue'
 
 // Toda la lógica de negocio (estado, filtros, orden, paginación,
 // acciones CRUD, etc.) vive en el composable useInventario.
@@ -114,6 +117,16 @@ const {
   exportarCSV,
   disponibilidadColor,
 } = useInventario()
+
+const esVistaInventario = computed(() =>
+  vistaActiva.value === 'libros' || vistaActiva.value === 'ejemplares'
+)
+const tituloVista = computed(() => ({
+  libros: 'Inventario de Libros',
+  ejemplares: 'Inventario de Libros',
+  autores: 'Autores',
+  categorias: 'Categorías',
+}[vistaActiva.value] ?? 'Inventario de Libros'))
 </script>
 
 <template>
@@ -122,8 +135,8 @@ const {
     <!-- ── Header ── -->
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-semibold text-slate-900">Inventario de Libros</h1>
-        <p class="text-sm text-slate-500 mt-0.5">
+       <h1 class="text-2xl font-semibold text-slate-900">{{ tituloVista }}</h1>
+        <p v-if="esVistaInventario"  class="text-sm text-slate-500 mt-0.5">
           {{ ejemplaresFiltrados.length }}
           ejemplar{{ ejemplaresFiltrados.length !== 1 ? 'es' : '' }}
           <template v-if="vistaActiva === 'libros'">
@@ -165,6 +178,26 @@ const {
             </svg>
             Ejemplares
           </button>
+           <button @click="vistaActiva = 'autores'" :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+            vistaActiva === 'autores'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-500 hover:text-slate-700']">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Autores
+          </button>
+          <button @click="vistaActiva = 'categorias'" :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+            vistaActiva === 'categorias'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-500 hover:text-slate-700']">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Categorías
+          </button>
         </div>
         <!-- Exportar CSV -->
         <!-- <button @click="exportarCSV"
@@ -180,7 +213,7 @@ const {
         <!-- Nuevo ejemplar: admin siempre, bibliotecario si tiene biblioteca -->
         <!-- <SButton v-if="isAdmin || (isBibliotecario && bibliotecaPropia)" @click="mostrarLibroModal = true"
           variant="primary"> -->
-        <SButton v-if="isAdmin || ((isBibliotecario || isAuxiliar) && bibliotecaPropia)" @click="irANuevoEjemplar" variant="primary">
+        <SButton v-if="esVistaInventario && (isAdmin || ((isBibliotecario || isAuxiliar) && bibliotecaPropia))" @click="irANuevoEjemplar" variant="primary">
         <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
@@ -206,1367 +239,1459 @@ const {
       </div>
     </div>
 
-    <!-- ── Aviso sin biblioteca ── -->
-    <div v-if="isBibliotecario && !isAdmin && !bibliotecaPropia"
-      class="mb-5 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.962-.833-2.732 0L3.07 16.5c-.77.833.193 2.5 1.732 2.5z" />
-      </svg>
-      <div>
-        <p class="text-sm font-medium text-amber-800">Sin biblioteca asignada</p>
-        <p class="text-xs text-amber-700 mt-0.5">
-          Tu cuenta no tiene una biblioteca asignada. Contacta al administrador.
-        </p>
-      </div>
-    </div>
-
-    <!-- ── Stats ── -->
-    <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 mb-6">
-      <SCard padding="md">
-        <p class="text-xs text-slate-500 mb-1">Total</p>
-        <p class="text-2xl font-semibold text-slate-900">{{ stats.total }}</p>
-      </SCard>
-      <SCard padding="md">
-        <p class="text-xs text-slate-500 mb-1">Disponibles</p>
-        <p class="text-2xl font-semibold text-emerald-600">{{ stats.disponibles }}</p>
-      </SCard>
-      <SCard padding="md">
-        <p class="text-xs text-slate-500 mb-1">Prestados</p>
-        <p class="text-2xl font-semibold text-red-600">{{ stats.prestados }}</p>
-      </SCard>
-      <SCard padding="md">
-        <p class="text-xs text-slate-500 mb-1">En reparación</p>
-        <p class="text-2xl font-semibold text-purple-600">{{ stats.reparacion }}</p>
-      </SCard>
-      <SCard padding="md">
-        <p class="text-xs text-slate-500 mb-1">Deteriorados</p>
-        <p class="text-2xl font-semibold text-orange-600">{{ stats.deteriorados }}</p>
-      </SCard>
-      <SCard padding="md">
-        <p class="text-xs text-slate-500 mb-1">Baja / Perdido</p>
-        <p class="text-2xl font-semibold text-slate-500">{{ stats.inactivos }}</p>
-      </SCard>
-    </div>
-
-    <!-- ── Filtros ── -->
-    <SCard class="mb-5" padding="md">
-      <div class="flex flex-col sm:flex-row gap-3">
-        <SInput v-model="busqueda" placeholder="Buscar por título, ubicación..." clearable
-          class="flex-1" />
-        <SInput v-model="anioFiltro" type="number" placeholder="Año" />
-        <SSelect v-model="estadoFiltro" :options="opcionesEstado" class="sm:w-52" />
-
-
-        <!-- Filtro biblioteca (solo admin) -->
-        <div v-if="isAdmin" class="sm:w-60">
-          <div v-if="cargandoBibs"
-            class="flex items-center gap-2 h-10 px-3 border border-slate-200 rounded-xl text-sm text-slate-400">
-            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Cargando...
-          </div>
-          <div v-else class="relative">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none"
-              viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
-            </svg>
-            <select v-model="filtroBiblioteca"
-              class="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
-              <option value="">Todas las bibliotecas</option>
-              <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">
-                {{ bib.nombre }}
-              </option>
-            </select>
-          </div>
-        </div>
-         <!-- Botón reset -->
-        <SButton variant="secondary" @click="resetFiltros" title="Restablecer filtros">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-3-6.7M21 3v6h-6" />
-          </svg>
-        </SButton>
-      </div>
-    </SCard>
-
-    <!-- ── Cargando ── -->
-    <div v-if="cargando" class="space-y-2">
-      <SSkeleton v-for="i in 8" :key="i" width="100%" height="72px" />
-    </div>
-
-    <!-- ── Error ── -->
-    <div v-else-if="error" class="text-center py-10">
-      <p class="text-sm text-red-500">{{ error }}</p>
-      <SButton variant="ghost" size="sm" class="mt-3" @click="cargarEjemplares">Reintentar</SButton>
-    </div>
-
-    <!-- ── Vacío ── -->
-    <SEmptyState v-else-if="!ejemplaresFiltrados.length" title="Sin resultados"
-      description="No se encontraron ejemplares con los filtros aplicados." icon="archive-box">
-      <template #action>
-        <SButton variant="ghost" size="sm" @click="busqueda = ''; estadoFiltro = ''; filtroBiblioteca = ''">
-          Limpiar filtros
-        </SButton>
-      </template>
-    </SEmptyState>
-
-    <!-- ── Lista de ejemplares ── -->
-    <template v-else class="space-y-2">
-      <!-- ════════════════════════════════════════════════════════════
-      VISTA 1 — EJEMPLARES (tabla + orden + paginación)
-      ════════════════════════════════════════════════════════════ -->
-      <template v-if="vistaActiva === 'ejemplares'">
-
-        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-
-          <!-- Tabla responsive -->
-          <div class="overflow-x-auto">
-            <table class="w-full min-w-[1050px] text-sm">
-
-              <!-- Header -->
-              <thead class="bg-slate-50 border-b border-slate-200">
-                <tr class="text-left">
-
-                  <th class="px-4 py-3 font-semibold text-slate-600 w-[70px]">
-                    Portada
-                  </th>
-
-                  <th class="px-4 py-3 font-semibold text-slate-600">
-                    Ejemplar
-                  </th>
-
-                  <th class="px-4 py-3 font-semibold text-slate-600">
-                    Libro
-                  </th>
-
-                  <th class="px-4 py-3 font-semibold text-slate-600">
-                    Ubicación
-                  </th>
-
-                  <th v-if="isAdmin" class="px-4 py-3 font-semibold text-slate-600">
-                    Biblioteca
-                  </th>
-
-                  <th class="px-4 py-3 font-semibold text-slate-600">
-                    Estado
-                  </th>
-
-                  <!-- <th class="px-4 py-3 font-semibold text-slate-600 text-right">
-                    Precio
-                  </th> -->
-
-                  <th class="px-4 py-3 font-semibold text-slate-600">
-                    Adquisición
-                  </th>
-
-                  <th class="px-4 py-3 font-semibold text-slate-600 text-right">
-                    Acciones
-                  </th>
-
-                </tr>
-              </thead>
-
-              <!-- Body -->
-              <tbody class="divide-y divide-slate-100">
-
-                <tr
-                  v-for="ej in ejemplaresPagina"
-                  :key="ej.idEjemplar"
-                  class="group hover:bg-slate-50/80 transition-colors"
-                >
-
-                  <!-- Portada -->
-                  <td class="px-4 py-3">
-
-                    <img
-                      v-if="ej.edicion?.imagenPortada"
-                      :src="getUrl(ej.edicion.imagenPortada)"
-                      alt="Portada"
-                      class="w-10 h-14 object-cover rounded-md border border-slate-200 shadow-sm"
-                    />
-
-                    <div
-                      v-else
-                      class="w-10 h-14 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-400"
-                    >
-                      —
-                    </div>
-
-                  </td>
-
-                  <!-- Código ejemplar -->
-                  <td class="px-4 py-3">
-
-                    <div class="flex flex-col gap-1">
-
-                      <span
-                        class="font-mono font-semibold text-slate-900 whitespace-nowrap"
-                      >
-                        {{
-                          ej.codigoEjemplar ||
-                          ej.codigoTopograficoConcat ||
-                          ej.codigoTopografico ||
-                          '—'
-                        }}
-                      </span>
-
-                      <span
-                        v-if="ej.codigoTopografico"
-                        class="font-mono text-xs text-slate-400"
-                      >
-                        {{ ej.codigoTopografico }}
-                      </span>
-
-                      <span
-                        v-if="ej.edicion?.isbn"
-                        class="font-mono text-xs text-indigo-600"
-                      >
-                        ISBN {{ ej.edicion.isbn }}
-                      </span>
-
-                    </div>
-
-                  </td>
-
-                  <!-- Libro -->
-                  <td class="px-4 py-3 max-w-[280px]">
-
-                    <div class="flex flex-col min-w-0">
-
-                      <span
-                        class="font-medium text-slate-800 truncate"
-                        :title="ej.edicion?.titulo"
-                      >
-                        {{ ej.edicion?.titulo || 'Sin título' }}
-                      </span>
-
-                      <span class="text-xs text-slate-400 mt-0.5">
-                        {{ ej.edicion?.autor || '—' }}
-                      </span>
-
-                    </div>
-
-                  </td>
-
-                  <!-- Ubicación -->
-                  <td class="px-4 py-3">
-
-                    <span
-                      v-if="ej.ubicacionFisica"
-                      class="inline-flex items-center gap-1.5 text-slate-600 whitespace-nowrap"
-                    >
-                      <!-- Icono ubicación -->
-                      <svg
-                        class="w-4 h-4 text-slate-400 flex-shrink-0"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M17.657 16.657L13.414 21a2 2 0 01-2.828 0l-4.243-4.343a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-
-                      {{ ej.ubicacionFisica }}
-                    </span>
-
-                    <span v-else class="text-slate-400">
-                      —
-                    </span>
-
-                  </td>
-
-                  <!-- Biblioteca -->
-                  <td
-                    v-if="isAdmin"
-                    class="px-4 py-3"
-                  >
-                    <span class="text-slate-600 whitespace-nowrap">
-                      {{ ej.biblioteca?.nombre || '—' }}
-                    </span>
-                  </td>
-
-                  <!-- Estado -->
-                  <td class="px-4 py-3">
-
-                    <span
-                      :class="[
-                        'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap',
-                        estadoEjemplarConfig[ej.estadoEjemplar]?.clases ??
-                          'bg-slate-100 text-slate-600'
-                      ]"
-                    >
-
-                      <span
-                        :class="[
-                          'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                          estadoEjemplarConfig[ej.estadoEjemplar]?.dot ??
-                            'bg-slate-400'
-                        ]"
-                      />
-
-                      {{
-                        estadoEjemplarConfig[ej.estadoEjemplar]?.label ??
-                        ej.estadoEjemplar ??
-                        'Sin estado'
-                      }}
-
-                    </span>
-
-                  </td>
-
-                  <!-- Precio -->
-                  <!-- <td class="px-4 py-3 text-right">
-
-                    <span
-                      v-if="ej.precioCompra != null"
-                      class="font-medium text-slate-700 whitespace-nowrap"
-                    >
-                      Bs. {{ Number(ej.precioCompra).toFixed(2) }}
-                    </span>
-
-                    <span v-else class="text-slate-400">
-                      —
-                    </span>
-
-                  </td> -->
-
-                  <!-- Fecha -->
-                  <td class="px-4 py-3">
-
-                    <span class="text-slate-500 whitespace-nowrap">
-                      {{ ej.fechaAdquisicion ?? '—' }}
-                    </span>
-
-                  </td>
-
-                  <!-- Acciones -->
-                  <td class="px-4 py-3">
-
-                    <div class="flex items-center justify-end gap-1">
-
-                      <!-- Historial -->
-                      <button
-                        @click="abrirHistorial(ej)"
-                        class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Historial de estados"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                      </button>
-
-                      <!-- Cambiar estado -->
-                      <button
-                        @click="abrirEstado(ej)"
-                        :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
-                        class="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Cambiar estado"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                          />
-                        </svg>
-                      </button>
-
-                      <!-- Editar -->
-                      <button
-                        @click="abrirEditar(ej)"
-                        :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
-                        class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Editar"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                      </button>
-
-                      <!-- PDF -->
-                      <button
-                        v-if="ej.edicion?.pdfUrl"
-                        @click="verPdf(ej.edicion.pdfUrl)"
-                        class="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Ver PDF"
-                      >
-                        <span class="text-sm">📄</span>
-                      </button>
-
-                      <!-- Eliminar -->
-                      <button
-                        v-if="isAdmin || isBibliotecario"
-                        @click="abrirConfirmarEliminar(ej)"
-                        :disabled="
-                          !!ej.prestamoActivo ||
-                          ej.estadoEjemplar === 'PRESTADO'
-                        "
-                        class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Eliminar"
-                      >
-                        <svg
-                          class="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-                <!-- Estado vacío -->
-                <tr v-if="!ejemplaresPagina.length">
-                  <td
-                    :colspan="isAdmin ? 9 : 8"
-                    class="px-6 py-12 text-center"
-                  >
-                    <div class="flex flex-col items-center">
-
-                      <div
-                        class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3"
-                      >
-                        <svg
-                          class="w-6 h-6 text-slate-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                          />
-                        </svg>
-                      </div>
-
-                      <p class="font-medium text-slate-700">
-                        No hay ejemplares
-                      </p>
-
-                      <p class="text-sm text-slate-400 mt-1">
-                        No se encontraron ejemplares para mostrar.
-                      </p>
-
-                    </div>
-                  </td>
-                </tr>
-
-              </tbody>
-
-            </table>
-          </div>
-
-        </div>
-
-        <!-- Paginación -->
-        <div
-          v-if="totalPaginasEj > 1"
-          class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4"
-        >
-
-          <!-- Información -->
-          <p class="text-xs text-slate-500">
-            Mostrando
-            <span class="font-medium text-slate-700">
-              {{ (paginaEj - 1) * porPaginaEj + 1 }}
-            </span>
-            –
-            <span class="font-medium text-slate-700">
-              {{
-                Math.min(
-                  paginaEj * porPaginaEj,
-                  ejemplaresOrdenados.length
-                )
-              }}
-            </span>
-            de
-            <span class="font-medium text-slate-700">
-              {{ ejemplaresOrdenados.length }}
-            </span>
-            ejemplares
+    <template v-if="esVistaInventario">
+      <!-- ── Aviso sin biblioteca ── -->
+      <div v-if="isBibliotecario && !isAdmin && !bibliotecaPropia"
+        class="mb-5 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.962-.833-2.732 0L3.07 16.5c-.77.833.193 2.5 1.732 2.5z" />
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-amber-800">Sin biblioteca asignada</p>
+          <p class="text-xs text-amber-700 mt-0.5">
+            Tu cuenta no tiene una biblioteca asignada. Contacta al administrador.
           </p>
-
-          <!-- Controles -->
-          <div class="flex items-center gap-1">
-
-            <!-- Anterior -->
-            <button
-              @click="paginaEj--"
-              :disabled="paginaEj === 1"
-              class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Página anterior"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-
-            <!-- Números -->
-            <template v-for="p in totalPaginasEj" :key="p">
-
-              <button
-                v-if="
-                  Math.abs(p - paginaEj) <= 2 ||
-                  p === 1 ||
-                  p === totalPaginasEj
-                "
-                @click="paginaEj = p"
-                :class="[
-                  'min-w-8 h-8 px-2 rounded-lg text-sm font-medium transition-colors',
-                  p === paginaEj
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                ]"
-              >
-                {{ p }}
-              </button>
-
-              <span
-                v-else-if="Math.abs(p - paginaEj) === 3"
-                class="text-slate-400 text-sm px-1"
-              >
-                …
-              </span>
-
-            </template>
-
-            <!-- Siguiente -->
-            <button
-              @click="paginaEj++"
-              :disabled="paginaEj === totalPaginasEj"
-              class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Página siguiente"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-
-          </div>
-
         </div>
-
-      </template>
-
-
-      <!-- ════════════════════════════════════════════════════════════
-          VISTA 2 — CATÁLOGO DE LIBROS AGRUPADOS
-          Tabla principal + detalle de ejemplares
-      ════════════════════════════════════════════════════════════ -->
-
-      <template v-else>
-
-        <!-- ═══════════════════════════════════════════════════════
-            TABLA PRINCIPAL — LIBROS
-        ═════════════════════════════════════════════════════════ -->
-
-        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-
-          <div class="overflow-x-auto">
-
-            <table class="w-full min-w-[1000px] text-sm">
-
-              <!-- ─────────────────────────────────────────────────
-                  HEADER LIBROS
-              ────────────────────────────────────────────────── -->
-
-              <thead>
-
-                <tr class="bg-slate-50 border-b border-slate-200">
-
-                  <!-- Portada -->
-                  <th
-                    class="w-[72px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Portada
-                  </th>
-
-                  <!-- Libro -->
-                  <th
-                    class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Información del libro
-                  </th>
-
-                  <!-- ISBN -->
-                  <th
-                    class="w-[150px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Codigo
-                  </th>
-
-                  <!-- Bibliotecas -->
-                  <th
-                    v-if="isAdmin"
-                    class="w-[190px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Bibliotecas
-                  </th>
-
-                  <!-- Disponibilidad -->
-                  <th
-                    class="w-[150px] px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Disponibilidad
-                  </th>
-
-                  <!-- Prestados -->
-                  <th
-                    class="w-[100px] px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Prestados
-                  </th>
-
-                  <!-- Expandir -->
-                  <th
-                    class="w-[55px] px-3 py-3"
-                    aria-label="Expandir"
-                  >
-                  </th>
-                  <!-- Acciones -->
-                  <th
-                    class="w-[100px] px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                  >
-                    Acciones
-                  </th>
-                </tr>
-
-              </thead>
-
-
-              <!-- ─────────────────────────────────────────────────
-                  BODY LIBROS
-              ────────────────────────────────────────────────── -->
-
-              <tbody>
-
-                <template
-                  v-for="libro in librosPagina"
-                  :key="libro.idLibro"
-                >
-
-                  <!-- ═══════════════════════════════════════════════
-                      FILA PRINCIPAL DEL LIBRO
-                  ═══════════════════════════════════════════════ -->
-
+      </div>
+      <!-- ── Stats ── -->
+      <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 mb-6">
+        <SCard padding="md">
+          <p class="text-xs text-slate-500 mb-1">Total</p>
+          <p class="text-2xl font-semibold text-slate-900">{{ stats.total }}</p>
+        </SCard>
+        <SCard padding="md">
+          <p class="text-xs text-slate-500 mb-1">Disponibles</p>
+          <p class="text-2xl font-semibold text-emerald-600">{{ stats.disponibles }}</p>
+        </SCard>
+        <SCard padding="md">
+          <p class="text-xs text-slate-500 mb-1">Prestados</p>
+          <p class="text-2xl font-semibold text-red-600">{{ stats.prestados }}</p>
+        </SCard>
+        <SCard padding="md">
+          <p class="text-xs text-slate-500 mb-1">En reparación</p>
+          <p class="text-2xl font-semibold text-purple-600">{{ stats.reparacion }}</p>
+        </SCard>
+        <SCard padding="md">
+          <p class="text-xs text-slate-500 mb-1">Deteriorados</p>
+          <p class="text-2xl font-semibold text-orange-600">{{ stats.deteriorados }}</p>
+        </SCard>
+        <SCard padding="md">
+          <p class="text-xs text-slate-500 mb-1">Baja / Perdido</p>
+          <p class="text-2xl font-semibold text-slate-500">{{ stats.inactivos }}</p>
+        </SCard>
+      </div>
+      <!-- ── Filtros ── -->
+      <SCard class="mb-5" padding="md">
+        <div class="flex flex-col sm:flex-row gap-3">
+          <SInput v-model="busqueda" placeholder="Buscar por título, ubicación..." clearable
+            class="flex-1" />
+          <SInput v-model="anioFiltro" type="number" placeholder="Año" />
+          <SSelect v-model="estadoFiltro" :options="opcionesEstado" class="sm:w-52" />
+  
+  
+          <!-- Filtro biblioteca (solo admin) -->
+          <div v-if="isAdmin" class="sm:w-60">
+            <div v-if="cargandoBibs"
+              class="flex items-center gap-2 h-10 px-3 border border-slate-200 rounded-xl text-sm text-slate-400">
+              <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Cargando...
+            </div>
+            <div v-else class="relative">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+              </svg>
+              <select v-model="filtroBiblioteca"
+                class="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+                <option value="">Todas las bibliotecas</option>
+                <option v-for="bib in bibliotecas" :key="bib.id" :value="bib.id">
+                  {{ bib.nombre }}
+                </option>
+              </select>
+            </div>
+          </div>
+           <!-- Botón reset -->
+          <SButton variant="secondary" @click="resetFiltros" title="Restablecer filtros">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-3-6.7M21 3v6h-6" />
+            </svg>
+          </SButton>
+        </div>
+      </SCard>
+      <!-- ── Cargando ── -->
+      <div v-if="cargando" class="space-y-2">
+        <SSkeleton v-for="i in 8" :key="i" width="100%" height="72px" />
+      </div>
+  
+      <!-- ── Error ── -->
+      <div v-else-if="error" class="text-center py-10">
+        <p class="text-sm text-red-500">{{ error }}</p>
+        <SButton variant="ghost" size="sm" class="mt-3" @click="cargarEjemplares">Reintentar</SButton>
+      </div>
+  
+      <!-- ── Vacío ── -->
+      <SEmptyState v-else-if="!ejemplaresFiltrados.length" title="Sin resultados"
+        description="No se encontraron ejemplares con los filtros aplicados." icon="archive-box">
+        <template #action>
+          <SButton variant="ghost" size="sm" @click="busqueda = ''; estadoFiltro = ''; filtroBiblioteca = ''">
+            Limpiar filtros
+          </SButton>
+        </template>
+      </SEmptyState>
+      <!-- ── Lista de ejemplares ── -->
+      <template v-else class="space-y-2">
+        <!-- ════════════════════════════════════════════════════════════
+        VISTA 1 — EJEMPLARES (tabla + orden + paginación)
+        ════════════════════════════════════════════════════════════ -->
+        <template v-if="vistaActiva === 'ejemplares'">
+  
+          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+  
+            <!-- Tabla responsive -->
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[1050px] text-sm">
+  
+                <!-- Header -->
+                <thead class="bg-slate-50 border-b border-slate-200">
+                  <tr class="text-left">
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600 w-[70px]">
+                      Portada
+                    </th>
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600">
+                      Ejemplar
+                    </th>
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600">
+                      Libro
+                    </th>
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600">
+                      Ubicación
+                    </th>
+  
+                    <th v-if="isAdmin" class="px-4 py-3 font-semibold text-slate-600">
+                      Biblioteca
+                    </th>
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600">
+                      Estado
+                    </th>
+  
+                    <!-- <th class="px-4 py-3 font-semibold text-slate-600 text-right">
+                      Precio
+                    </th> -->
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600">
+                      Adquisición
+                    </th>
+  
+                    <th class="px-4 py-3 font-semibold text-slate-600 text-right">
+                      Acciones
+                    </th>
+  
+                  </tr>
+                </thead>
+  
+                <!-- Body -->
+                <tbody class="divide-y divide-slate-100">
+  
                   <tr
-                    @click="toggleLibro(libro)"
-                    class="group cursor-pointer border-b border-slate-100 transition-colors hover:bg-indigo-50/30"
-                    :class="
-                      librosExpandidos.has(libro.idLibro)
-                        ? 'bg-indigo-50/40'
-                        : 'bg-white'
-                    "
+                    v-for="ej in ejemplaresPagina"
+                    :key="ej.idEjemplar"
+                    class="group hover:bg-slate-50/80 transition-colors"
                   >
-
-                    <!-- ─────────────────────────────────────────
-                        PORTADA
-                    ────────────────────────────────────────── -->
-
+  
+                    <!-- Portada -->
                     <td class="px-4 py-3">
-
-                      <div class="relative">
-
-                        <img
-                          v-if="libro.imagenPortada"
-                          :src="getUrl(libro.imagenPortada)"
-                          alt="Portada"
-                          class="w-10 h-14 object-cover rounded-md border border-slate-200 shadow-sm"
-                        />
-
-                        <div
-                          v-else
-                          class="w-10 h-14 rounded-md border border-slate-200 bg-gradient-to-br from-indigo-50 to-slate-100 flex items-center justify-center"
-                        >
-
-                           <svg
-                              class="w-5 h-5 text-slate-300"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              stroke-width="1.5"
-                              aria-hidden="true"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M4.5 5.5A2.5 2.5 0 0 1 7 3h4.5v17H7a2.5 2.5 0 0 0-2.5 2.5v-17Z"
-                              />
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M19.5 5.5A2.5 2.5 0 0 0 17 3h-5.5v17H17a2.5 2.5 0 0 1 2.5 2.5v-17Z"
-                              />
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M12 3v17"
-                              />
-                            </svg>
-
-                        </div>
-
-                      </div>
-
-                    </td>
-
-
-                    <!-- ─────────────────────────────────────────
-                        INFORMACIÓN DEL LIBRO
-                    ────────────────────────────────────────── -->
-
-                    <td class="px-4 py-3">
-
-                      <div class="min-w-0 max-w-[380px]">
-
-                        <!-- Título + categoría -->
-
-                        <div class="flex items-center gap-2 min-w-0">
-
-                          <span
-                            class="font-semibold text-slate-800 truncate group-hover:text-indigo-700 transition-colors"
-                            :title="libro.titulo"
-                          >
-                            {{ libro.titulo }}
-                          </span>
-
-                          <span
-                            v-if="libro.categoria"
-                            class="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold"
-                          >
-                            {{ libro.categoria }}
-                          </span>
-
-                        </div>
-
-
-                        <!-- Autores -->
-
-                        <p
-                          v-if="libro.autores"
-                          class="text-xs text-slate-500 truncate mt-1"
-                          :title="libro.autores"
-                        >
-                          {{ libro.autores }}
-                        </p>
-
-
-                        <!-- Indicador de ejemplares -->
-
-                        <div class="flex items-center gap-1.5 mt-1.5">
-
-                          <svg
-                            class="w-3.5 h-3.5 text-slate-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="1.5"
-                              d="M4 6h16M4 10h16M4 14h16M4 18h16"
-                            />
-                          </svg>
-
-                          <span class="text-[11px] text-slate-400">
-                            {{ libro.total }}
-                            {{ libro.total === 1 ? 'ejemplar' : 'ejemplares' }}
-                          </span>
-
-                          <span
-                            v-if="librosExpandidos.has(libro.idLibro)"
-                            class="text-[11px] font-medium text-indigo-500"
-                          >
-                            · detalle abierto
-                          </span>
-
-                        </div>
-
-                      </div>
-
-                    </td>
-
-
-                    <!-- ─────────────────────────────────────────
-                        ISBN
-                    ────────────────────────────────────────── -->
-
-                   <td class="px-4 py-3">
-                    <div
-                      v-if="libro.clasificacionDecimal"
-                      class="flex flex-col leading-tight"
-                    >
-                      <!-- Clasificación -->
-                      <div class="flex items-baseline gap-1.5">
-                        <span
-                          v-if="libro.idioma"
-                          class="text-[12px] font-semibold uppercase text-indigo-500"
-                        >
-                          <!-- {{ libro.idioma }} -->
-                          {{ libro.idioma.charAt(0) }}
-                        </span>
-
-                        <span class="font-mono text-xs font-semibold text-slate-700">
-                          {{ libro.clasificacionDecimal }}
-                        </span>
-                      </div>
-
-                      <!-- Cutter -->
-                      <span
-                        v-if="libro.cutterAutor || libro.cutterTitulo"
-                        class="font-mono text-xs font-medium tracking-wide text-slate-600"
+  
+                      <img
+                        v-if="ej.edicion?.imagenPortada"
+                        :src="getUrl(ej.edicion.imagenPortada)"
+                        alt="Portada"
+                        class="w-10 h-14 object-cover rounded-md border border-slate-200 shadow-sm"
+                      />
+  
+                      <div
+                        v-else
+                        class="w-10 h-14 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-400"
                       >
-                        {{ libro.cutterAutor }}{{ libro.cutterTitulo }}
+                        —
+                      </div>
+  
+                    </td>
+  
+                    <!-- Código ejemplar -->
+                    <td class="px-4 py-3">
+  
+                      <div class="flex flex-col gap-1">
+  
+                        <span
+                          class="font-mono font-semibold text-slate-900 whitespace-nowrap"
+                        >
+                          {{
+                            ej.codigoEjemplar ||
+                            ej.codigoTopograficoConcat ||
+                            ej.codigoTopografico ||
+                            '—'
+                          }}
+                        </span>
+  
+                        <span
+                          v-if="ej.codigoTopografico"
+                          class="font-mono text-xs text-slate-400"
+                        >
+                          {{ ej.codigoTopografico }}
+                        </span>
+  
+                        <span
+                          v-if="ej.edicion?.isbn"
+                          class="font-mono text-xs text-indigo-600"
+                        >
+                          ISBN {{ ej.edicion.isbn }}
+                        </span>
+  
+                      </div>
+  
+                    </td>
+  
+                    <!-- Libro -->
+                    <td class="px-4 py-3 max-w-[280px]">
+  
+                      <div class="flex flex-col min-w-0">
+  
+                        <span
+                          class="font-medium text-slate-800 truncate"
+                          :title="ej.edicion?.titulo"
+                        >
+                          {{ ej.edicion?.titulo || 'Sin título' }}
+                        </span>
+  
+                        <span class="text-xs text-slate-400 mt-0.5">
+                          {{ ej.edicion?.autor || '—' }}
+                        </span>
+  
+                      </div>
+  
+                    </td>
+  
+                    <!-- Ubicación -->
+                    <td class="px-4 py-3">
+  
+                      <span
+                        v-if="ej.ubicacionFisica"
+                        class="inline-flex items-center gap-1.5 text-slate-600 whitespace-nowrap"
+                      >
+                        <!-- Icono ubicación -->
+                        <svg
+                          class="w-4 h-4 text-slate-400 flex-shrink-0"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M17.657 16.657L13.414 21a2 2 0 01-2.828 0l-4.243-4.343a8 8 0 1111.314 0z"
+                          />
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
+  
+                        {{ ej.ubicacionFisica }}
                       </span>
-                    </div>
-
-                    <span
-                      v-else
-                      class="text-slate-300"
-                    >
-                      —
-                    </span>
-                  </td>
-
-
-
-                    <!-- ─────────────────────────────────────────
-                        BIBLIOTECAS
-                    ────────────────────────────────────────── -->
-
+  
+                      <span v-else class="text-slate-400">
+                        —
+                      </span>
+  
+                    </td>
+  
+                    <!-- Biblioteca -->
                     <td
                       v-if="isAdmin"
                       class="px-4 py-3"
                     >
-
-                      <div
-                        v-if="libro.bibliotecas?.length"
-                        class="flex items-center gap-1.5 flex-wrap max-w-[190px]"
+                      <span class="text-slate-600 whitespace-nowrap">
+                        {{ ej.biblioteca?.nombre || '—' }}
+                      </span>
+                    </td>
+  
+                    <!-- Estado -->
+                    <td class="px-4 py-3">
+  
+                      <span
+                        :class="[
+                          'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap',
+                          estadoEjemplarConfig[ej.estadoEjemplar]?.clases ??
+                            'bg-slate-100 text-slate-600'
+                        ]"
                       >
-
+  
                         <span
-                          v-for="bib in libro.bibliotecas.slice(0, 2)"
-                          :key="bib"
-                          class="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-[11px] text-slate-600"
+                          :class="[
+                            'w-1.5 h-1.5 rounded-full flex-shrink-0',
+                            estadoEjemplarConfig[ej.estadoEjemplar]?.dot ??
+                              'bg-slate-400'
+                          ]"
+                        />
+  
+                        {{
+                          estadoEjemplarConfig[ej.estadoEjemplar]?.label ??
+                          ej.estadoEjemplar ??
+                          'Sin estado'
+                        }}
+  
+                      </span>
+  
+                    </td>
+  
+                    <!-- Precio -->
+                    <!-- <td class="px-4 py-3 text-right">
+  
+                      <span
+                        v-if="ej.precioCompra != null"
+                        class="font-medium text-slate-700 whitespace-nowrap"
+                      >
+                        Bs. {{ Number(ej.precioCompra).toFixed(2) }}
+                      </span>
+  
+                      <span v-else class="text-slate-400">
+                        —
+                      </span>
+  
+                    </td> -->
+  
+                    <!-- Fecha -->
+                    <td class="px-4 py-3">
+  
+                      <span class="text-slate-500 whitespace-nowrap">
+                        {{ ej.fechaAdquisicion ?? '—' }}
+                      </span>
+  
+                    </td>
+  
+                    <!-- Acciones -->
+                    <td class="px-4 py-3">
+  
+                      <div class="flex items-center justify-end gap-1">
+  
+                        <!-- Historial -->
+                        <button
+                          @click="abrirHistorial(ej)"
+                          class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Historial de estados"
                         >
-                          {{ bib }}
-                        </span>
-
-                        <span
-                          v-if="libro.bibliotecas.length > 2"
-                          class="inline-flex items-center px-1.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[11px] font-semibold text-indigo-600"
-                          :title="libro.bibliotecas.slice(2).join(', ')"
+                          <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </button>
+  
+                        <!-- Cambiar estado -->
+                        <button
+                          @click="abrirEstado(ej)"
+                          :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+                          class="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Cambiar estado"
                         >
-                          +{{ libro.bibliotecas.length - 2 }}
-                        </span>
-
+                          <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                            />
+                          </svg>
+                        </button>
+  
+                        <!-- Editar -->
+                        <button
+                          @click="abrirEditar(ej)"
+                          :disabled="['BAJA', 'PERDIDO'].includes(ej.estadoEjemplar)"
+                          class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Editar"
+                        >
+                          <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                        </button>
+  
+                        <!-- PDF -->
+                        <button
+                          v-if="ej.edicion?.pdfUrl"
+                          @click="verPdf(ej.edicion.pdfUrl)"
+                          class="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Ver PDF"
+                        >
+                          <span class="text-sm">📄</span>
+                        </button>
+  
+                        <!-- Eliminar -->
+                        <button
+                          v-if="isAdmin || isBibliotecario"
+                          @click="abrirConfirmarEliminar(ej)"
+                          :disabled="
+                            !!ej.prestamoActivo ||
+                            ej.estadoEjemplar === 'PRESTADO'
+                          "
+                          class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Eliminar"
+                        >
+                          <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+  
                       </div>
-
+  
+                    </td>
+  
+                  </tr>
+  
+                  <!-- Estado vacío -->
+                  <tr v-if="!ejemplaresPagina.length">
+                    <td
+                      :colspan="isAdmin ? 9 : 8"
+                      class="px-6 py-12 text-center"
+                    >
+                      <div class="flex flex-col items-center">
+  
+                        <div
+                          class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3"
+                        >
+                          <svg
+                            class="w-6 h-6 text-slate-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                            />
+                          </svg>
+                        </div>
+  
+                        <p class="font-medium text-slate-700">
+                          No hay ejemplares
+                        </p>
+  
+                        <p class="text-sm text-slate-400 mt-1">
+                          No se encontraron ejemplares para mostrar.
+                        </p>
+  
+                      </div>
+                    </td>
+                  </tr>
+  
+                </tbody>
+  
+              </table>
+            </div>
+  
+          </div>
+  
+          <!-- Paginación -->
+          <div
+            v-if="totalPaginasEj > 1"
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4"
+          >
+  
+            <!-- Información -->
+            <p class="text-xs text-slate-500">
+              Mostrando
+              <span class="font-medium text-slate-700">
+                {{ (paginaEj - 1) * porPaginaEj + 1 }}
+              </span>
+              –
+              <span class="font-medium text-slate-700">
+                {{
+                  Math.min(
+                    paginaEj * porPaginaEj,
+                    ejemplaresOrdenados.length
+                  )
+                }}
+              </span>
+              de
+              <span class="font-medium text-slate-700">
+                {{ ejemplaresOrdenados.length }}
+              </span>
+              ejemplares
+            </p>
+  
+            <!-- Controles -->
+            <div class="flex items-center gap-1">
+  
+              <!-- Anterior -->
+              <button
+                @click="paginaEj--"
+                :disabled="paginaEj === 1"
+                class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Página anterior"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+  
+              <!-- Números -->
+              <template v-for="p in totalPaginasEj" :key="p">
+  
+                <button
+                  v-if="
+                    Math.abs(p - paginaEj) <= 2 ||
+                    p === 1 ||
+                    p === totalPaginasEj
+                  "
+                  @click="paginaEj = p"
+                  :class="[
+                    'min-w-8 h-8 px-2 rounded-lg text-sm font-medium transition-colors',
+                    p === paginaEj
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ]"
+                >
+                  {{ p }}
+                </button>
+  
+                <span
+                  v-else-if="Math.abs(p - paginaEj) === 3"
+                  class="text-slate-400 text-sm px-1"
+                >
+                  …
+                </span>
+  
+              </template>
+  
+              <!-- Siguiente -->
+              <button
+                @click="paginaEj++"
+                :disabled="paginaEj === totalPaginasEj"
+                class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Página siguiente"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+  
+            </div>
+  
+          </div>
+  
+        </template>
+  
+  
+        <!-- ════════════════════════════════════════════════════════════
+            VISTA 2 — CATÁLOGO DE LIBROS AGRUPADOS
+            Tabla principal + detalle de ejemplares
+        ════════════════════════════════════════════════════════════ -->
+  
+        <template v-else-if="vistaActiva === 'libros'" >
+  
+          <!-- ═══════════════════════════════════════════════════════
+              TABLA PRINCIPAL — LIBROS
+          ═════════════════════════════════════════════════════════ -->
+  
+          <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+  
+            <div class="overflow-x-auto">
+  
+              <table class="w-full min-w-[1000px] text-sm">
+  
+                <!-- ─────────────────────────────────────────────────
+                    HEADER LIBROS
+                ────────────────────────────────────────────────── -->
+  
+                <thead>
+  
+                  <tr class="bg-slate-50 border-b border-slate-200">
+  
+                    <!-- Portada -->
+                    <th
+                      class="w-[72px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Portada
+                    </th>
+  
+                    <!-- Libro -->
+                    <th
+                      class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Información del libro
+                    </th>
+  
+                    <!-- ISBN -->
+                    <th
+                      class="w-[150px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Codigo
+                    </th>
+  
+                    <!-- Bibliotecas -->
+                    <th
+                      v-if="isAdmin"
+                      class="w-[190px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Bibliotecas
+                    </th>
+  
+                    <!-- Disponibilidad -->
+                    <th
+                      class="w-[150px] px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Disponibilidad
+                    </th>
+  
+                    <!-- Prestados -->
+                    <th
+                      class="w-[100px] px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Prestados
+                    </th>
+  
+                    <!-- Expandir -->
+                    <th
+                      class="w-[55px] px-3 py-3"
+                      aria-label="Expandir"
+                    >
+                    </th>
+                    <!-- Acciones -->
+                    <th
+                      class="w-[100px] px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Acciones
+                    </th>
+                  </tr>
+  
+                </thead>
+  
+  
+                <!-- ─────────────────────────────────────────────────
+                    BODY LIBROS
+                ────────────────────────────────────────────────── -->
+  
+                <tbody>
+  
+                  <template
+                    v-for="libro in librosPagina"
+                    :key="libro.idLibro"
+                  >
+  
+                    <!-- ═══════════════════════════════════════════════
+                        FILA PRINCIPAL DEL LIBRO
+                    ═══════════════════════════════════════════════ -->
+  
+                    <tr
+                      @click="toggleLibro(libro)"
+                      class="group cursor-pointer border-b border-slate-100 transition-colors hover:bg-indigo-50/30"
+                      :class="
+                        librosExpandidos.has(libro.idLibro)
+                          ? 'bg-indigo-50/40'
+                          : 'bg-white'
+                      "
+                    >
+  
+                      <!-- ─────────────────────────────────────────
+                          PORTADA
+                      ────────────────────────────────────────── -->
+  
+                      <td class="px-4 py-3">
+  
+                        <div class="relative">
+  
+                          <img
+                            v-if="libro.imagenPortada"
+                            :src="getUrl(libro.imagenPortada)"
+                            alt="Portada"
+                            class="w-10 h-14 object-cover rounded-md border border-slate-200 shadow-sm"
+                          />
+  
+                          <div
+                            v-else
+                            class="w-10 h-14 rounded-md border border-slate-200 bg-gradient-to-br from-indigo-50 to-slate-100 flex items-center justify-center"
+                          >
+  
+                             <svg
+                                class="w-5 h-5 text-slate-300"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                aria-hidden="true"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M4.5 5.5A2.5 2.5 0 0 1 7 3h4.5v17H7a2.5 2.5 0 0 0-2.5 2.5v-17Z"
+                                />
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M19.5 5.5A2.5 2.5 0 0 0 17 3h-5.5v17H17a2.5 2.5 0 0 1 2.5 2.5v-17Z"
+                                />
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M12 3v17"
+                                />
+                              </svg>
+  
+                          </div>
+  
+                        </div>
+  
+                      </td>
+  
+  
+                      <!-- ─────────────────────────────────────────
+                          INFORMACIÓN DEL LIBRO
+                      ────────────────────────────────────────── -->
+  
+                      <td class="px-4 py-3">
+  
+                        <div class="min-w-0 max-w-[380px]">
+  
+                          <!-- Título + categoría -->
+  
+                          <div class="flex items-center gap-2 min-w-0">
+  
+                            <span
+                              class="font-semibold text-slate-800 truncate group-hover:text-indigo-700 transition-colors"
+                              :title="libro.titulo"
+                            >
+                              {{ libro.titulo }}
+                            </span>
+  
+                            <span
+                              v-if="libro.categoria"
+                              class="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold"
+                            >
+                              {{ libro.categoria }}
+                            </span>
+  
+                          </div>
+  
+  
+                          <!-- Autores -->
+  
+                          <p
+                            v-if="libro.autores"
+                            class="text-xs text-slate-500 truncate mt-1"
+                            :title="libro.autores"
+                          >
+                            {{ libro.autores }}
+                          </p>
+  
+  
+                          <!-- Indicador de ejemplares -->
+  
+                          <div class="flex items-center gap-1.5 mt-1.5">
+  
+                            <svg
+                              class="w-3.5 h-3.5 text-slate-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                              />
+                            </svg>
+  
+                            <span class="text-[11px] text-slate-400">
+                              {{ libro.total }}
+                              {{ libro.total === 1 ? 'ejemplar' : 'ejemplares' }}
+                            </span>
+  
+                            <span
+                              v-if="librosExpandidos.has(libro.idLibro)"
+                              class="text-[11px] font-medium text-indigo-500"
+                            >
+                              · detalle abierto
+                            </span>
+  
+                          </div>
+  
+                        </div>
+  
+                      </td>
+  
+  
+                      <!-- ─────────────────────────────────────────
+                          ISBN
+                      ────────────────────────────────────────── -->
+  
+                     <td class="px-4 py-3">
+                      <div
+                        v-if="libro.clasificacionDecimal"
+                        class="flex flex-col leading-tight"
+                      >
+                        <!-- Clasificación -->
+                        <div class="flex items-baseline gap-1.5">
+                          <span
+                            v-if="libro.idioma"
+                            class="text-[12px] font-semibold uppercase text-indigo-500"
+                          >
+                            <!-- {{ libro.idioma }} -->
+                            {{ libro.idioma.charAt(0) }}
+                          </span>
+  
+                          <span class="font-mono text-xs font-semibold text-slate-700">
+                            {{ libro.clasificacionDecimal }}
+                          </span>
+                        </div>
+  
+                        <!-- Cutter -->
+                        <span
+                          v-if="libro.cutterAutor || libro.cutterTitulo"
+                          class="font-mono text-xs font-medium tracking-wide text-slate-600"
+                        >
+                          {{ libro.cutterAutor }}{{ libro.cutterTitulo }}
+                        </span>
+                      </div>
+  
                       <span
                         v-else
                         class="text-slate-300"
                       >
                         —
                       </span>
-
                     </td>
-
-
-                    <!-- ─────────────────────────────────────────
-                        DISPONIBILIDAD
-                    ────────────────────────────────────────── -->
-
-                    <td class="px-4 py-3">
-
-                      <div class="flex flex-col items-center">
-
-                        <div class="flex items-baseline gap-1">
-
+  
+  
+  
+                      <!-- ─────────────────────────────────────────
+                          BIBLIOTECAS
+                      ────────────────────────────────────────── -->
+  
+                      <td
+                        v-if="isAdmin"
+                        class="px-4 py-3"
+                      >
+  
+                        <div
+                          v-if="libro.bibliotecas?.length"
+                          class="flex items-center gap-1.5 flex-wrap max-w-[190px]"
+                        >
+  
                           <span
-                            class="text-sm font-bold"
+                            v-for="bib in libro.bibliotecas.slice(0, 2)"
+                            :key="bib"
+                            class="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-[11px] text-slate-600"
+                          >
+                            {{ bib }}
+                          </span>
+  
+                          <span
+                            v-if="libro.bibliotecas.length > 2"
+                            class="inline-flex items-center px-1.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[11px] font-semibold text-indigo-600"
+                            :title="libro.bibliotecas.slice(2).join(', ')"
+                          >
+                            +{{ libro.bibliotecas.length - 2 }}
+                          </span>
+  
+                        </div>
+  
+                        <span
+                          v-else
+                          class="text-slate-300"
+                        >
+                          —
+                        </span>
+  
+                      </td>
+  
+  
+                      <!-- ─────────────────────────────────────────
+                          DISPONIBILIDAD
+                      ────────────────────────────────────────── -->
+  
+                      <td class="px-4 py-3">
+  
+                        <div class="flex flex-col items-center">
+  
+                          <div class="flex items-baseline gap-1">
+  
+                            <span
+                              class="text-sm font-bold"
+                              :class="
+                                libro.disponibles > 0
+                                  ? 'text-emerald-600'
+                                  : 'text-red-500'
+                              "
+                            >
+                              {{ libro.disponibles }}
+                            </span>
+  
+                            <span class="text-xs text-slate-400">
+                              / {{ libro.total }}
+                            </span>
+  
+                          </div>
+  
+  
+                          <!-- Barra disponibilidad -->
+  
+                          <div
+                            class="w-20 h-1.5 mt-1.5 bg-slate-100 rounded-full overflow-hidden"
+                          >
+  
+                            <div
+                              :class="[
+                                'h-full rounded-full transition-all duration-300',
+                                disponibilidadColor(
+                                  libro.disponibles,
+                                  libro.total
+                                )
+                              ]"
+                              :style="{
+                                width: libro.total
+                                  ? `${(libro.disponibles / libro.total) * 100}%`
+                                  : '0%'
+                              }"
+                            />
+  
+                          </div>
+  
+  
+                          <span
+                            class="text-[10px] mt-1"
                             :class="
                               libro.disponibles > 0
                                 ? 'text-emerald-600'
-                                : 'text-red-500'
+                                : 'text-red-400'
                             "
                           >
-                            {{ libro.disponibles }}
+                            {{
+                              libro.disponibles > 0
+                                ? 'Disponible'
+                                : 'Sin disponibilidad'
+                            }}
                           </span>
-
-                          <span class="text-xs text-slate-400">
-                            / {{ libro.total }}
-                          </span>
-
+  
                         </div>
-
-
-                        <!-- Barra disponibilidad -->
-
+  
+                      </td>
+  
+  
+                      <!-- ─────────────────────────────────────────
+                          PRESTADOS
+                      ────────────────────────────────────────── -->
+  
+                      <td class="px-4 py-3 text-center">
+  
+                        <template v-if="libro.prestados > 0">
+  
+                          <span
+                            class="inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-full bg-orange-50 border border-orange-100 text-orange-600 text-xs font-semibold"
+                          >
+                            {{ libro.prestados }}
+                          </span>
+  
+                        </template>
+  
+                        <span
+                          v-else
+                          class="text-slate-300"
+                        >
+                          —
+                        </span>
+  
+                      </td>
+  
+  
+                      <!-- ─────────────────────────────────────────
+                          EXPANDIR
+                      ────────────────────────────────────────── -->
+  
+                      <td class="px-3 py-3">
+  
                         <div
-                          class="w-20 h-1.5 mt-1.5 bg-slate-100 rounded-full overflow-hidden"
-                        >
-
-                          <div
-                            :class="[
-                              'h-full rounded-full transition-all duration-300',
-                              disponibilidadColor(
-                                libro.disponibles,
-                                libro.total
-                              )
-                            ]"
-                            :style="{
-                              width: libro.total
-                                ? `${(libro.disponibles / libro.total) * 100}%`
-                                : '0%'
-                            }"
-                          />
-
-                        </div>
-
-
-                        <span
-                          class="text-[10px] mt-1"
-                          :class="
-                            libro.disponibles > 0
-                              ? 'text-emerald-600'
-                              : 'text-red-400'
-                          "
-                        >
-                          {{
-                            libro.disponibles > 0
-                              ? 'Disponible'
-                              : 'Sin disponibilidad'
-                          }}
-                        </span>
-
-                      </div>
-
-                    </td>
-
-
-                    <!-- ─────────────────────────────────────────
-                        PRESTADOS
-                    ────────────────────────────────────────── -->
-
-                    <td class="px-4 py-3 text-center">
-
-                      <template v-if="libro.prestados > 0">
-
-                        <span
-                          class="inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-full bg-orange-50 border border-orange-100 text-orange-600 text-xs font-semibold"
-                        >
-                          {{ libro.prestados }}
-                        </span>
-
-                      </template>
-
-                      <span
-                        v-else
-                        class="text-slate-300"
-                      >
-                        —
-                      </span>
-
-                    </td>
-
-
-                    <!-- ─────────────────────────────────────────
-                        EXPANDIR
-                    ────────────────────────────────────────── -->
-
-                    <td class="px-3 py-3">
-
-                      <div
-                        class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                        :class="
-                          librosExpandidos.has(libro.idLibro)
-                            ? 'bg-indigo-100 text-indigo-600'
-                            : 'text-slate-400 group-hover:bg-slate-100 group-hover:text-slate-600'
-                        "
-                      >
-
-                        <svg
-                          class="w-4 h-4 transition-transform duration-200"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
                           :class="
                             librosExpandidos.has(libro.idLibro)
-                              ? 'rotate-180'
-                              : ''
+                              ? 'bg-indigo-100 text-indigo-600'
+                              : 'text-slate-400 group-hover:bg-slate-100 group-hover:text-slate-600'
                           "
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
                         >
-
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 9l-7 7-7-7"
-                          />
-
-                        </svg>
-
-                      </div>
-
-                    </td>
-                    <!-- ─────────────────────────────────────────
-                        ACCIONES DEL LIBRO
-                    ────────────────────────────────────────── -->
-
-                    <td class="px-4 py-3">
-
-                      <div class="flex items-center justify-end gap-1">
-
-                        <!-- Editar libro -->
-
-                        <button
-                          @click.stop="abrirEditar(libro.ejemplares?.[0])"
-                          class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                          title="Editar libro"
-                          aria-label="Editar libro"
-                        >
-
+  
                           <svg
-                            class="w-3.5 h-3.5"
+                            class="w-4 h-4 transition-transform duration-200"
+                            :class="
+                              librosExpandidos.has(libro.idLibro)
+                                ? 'rotate-180'
+                                : ''
+                            "
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
-                            stroke-width="1.8"
                           >
+  
                             <path
                               stroke-linecap="round"
                               stroke-linejoin="round"
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5"
+                              stroke-width="2"
+                              d="M19 9l-7 7-7-7"
                             />
-
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M18.5 3.5a2.121 2.121 0 013 3L12 16l-4 1 1-4 9.5-9.5z"
-                            />
+  
                           </svg>
-
-                        </button>
-
-
-                        <!-- Eliminar libro -->
-
-                        <button
-                          @click.stop="abrirConfirmarEliminarLibro(libro.ejemplares?.[0])"
-                          class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Eliminar libro"
-                          aria-label="Eliminar libro"
-                        >
-
-                          <svg
-                            class="w-3.5 h-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M3 6h18"
-                            />
-
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"
-                            />
-
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M19 6l-1 14a1 1 0 01-1 .93H7a1 1 0 01-1-.93L5 6"
-                            />
-
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M10 11v5M14 11v5"
-                            />
-                          </svg>
-
-                        </button>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-
-                  <!-- ═══════════════════════════════════════════════
-                      DETALLE — EJEMPLARES
-                  ═══════════════════════════════════════════════ -->
-
-                  <tr
-                    v-if="librosExpandidos.has(libro.idLibro)"
-                  >
-
-                    <td
-                      :colspan="isAdmin ? 8 : 7"
-                      class="p-0"
-                    >
-
-                      <div
-                        class="bg-slate-50 border-b border-slate-200"
-                      >
-
-                        <!-- ─────────────────────────────────────
-                            CABECERA DEL DETALLE
-                        ────────────────────────────────────── -->
-
-                        <div
-                          class="px-6 py-3 border-b border-slate-200 bg-indigo-50/50"
-                        >
-
-                          <div class="flex items-center justify-between">
-
-                            <div class="flex items-center gap-3">
-
-                              <!-- Icono -->
-
-                              <div
-                                class="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 text-indigo-600 flex items-center justify-center"
-                              >
-
-                                <svg
-                                  class="w-4 h-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="1.5"
-                                    d="M4 6h16M4 10h16M4 14h16M4 18h16"
-                                  />
-                                </svg>
-
-                              </div>
-
-
-                              <div>
-
-                                <div class="flex items-center gap-2">
-
-                                  <h4
-                                    class="text-sm font-semibold text-slate-700"
-                                  >
-                                    Ejemplares del libro
-                                  </h4>
-
-                                  <span
-                                    class="inline-flex items-center justify-center min-w-6 h-5 px-1.5 rounded-full bg-white border border-indigo-200 text-[11px] font-semibold text-indigo-600"
-                                  >
-                                    {{ libro.ejemplares?.length || 0 }}
-                                  </span>
-
-                                </div>
-
-                                <p class="text-[11px] text-slate-400 mt-0.5">
-                                  Información física y estado de cada ejemplar
-                                </p>
-
-                              </div>
-
-                            </div>
-
-
-                            <!-- Indicador disponibilidad -->
-
-                            <div class="hidden sm:flex items-center gap-2">
-
-                              <span class="text-[11px] text-slate-400">
-                                Disponibles
-                              </span>
-
-                              <span
-                                class="inline-flex items-center px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100 text-[11px] font-semibold text-emerald-600"
-                              >
-                                {{ libro.disponibles }}
-                              </span>
-
-                            </div>
-
-                          </div>
-
+  
                         </div>
-
-
-                        <!-- ─────────────────────────────────────
-                            TABLA DE EJEMPLARES
-                        ────────────────────────────────────── -->
-
-                        <div class="px-4 sm:px-6 py-4">
-
-                          <div
-                            class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm"
+  
+                      </td>
+                      <!-- ─────────────────────────────────────────
+                          ACCIONES DEL LIBRO
+                      ────────────────────────────────────────── -->
+  
+                      <td class="px-4 py-3">
+  
+                        <div class="flex items-center justify-end gap-1">
+  
+                          <!-- Editar libro -->
+  
+                          <button
+                            @click.stop="abrirEditar(libro.ejemplares?.[0])"
+                            class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="Editar libro"
+                            aria-label="Editar libro"
                           >
-
-                            <div class="overflow-x-auto">
-
-                              <table class="w-full min-w-[800px] text-sm">
-
-                                <!-- HEADER EJEMPLARES -->
-
-                                <thead>
-
-                                  <tr
-                                    class="bg-slate-100/80 border-b border-slate-200"
+  
+                            <svg
+                              class="w-3.5 h-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              stroke-width="1.8"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5"
+                              />
+  
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M18.5 3.5a2.121 2.121 0 013 3L12 16l-4 1 1-4 9.5-9.5z"
+                              />
+                            </svg>
+  
+                          </button>
+  
+  
+                          <!-- Eliminar libro -->
+  
+                          <button
+                            @click.stop="abrirConfirmarEliminarLibro(libro.ejemplares?.[0])"
+                            class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Eliminar libro"
+                            aria-label="Eliminar libro"
+                          >
+  
+                            <svg
+                              class="w-3.5 h-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              stroke-width="1.8"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M3 6h18"
+                              />
+  
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"
+                              />
+  
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 6l-1 14a1 1 0 01-1 .93H7a1 1 0 01-1-.93L5 6"
+                              />
+  
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M10 11v5M14 11v5"
+                              />
+                            </svg>
+  
+                          </button>
+  
+                        </div>
+  
+                      </td>
+  
+                    </tr>
+  
+  
+                    <!-- ═══════════════════════════════════════════════
+                        DETALLE — EJEMPLARES
+                    ═══════════════════════════════════════════════ -->
+  
+                    <tr
+                      v-if="librosExpandidos.has(libro.idLibro)"
+                    >
+  
+                      <td
+                        :colspan="isAdmin ? 8 : 7"
+                        class="p-0"
+                      >
+  
+                        <div
+                          class="bg-slate-50 border-b border-slate-200"
+                        >
+  
+                          <!-- ─────────────────────────────────────
+                              CABECERA DEL DETALLE
+                          ────────────────────────────────────── -->
+  
+                          <div
+                            class="px-6 py-3 border-b border-slate-200 bg-indigo-50/50"
+                          >
+  
+                            <div class="flex items-center justify-between">
+  
+                              <div class="flex items-center gap-3">
+  
+                                <!-- Icono -->
+  
+                                <div
+                                  class="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 text-indigo-600 flex items-center justify-center"
+                                >
+  
+                                  <svg
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
                                   >
-
-                                    <th
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="1.5"
+                                      d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                                    />
+                                  </svg>
+  
+                                </div>
+  
+  
+                                <div>
+  
+                                  <div class="flex items-center gap-2">
+  
+                                    <h4
+                                      class="text-sm font-semibold text-slate-700"
                                     >
-                                      Código ejemplar
-                                    </th>
-
-                                    <th
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      Ejemplares del libro
+                                    </h4>
+  
+                                    <span
+                                      class="inline-flex items-center justify-center min-w-6 h-5 px-1.5 rounded-full bg-white border border-indigo-200 text-[11px] font-semibold text-indigo-600"
                                     >
-                                      Editorial
-                                    </th>
-                                    <th
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      {{ libro.ejemplares?.length || 0 }}
+                                    </span>
+  
+                                  </div>
+  
+                                  <p class="text-[11px] text-slate-400 mt-0.5">
+                                    Información física y estado de cada ejemplar
+                                  </p>
+  
+                                </div>
+  
+                              </div>
+  
+  
+                              <!-- Indicador disponibilidad -->
+  
+                              <div class="hidden sm:flex items-center gap-2">
+  
+                                <span class="text-[11px] text-slate-400">
+                                  Disponibles
+                                </span>
+  
+                                <span
+                                  class="inline-flex items-center px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100 text-[11px] font-semibold text-emerald-600"
+                                >
+                                  {{ libro.disponibles }}
+                                </span>
+  
+                              </div>
+  
+                            </div>
+  
+                          </div>
+  
+  
+                          <!-- ─────────────────────────────────────
+                              TABLA DE EJEMPLARES
+                          ────────────────────────────────────── -->
+  
+                          <div class="px-4 sm:px-6 py-4">
+  
+                            <div
+                              class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm"
+                            >
+  
+                              <div class="overflow-x-auto">
+  
+                                <table class="w-full min-w-[800px] text-sm">
+  
+                                  <!-- HEADER EJEMPLARES -->
+  
+                                  <thead>
+  
+                                    <tr
+                                      class="bg-slate-100/80 border-b border-slate-200"
                                     >
-                                      Edicion
-                                    </th>
-                                    <th
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+  
+                                      <th
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Código ejemplar
+                                      </th>
+  
+                                      <th
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Editorial
+                                      </th>
+                                      <th
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Edicion
+                                      </th>
+                                      <th
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Año Publicación
+                                      </th>
+  
+                                      <th
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Ubicación física
+                                      </th>
+  
+                                      <th
+                                        v-if="isAdmin"
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Biblioteca
+                                      </th>
+  
+                                      <th
+                                        class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Estado
+                                      </th>
+  
+                                      <th
+                                        class="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                      >
+                                        Acciones
+                                      </th>
+  
+                                    </tr>
+  
+                                  </thead>
+  
+  
+                                  <!-- BODY EJEMPLARES -->
+  
+                                  <tbody class="divide-y divide-slate-100">
+  
+                                    <tr
+                                      v-for="ej in libro.ejemplares"
+                                      :key="ej.idEjemplar"
+                                      class="group hover:bg-indigo-50/30 transition-colors"
                                     >
-                                      Año Publicación
-                                    </th>
-
-                                    <th
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                      Ubicación física
-                                    </th>
-
-                                    <th
-                                      v-if="isAdmin"
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                      Biblioteca
-                                    </th>
-
-                                    <th
-                                      class="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                      Estado
-                                    </th>
-
-                                    <th
-                                      class="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                      Acciones
-                                    </th>
-
-                                  </tr>
-
-                                </thead>
-
-
-                                <!-- BODY EJEMPLARES -->
-
-                                <tbody class="divide-y divide-slate-100">
-
-                                  <tr
-                                    v-for="ej in libro.ejemplares"
-                                    :key="ej.idEjemplar"
-                                    class="group hover:bg-indigo-50/30 transition-colors"
-                                  >
-
-                                    <!-- Código ejemplar -->
-
-                                    <td class="px-4 py-3">
-
-                                      <div class="flex items-center gap-2">
-
-                                        <div
-                                          class="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center"
+  
+                                      <!-- Código ejemplar -->
+  
+                                      <td class="px-4 py-3">
+  
+                                        <div class="flex items-center gap-2">
+  
+                                          <div
+                                            class="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center"
+                                          >
+  
+                                            <svg
+                                              class="w-3.5 h-3.5 text-slate-400"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="1.5"
+                                                d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                                              />
+                                            </svg>
+  
+                                          </div>
+  
+                                          <span
+                                            class="font-mono text-xs font-semibold text-slate-700"
+                                          >
+                                            {{ ej.codigoEjemplar || '—' }}
+                                          </span>
+  
+                                        </div>
+  
+                                      </td>
+  
+  
+                                      <!-- Editorial -->
+  
+                                      <td class="px-4 py-3">
+  
+                                        <span
+                                          v-if="ej.edicion?.editorial "
+                                          class="font-mono text-xs text-slate-500"
                                         >
-
+                                          {{ ej.edicion?.editorial }}
+                                        </span>
+  
+                                        <span
+                                          v-else
+                                          class="text-xs text-slate-300"
+                                        >
+                                          —
+                                        </span>
+  
+                                      </td>
+                                      <!-- Edicion -->
+  
+                                      <td class="px-4 py-3">
+  
+                                        <span
+                                          v-if="ej.edicion?.editorial "
+                                          class="font-mono text-xs text-slate-500"
+                                        >
+                                          {{ ej.edicion?.edicion }}
+                                        </span>
+  
+                                        <span
+                                          v-else
+                                          class="text-xs text-slate-300"
+                                        >
+                                          —
+                                        </span>
+  
+                                      </td>
+                                      <!-- año publicacion -->
+  
+                                      <td class="px-4 py-3">
+  
+                                        <span
+                                          v-if="ej.edicion?.anoPublicacion "
+                                          class="font-mono text-xs text-slate-500"
+                                        >
+                                          {{ ej.edicion?.anoPublicacion }}
+                                        </span>
+  
+                                        <span
+                                          v-else
+                                          class="text-xs text-slate-300"
+                                        >
+                                          —
+                                        </span>
+  
+                                      </td>
+  
+  
+                                      <!-- Ubicación -->
+  
+                                      <td class="px-4 py-3">
+  
+                                        <div
+                                          v-if="ej.ubicacionFisica"
+                                          class="flex items-center gap-1.5"
+                                        >
+  
                                           <svg
-                                            class="w-3.5 h-3.5 text-slate-400"
+                                            class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"
                                             fill="none"
                                             viewBox="0 0 24 24"
                                             stroke="currentColor"
@@ -1575,602 +1700,514 @@ const {
                                               stroke-linecap="round"
                                               stroke-linejoin="round"
                                               stroke-width="1.5"
-                                              d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                                              d="M17.657 16.657L13.414 21a2 2 0 01-2.828 0l-4.243-4.343a8 8 0 1111.314 0z"
+                                            />
+                                            <path
+                                              stroke-linecap="round"
+                                              stroke-linejoin="round"
+                                              stroke-width="1.5"
+                                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                                             />
                                           </svg>
-
+  
+                                          <span
+                                            class="text-xs text-slate-500 truncate max-w-[180px]"
+                                          >
+                                            {{ ej.ubicacionFisica }}
+                                          </span>
+  
                                         </div>
-
+  
                                         <span
-                                          class="font-mono text-xs font-semibold text-slate-700"
+                                          v-else
+                                          class="text-xs text-slate-300"
                                         >
-                                          {{ ej.codigoEjemplar || '—' }}
+                                          —
                                         </span>
-
-                                      </div>
-
-                                    </td>
-
-
-                                    <!-- Editorial -->
-
-                                    <td class="px-4 py-3">
-
-                                      <span
-                                        v-if="ej.edicion?.editorial "
-                                        class="font-mono text-xs text-slate-500"
+  
+                                      </td>
+  
+  
+                                      <!-- Biblioteca -->
+  
+                                      <td
+                                        v-if="isAdmin"
+                                        class="px-4 py-3"
                                       >
-                                        {{ ej.edicion?.editorial }}
-                                      </span>
-
-                                      <span
-                                        v-else
-                                        class="text-xs text-slate-300"
-                                      >
-                                        —
-                                      </span>
-
-                                    </td>
-                                    <!-- Edicion -->
-
-                                    <td class="px-4 py-3">
-
-                                      <span
-                                        v-if="ej.edicion?.editorial "
-                                        class="font-mono text-xs text-slate-500"
-                                      >
-                                        {{ ej.edicion?.edicion }}
-                                      </span>
-
-                                      <span
-                                        v-else
-                                        class="text-xs text-slate-300"
-                                      >
-                                        —
-                                      </span>
-
-                                    </td>
-                                    <!-- año publicacion -->
-
-                                    <td class="px-4 py-3">
-
-                                      <span
-                                        v-if="ej.edicion?.anoPublicacion "
-                                        class="font-mono text-xs text-slate-500"
-                                      >
-                                        {{ ej.edicion?.anoPublicacion }}
-                                      </span>
-
-                                      <span
-                                        v-else
-                                        class="text-xs text-slate-300"
-                                      >
-                                        —
-                                      </span>
-
-                                    </td>
-
-
-                                    <!-- Ubicación -->
-
-                                    <td class="px-4 py-3">
-
-                                      <div
-                                        v-if="ej.ubicacionFisica"
-                                        class="flex items-center gap-1.5"
-                                      >
-
-                                        <svg
-                                          class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                        >
-                                          <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="1.5"
-                                            d="M17.657 16.657L13.414 21a2 2 0 01-2.828 0l-4.243-4.343a8 8 0 1111.314 0z"
-                                          />
-                                          <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="1.5"
-                                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                                          />
-                                        </svg>
-
+  
                                         <span
-                                          class="text-xs text-slate-500 truncate max-w-[180px]"
+                                          v-if="ej.biblioteca?.nombre"
+                                          class="text-xs text-slate-500"
                                         >
-                                          {{ ej.ubicacionFisica }}
+                                          {{ ej.biblioteca.nombre }}
                                         </span>
-
-                                      </div>
-
-                                      <span
-                                        v-else
-                                        class="text-xs text-slate-300"
-                                      >
-                                        —
-                                      </span>
-
-                                    </td>
-
-
-                                    <!-- Biblioteca -->
-
-                                    <td
-                                      v-if="isAdmin"
-                                      class="px-4 py-3"
-                                    >
-
-                                      <span
-                                        v-if="ej.biblioteca?.nombre"
-                                        class="text-xs text-slate-500"
-                                      >
-                                        {{ ej.biblioteca.nombre }}
-                                      </span>
-
-                                      <span
-                                        v-else
-                                        class="text-xs text-slate-300"
-                                      >
-                                        —
-                                      </span>
-
-                                    </td>
-
-
-                                    <!-- Estado -->
-
-                                    <td class="px-4 py-3">
-
-                                      <span
-                                        :class="[
-                                          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap',
-                                          estadoEjemplarConfig[
-                                            ej.estadoEjemplar
-                                          ]?.clases ??
-                                            'bg-slate-100 text-slate-600'
-                                        ]"
-                                      >
-
+  
+                                        <span
+                                          v-else
+                                          class="text-xs text-slate-300"
+                                        >
+                                          —
+                                        </span>
+  
+                                      </td>
+  
+  
+                                      <!-- Estado -->
+  
+                                      <td class="px-4 py-3">
+  
                                         <span
                                           :class="[
-                                            'w-1.5 h-1.5 rounded-full',
+                                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap',
                                             estadoEjemplarConfig[
                                               ej.estadoEjemplar
-                                            ]?.dot ??
-                                              'bg-slate-400'
+                                            ]?.clases ??
+                                              'bg-slate-100 text-slate-600'
                                           ]"
-                                        />
-
-                                        {{
-                                          estadoEjemplarConfig[
-                                            ej.estadoEjemplar
-                                          ]?.label ??
-                                          ej.estadoEjemplar ??
-                                          'Sin estado'
-                                        }}
-
-                                      </span>
-
-                                    </td>
-
-
-                                    <!-- Acciones -->
-
-                                    <td class="px-4 py-3">
-
-                                      <div
-                                        class="flex items-center justify-end gap-1"
-                                      >
-
-                                        <!-- Historial -->
-
-                                        <button
-                                          @click.stop="abrirHistorial(ej)"
-                                          class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                          title="Ver historial"
                                         >
-
-                                          <svg
-                                            class="w-3.5 h-3.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 01-18 0z"
-                                            />
-                                          </svg>
-
-                                        </button>
-
-
-                                        <!-- Cambiar estado -->
-
-                                        <button
-                                          @click.stop="abrirEstado(ej)"
-                                          :disabled="
-                                            ['BAJA', 'PERDIDO'].includes(
+  
+                                          <span
+                                            :class="[
+                                              'w-1.5 h-1.5 rounded-full',
+                                              estadoEjemplarConfig[
+                                                ej.estadoEjemplar
+                                              ]?.dot ??
+                                                'bg-slate-400'
+                                            ]"
+                                          />
+  
+                                          {{
+                                            estadoEjemplarConfig[
                                               ej.estadoEjemplar
-                                            )
-                                          "
-                                          class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                          title="Cambiar estado"
-                                        >
-
-                                          <svg
-                                            class="w-3.5 h-3.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                                            />
-                                          </svg>
-
-                                        </button>
-
-
-                                        <!-- Editar -->
-
-                                        <button
-                                          @click.stop="abrirEditarEjemplar(ej)"
-                                          :disabled="
-                                            ['BAJA', 'PERDIDO'].includes(
-                                              ej.estadoEjemplar
-                                            )
-                                          "
-                                          class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                          title="Editar ejemplar"
-                                        >
-
-                                          <svg
-                                            class="w-3.5 h-3.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 0011-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                            />
-                                          </svg>
-
-                                        </button>
-
-                                        <!-- Eliminar -->
-                                        <button
-                                          v-if="isAdmin || isBibliotecario"
-                                          @click="abrirConfirmarEliminar(ej)"
-                                          :disabled="
-                                            !!ej.prestamoActivo ||
-                                            ej.estadoEjemplar === 'PRESTADO'
-                                          "
-                                          class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                          title="Eliminar"
-                                        >
-                                          <svg
-                                            class="w-4 h-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                            />
-                                          </svg>
-                                        </button>
-                                        <!-- PDF -->
-
-                                        <button
-                                          v-if="ej.edicion?.pdfUrl"
-                                          @click.stop="verPdf(ej.edicion.pdfUrl)"
-                                          class="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
-                                          title="Ver PDF"
-                                        >
-
-                                          <svg
-                                            class="w-3.5 h-3.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                            />
-                                          </svg>
-
-                                        </button>
-
-                                      </div>
-
-                                    </td>
-
-                                  </tr>
-
-
-                                  <!-- ═════════════════════════════════
-                                      SIN EJEMPLARES
-                                  ══════════════════════════════════ -->
-
-                                  <tr
-                                    v-if="!libro.ejemplares?.length"
-                                  >
-
-                                    <td
-                                      :colspan="isAdmin ? 6 : 5"
-                                      class="px-6 py-8"
-                                    >
-
-                                      <div
-                                        class="flex flex-col items-center justify-center"
-                                      >
-
+                                            ]?.label ??
+                                            ej.estadoEjemplar ??
+                                            'Sin estado'
+                                          }}
+  
+                                        </span>
+  
+                                      </td>
+  
+  
+                                      <!-- Acciones -->
+  
+                                      <td class="px-4 py-3">
+  
                                         <div
-                                          class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-2"
+                                          class="flex items-center justify-end gap-1"
                                         >
-
-                                          <svg
-                                            class="w-5 h-5 text-slate-400"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
+  
+                                          <!-- Historial -->
+  
+                                          <button
+                                            @click.stop="abrirHistorial(ej)"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                            title="Ver historial"
                                           >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="1.5"
-                                              d="M4 6h16M4 10h16M4 14h16M4 18h16"
-                                            />
-                                          </svg>
-
+  
+                                            <svg
+                                              class="w-3.5 h-3.5"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 01-18 0z"
+                                              />
+                                            </svg>
+  
+                                          </button>
+  
+  
+                                          <!-- Cambiar estado -->
+  
+                                          <button
+                                            @click.stop="abrirEstado(ej)"
+                                            :disabled="
+                                              ['BAJA', 'PERDIDO'].includes(
+                                                ej.estadoEjemplar
+                                              )
+                                            "
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                            title="Cambiar estado"
+                                          >
+  
+                                            <svg
+                                              class="w-3.5 h-3.5"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                                              />
+                                            </svg>
+  
+                                          </button>
+  
+  
+                                          <!-- Editar -->
+  
+                                          <button
+                                            @click.stop="abrirEditarEjemplar(ej)"
+                                            :disabled="
+                                              ['BAJA', 'PERDIDO'].includes(
+                                                ej.estadoEjemplar
+                                              )
+                                            "
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                            title="Editar ejemplar"
+                                          >
+  
+                                            <svg
+                                              class="w-3.5 h-3.5"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 0011-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                              />
+                                            </svg>
+  
+                                          </button>
+  
+                                          <!-- Eliminar -->
+                                          <button
+                                            v-if="isAdmin || isBibliotecario"
+                                            @click="abrirConfirmarEliminar(ej)"
+                                            :disabled="
+                                              !!ej.prestamoActivo ||
+                                              ej.estadoEjemplar === 'PRESTADO'
+                                            "
+                                            class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title="Eliminar"
+                                          >
+                                            <svg
+                                              class="w-4 h-4"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                              />
+                                            </svg>
+                                          </button>
+                                          <!-- PDF -->
+  
+                                          <button
+                                            v-if="ej.edicion?.pdfUrl"
+                                            @click.stop="verPdf(ej.edicion.pdfUrl)"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                                            title="Ver PDF"
+                                          >
+  
+                                            <svg
+                                              class="w-3.5 h-3.5"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                                              />
+                                            </svg>
+  
+                                          </button>
+  
                                         </div>
-
-                                        <p class="text-sm font-medium text-slate-600">
-                                          Sin ejemplares registrados
-                                        </p>
-
-                                        <p class="text-xs text-slate-400 mt-0.5">
-                                          Este libro todavía no tiene ejemplares físicos.
-                                        </p>
-
-                                      </div>
-
-                                    </td>
-
-                                  </tr>
-
-                                </tbody>
-
-                              </table>
-
+  
+                                      </td>
+  
+                                    </tr>
+  
+  
+                                    <!-- ═════════════════════════════════
+                                        SIN EJEMPLARES
+                                    ══════════════════════════════════ -->
+  
+                                    <tr
+                                      v-if="!libro.ejemplares?.length"
+                                    >
+  
+                                      <td
+                                        :colspan="isAdmin ? 6 : 5"
+                                        class="px-6 py-8"
+                                      >
+  
+                                        <div
+                                          class="flex flex-col items-center justify-center"
+                                        >
+  
+                                          <div
+                                            class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-2"
+                                          >
+  
+                                            <svg
+                                              class="w-5 h-5 text-slate-400"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="1.5"
+                                                d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                                              />
+                                            </svg>
+  
+                                          </div>
+  
+                                          <p class="text-sm font-medium text-slate-600">
+                                            Sin ejemplares registrados
+                                          </p>
+  
+                                          <p class="text-xs text-slate-400 mt-0.5">
+                                            Este libro todavía no tiene ejemplares físicos.
+                                          </p>
+  
+                                        </div>
+  
+                                      </td>
+  
+                                    </tr>
+  
+                                  </tbody>
+  
+                                </table>
+  
+                              </div>
+  
                             </div>
-
+  
                           </div>
-
+  
                         </div>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                </template>
-
-
-                <!-- ═══════════════════════════════════════════════
-                    SIN LIBROS
-                ═══════════════════════════════════════════════ -->
-
-                <tr v-if="!librosPagina.length">
-
-                  <td
-                    :colspan="isAdmin ? 7 : 6"
-                    class="px-6 py-14"
-                  >
-
-                    <div class="flex flex-col items-center text-center">
-
-                      <div
-                        class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3"
-                      >
-
-                        <svg
-                          class="w-6 h-6 text-slate-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+  
+                      </td>
+  
+                    </tr>
+  
+                  </template>
+  
+  
+                  <!-- ═══════════════════════════════════════════════
+                      SIN LIBROS
+                  ═══════════════════════════════════════════════ -->
+  
+                  <tr v-if="!librosPagina.length">
+  
+                    <td
+                      :colspan="isAdmin ? 7 : 6"
+                      class="px-6 py-14"
+                    >
+  
+                      <div class="flex flex-col items-center text-center">
+  
+                        <div
+                          class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3"
                         >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="1.5"
-                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                          />
-                        </svg>
-
+  
+                          <svg
+                            class="w-6 h-6 text-slate-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="1.5"
+                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                            />
+                          </svg>
+  
+                        </div>
+  
+                        <p class="font-medium text-slate-700">
+                          No hay libros
+                        </p>
+  
+                        <p class="text-sm text-slate-400 mt-1">
+                          No se encontraron libros para mostrar.
+                        </p>
+  
                       </div>
-
-                      <p class="font-medium text-slate-700">
-                        No hay libros
-                      </p>
-
-                      <p class="text-sm text-slate-400 mt-1">
-                        No se encontraron libros para mostrar.
-                      </p>
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-              </tbody>
-
-            </table>
-
+  
+                    </td>
+  
+                  </tr>
+  
+                </tbody>
+  
+              </table>
+  
+            </div>
+  
           </div>
-
-        </div>
-
-
-        <!-- ═══════════════════════════════════════════════════════
-            PAGINACIÓN
-        ═════════════════════════════════════════════════════════ -->
-
-        <div
-          v-if="totalPaginasLib > 1"
-          class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4"
-        >
-
-          <!-- Resumen -->
-
-          <p class="text-xs text-slate-500">
-
-            Mostrando
-
-            <span class="font-medium text-slate-700">
-              {{ (paginaLib - 1) * porPaginaLib + 1 }}
-            </span>
-
-            –
-
-            <span class="font-medium text-slate-700">
-              {{
-                Math.min(
-                  paginaLib * porPaginaLib,
-                  librosAgrupados.length
-                )
-              }}
-            </span>
-
-            de
-
-            <span class="font-medium text-slate-700">
-              {{ librosAgrupados.length }}
-            </span>
-
-            libros
-
-          </p>
-
-
-          <!-- Controles -->
-
-          <div class="flex items-center gap-1">
-
-            <!-- Anterior -->
-
-            <button
-              @click="paginaLib--"
-              :disabled="paginaLib === 1"
-              class="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Página anterior"
-            >
-
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-
-            </button>
-
-
-            <!-- Números -->
-
-            <template
-              v-for="p in totalPaginasLib"
-              :key="p"
-            >
-
-              <button
-                v-if="
-                  Math.abs(p - paginaLib) <= 2 ||
-                  p === 1 ||
-                  p === totalPaginasLib
-                "
-                @click="paginaLib = p"
-                :class="[
-                  'min-w-8 h-8 px-2 rounded-lg text-sm font-medium transition-colors',
-                  p === paginaLib
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                ]"
-              >
-                {{ p }}
-              </button>
-
-              <span
-                v-else-if="Math.abs(p - paginaLib) === 3"
-                class="text-slate-400 text-sm px-1"
-              >
-                …
+  
+  
+          <!-- ═══════════════════════════════════════════════════════
+              PAGINACIÓN
+          ═════════════════════════════════════════════════════════ -->
+  
+          <div
+            v-if="totalPaginasLib > 1"
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4"
+          >
+  
+            <!-- Resumen -->
+  
+            <p class="text-xs text-slate-500">
+  
+              Mostrando
+  
+              <span class="font-medium text-slate-700">
+                {{ (paginaLib - 1) * porPaginaLib + 1 }}
               </span>
-
-            </template>
-
-
-            <!-- Siguiente -->
-
-            <button
-              @click="paginaLib++"
-              :disabled="paginaLib === totalPaginasLib"
-              class="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Página siguiente"
-            >
-
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+  
+              –
+  
+              <span class="font-medium text-slate-700">
+                {{
+                  Math.min(
+                    paginaLib * porPaginaLib,
+                    librosAgrupados.length
+                  )
+                }}
+              </span>
+  
+              de
+  
+              <span class="font-medium text-slate-700">
+                {{ librosAgrupados.length }}
+              </span>
+  
+              libros
+  
+            </p>
+  
+  
+            <!-- Controles -->
+  
+            <div class="flex items-center gap-1">
+  
+              <!-- Anterior -->
+  
+              <button
+                @click="paginaLib--"
+                :disabled="paginaLib === 1"
+                class="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Página anterior"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 5l7 7-7-7"
-                />
-              </svg>
-
-            </button>
-
+  
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+  
+              </button>
+  
+  
+              <!-- Números -->
+  
+              <template
+                v-for="p in totalPaginasLib"
+                :key="p"
+              >
+  
+                <button
+                  v-if="
+                    Math.abs(p - paginaLib) <= 2 ||
+                    p === 1 ||
+                    p === totalPaginasLib
+                  "
+                  @click="paginaLib = p"
+                  :class="[
+                    'min-w-8 h-8 px-2 rounded-lg text-sm font-medium transition-colors',
+                    p === paginaLib
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ]"
+                >
+                  {{ p }}
+                </button>
+  
+                <span
+                  v-else-if="Math.abs(p - paginaLib) === 3"
+                  class="text-slate-400 text-sm px-1"
+                >
+                  …
+                </span>
+  
+              </template>
+  
+  
+              <!-- Siguiente -->
+  
+              <button
+                @click="paginaLib++"
+                :disabled="paginaLib === totalPaginasLib"
+                class="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Página siguiente"
+              >
+  
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7-7"
+                  />
+                </svg>
+  
+              </button>
+  
+            </div>
+  
           </div>
-
-        </div>
-
+  
+        </template>
+  
       </template>
-
     </template>
+
+    
+
+
+    <AutoresGestion v-else-if="vistaActiva === 'autores'" />
+    <CategoriasGestion v-else-if="vistaActiva === 'categorias'" />
 
     <!-- ═══════════════════════════════════════════════════════════════
          MODALES

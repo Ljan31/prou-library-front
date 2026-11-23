@@ -158,7 +158,6 @@ export function useInventario() {
       .trim()
 
   const ejemplaresFiltrados = computed(() => {
-    console.log('todos', todos.value);
     let lista = todos.value
     if (busqueda.value.trim()) {
       const q = normalizar(busqueda.value)

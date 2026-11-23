@@ -9,8 +9,14 @@ import SButton from '@/components/ui/SButton.vue'
 import api from '@/services/axios'
 import { obtenerCategorias } from '@/services/categorias.service'
 import { bibliotecasService } from '@/services/bibliotecas.service'
-import type { Categoria } from '@/types/catalogo'
+import AutorFormModal from '@/components/catalogo/AutorFormModal.vue'
+import CategoriaFormModal from '@/components/catalogo/CategoriaFormModal.vue'
 import { validarSoloLetras } from '@/utils/validators'
+import { opcionesFrecuentes, opcionesOtros, nombreIdioma } from '@/utils/idiomas'
+
+import type { Categoria } from '@/types/catalogo'
+import type { Autor } from '@/services/autores.service'
+import type { CategoriaConConteo } from '@/services/categorias.service'
 
 const router = useRouter()
 const route  = useRoute()
@@ -105,11 +111,18 @@ function agregarAutorExistente(autor: AutorOpcion) {
     autoresSeleccionados.value.push(autor)
   busquedaAutor.value = ''; showDropAutor.value = false
 }
-function crearNuevoAutor() {
-  const nombre = busquedaAutor.value.trim(); if (!nombre) return
-  if (!autoresSeleccionados.value.find(a => a.nombre.toLowerCase() === nombre.toLowerCase()))
-    autoresSeleccionados.value.push({ nombre, nuevo: true })
-  busquedaAutor.value = ''; showDropAutor.value = false
+const modalAutor = ref(false)
+const nombreAutorInicial = ref('')
+
+function abrirModalAutor() {
+  nombreAutorInicial.value = busquedaAutor.value.trim()   // precarga lo escrito
+  showDropAutor.value = false
+  modalAutor.value = true
+}
+// El autor ya existe en el backend (tiene idAutor): se agrega como cualquier otro.
+// agregarAutorExistente también limpia el buscador y cierra el dropdown.
+function onAutorCreado(a: Autor) {
+  agregarAutorExistente(a)
 }
 function quitarAutor(idx: number) { autoresSeleccionados.value.splice(idx, 1) }
 const cerrarDropdownAutor = () => setTimeout(() => { showDropAutor.value = false }, 180)
@@ -117,10 +130,20 @@ const cerrarDropdownAutor = () => setTimeout(() => { showDropAutor.value = false
 // ── Categoría ─────────────────────────────────────────────────────────────
 const busquedaCategoria  = ref('')
 const mostrarCategorias  = ref(false)
-const modoNuevaCategoria = ref(false)
-const nuevaCategoriaNombre      = ref('')
-const nuevaCategoriaDescripcion = ref('')
-const nuevaCategoriaDewey       = ref('')
+
+const modalCategoria = ref(false)
+const nombreCategoriaInicial = ref('')
+
+function abrirModalCategoria() {
+  // si ya hay una categoría elegida, el buscador contiene su nombre: no se precarga
+  nombreCategoriaInicial.value = libro.categoriaId ? '' : busquedaCategoria.value.trim()
+  mostrarCategorias.value = false
+  modalCategoria.value = true
+}
+function onCategoriaCreada(c: CategoriaConConteo) {
+  categorias.value.push(c)
+  seleccionarCategoria(c)   // la deja seleccionada y dispara el watch que autocompleta el Dewey
+}
 
 const categoriasFiltradas = computed(() => {
   const q = busquedaCategoria.value.toLowerCase().trim()
@@ -139,22 +162,7 @@ function seleccionarCategoria(cat: any) {
   busquedaCategoria.value = cat.nombre_categoria ?? cat.nombreCategoria
   mostrarCategorias.value = false
 }
-async function guardarNuevaCategoria() {
-  if (!nuevaCategoriaNombre.value.trim()) return
-  try {
-    const res = await api.post('/categorias', {
-      nombre_categoria: nuevaCategoriaNombre.value.trim(),
-      descripcion:      nuevaCategoriaDescripcion.value.trim() || undefined,
-      codigo_dewey:     nuevaCategoriaDewey.value.trim() || undefined,
-    })
-    const cat: Categoria = res.data?.data ?? res.data
-    categorias.value.push(cat)
-    libro.categoriaId       = cat.id_categoria ?? cat.idCategoria ?? null
-    busquedaCategoria.value = cat.nombre_categoria ?? cat.nombreCategoria ?? ''
-    modoNuevaCategoria.value = false
-    nuevaCategoriaNombre.value = ''; nuevaCategoriaDescripcion.value = ''; nuevaCategoriaDewey.value = ''
-  } catch { }
-}
+
 const ocultarCategorias = () => setTimeout(() => { mostrarCategorias.value = false }, 150)
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -591,13 +599,13 @@ function cancelar() { router.push('/inventario') }
                         </div>
                         <span class="text-slate-800 truncate">{{ autor.nombre }}</span>
                       </button>
-                      <button v-if="busquedaAutor.trim()" @mousedown.prevent="crearNuevoAutor"
-                        class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-amber-50 text-amber-700 border-t border-slate-100 transition-colors">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Crear "<strong>{{ busquedaAutor }}</strong>" como nuevo autor
-                      </button>
+                     <button v-if="busquedaAutor.trim()" type="button" @mousedown.prevent="abrirModalAutor"
+                      class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-amber-50 text-amber-700 border-t border-slate-100 transition-colors">
+                      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Crear autor "<strong>{{ busquedaAutor }}</strong>"
+                    </button>
                       <div v-if="!resultadosAutor.length && !busquedaAutor.trim()"
                         class="px-4 py-3 text-xs text-slate-400 text-center">Escribe para buscar autores</div>
                     </template>
@@ -615,7 +623,7 @@ function cancelar() { router.push('/inventario') }
                 <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
                   Categoría / Colección
                 </label>
-                <div v-if="!modoNuevaCategoria" class="flex gap-2">
+                <div class="flex gap-2">
                   <div class="relative w-full">
                     <input v-model="busquedaCategoria" type="text" placeholder="Buscar categoría..."
                       @focus="mostrarCategorias = true" @blur="ocultarCategorias"
@@ -630,44 +638,31 @@ function cancelar() { router.push('/inventario') }
                           Dewey: {{ cat.codigo_dewey ?? cat.codigoDewey }}
                         </div>
                       </button>
-                      <div v-if="!categoriasFiltradas.length" class="px-3 py-2 text-sm text-slate-400">Sin resultados</div>
+                      <button v-if="!categoriasFiltradas.length" type="button" @mousedown.prevent="abrirModalCategoria"
+                        class="w-full text-left px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50">
+                        Sin resultados · Crear categoría
+                      </button>
                     </div>
                   </div>
-                  <button @click="modoNuevaCategoria = true"
+                  <button type="button" @click="abrirModalCategoria" title="Nueva categoría" aria-label="Nueva categoría"
                     class="flex-shrink-0 w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
                   </button>
-                </div>
-                <div v-else class="p-3 border border-indigo-200 bg-indigo-50 rounded-xl space-y-2">
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-semibold text-indigo-700">Nueva categoría</p>
-                    <button @click="modoNuevaCategoria = false" class="text-xs text-slate-400 hover:text-slate-600">Cancelar</button>
-                  </div>
-                  <input v-model="nuevaCategoriaNombre" type="text" placeholder="Nombre *"
-                    class="w-full text-sm rounded-lg border border-indigo-200 bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <div class="grid grid-cols-2 gap-2">
-                    <input v-model="nuevaCategoriaDewey" type="text" placeholder="Código Dewey"
-                      class="text-sm rounded-lg border border-indigo-200 bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    <button @click="guardarNuevaCategoria" :disabled="!nuevaCategoriaNombre.trim()"
-                      class="text-xs font-semibold bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700 transition-colors disabled:opacity-50">
-                      Crear
-                    </button>
-                  </div>
                 </div>
               </div>
 
               <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Idioma</label>
-                <select v-model="libro.idioma"
+               <select v-model="libro.idioma"
                   class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
-                  <option value="es">Español</option>
-                  <option value="en">Inglés</option>
-                  <option value="pt">Portugués</option>
-                  <option value="fr">Francés</option>
-                  <option value="de">Alemán</option>
-                  <option value="it">Italiano</option>
+                  <optgroup label="Frecuentes">
+                    <option v-for="o in opcionesFrecuentes" :key="o.value" :value="o.value">{{ o.label }}</option>
+                  </optgroup>
+                  <optgroup label="Otros idiomas">
+                    <option v-for="o in opcionesOtros" :key="o.value" :value="o.value">{{ o.label }}</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -1007,6 +1002,9 @@ function cancelar() { router.push('/inventario') }
         </SButton>
       </div>
     </div>
+
+    <AutorFormModal v-model="modalAutor" :initial-nombre="nombreAutorInicial" @saved="onAutorCreado" />
+    <CategoriaFormModal v-model="modalCategoria" :initial-nombre="nombreCategoriaInicial" @saved="onCategoriaCreada" />
 
   </div>
 </template>

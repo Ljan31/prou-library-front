@@ -30,6 +30,11 @@ import { usePermissions } from '@/composables/usePermissions'
 import { estadoEjemplarConfig } from '@/utils/catalogo'
 import type { Categoria, Edicion, Ejemplar } from '@/types/catalogo'
 import { validarSoloLetras } from '@/utils/validators'
+import AutorFormModal from '@/components/catalogo/AutorFormModal.vue'
+import CategoriaFormModal from '@/components/catalogo/CategoriaFormModal.vue'
+import type { Autor } from '@/services/autores.service'
+import type { CategoriaConConteo } from '@/services/categorias.service'
+import { opcionesFrecuentes, opcionesOtros, nombreIdioma } from '@/utils/idiomas'
 
 // ── Props / emits ─────────────────────────────────────────────────────────
 const props = defineProps<{ libroId: number }>()
@@ -156,7 +161,6 @@ const erroresInfo = reactive<Record<string, string>>({})
 const guardandoInfo = ref(false)
 
 // Autores
-const autores = ref<{ idAutor?: number; nombre: string; nuevo?: boolean }[]>([])
 const busquedaAutor = ref('')
 const resultadosAutores = ref<any[]>([])
 const buscandoAutores = ref(false)
@@ -192,14 +196,31 @@ function agregarAutorExistente(autor: any) {
   mostrarDropdownAutor.value = false
 }
 
-function crearNuevoAutor() {
-  const nombre = busquedaAutor.value.trim()
-  if (!nombre) return
-  if (!autores.value.find(a => a.nombre.toLowerCase() === nombre.toLowerCase())) {
-    autores.value.push({ nombre, nuevo: true })
+// antes: { idAutor?: number; nombre: string; nuevo?: boolean }[]
+const autores = ref<{ idAutor: number; nombre: string }[]>([])
+
+watch(busquedaAutor, (q) => {
+  clearTimeout(timerAutor)
+  if (q.trim().length < 2) {            // mínimo 2 caracteres (guía del backend)
+    resultadosAutores.value = []
+    mostrarDropdownAutor.value = false
+    return
   }
-  busquedaAutor.value = ''
+  timerAutor = setTimeout(() => buscarAutores(q), 300)
+})
+
+// ── Modal crear autor ──
+const modalAutor = ref(false)
+const nombreAutorInicial = ref('')
+
+function abrirModalAutor() {
+  nombreAutorInicial.value = busquedaAutor.value.trim()   // precarga lo que escribió
   mostrarDropdownAutor.value = false
+  modalAutor.value = true
+}
+// El autor ya existe en el backend (tiene idAutor): se agrega como cualquier otro.
+function onAutorCreado(a: Autor) {
+  agregarAutorExistente(a)
 }
 
 function quitarAutor(idx: number) { autores.value.splice(idx, 1) }
@@ -214,12 +235,7 @@ async function guardarInfo() {
       idioma: formInfo.idioma,
       categoriaId: formInfo.categoriaId || undefined,
       descripcion: formInfo.descripcion.trim() || undefined,
-      autorIds: autores.value
-        .filter(a => !a.nuevo && a.idAutor)
-        .map(a => a.idAutor),
-      autores: autores.value
-        .filter(a => a.nuevo)
-        .map(a => ({ nombre: a.nombre })),
+      autorIds: autores.value.map(a => a.idAutor),
     }
 
     await api.put(`/libros/${props.libroId}`, payload)
@@ -231,7 +247,11 @@ async function guardarInfo() {
     guardandoInfo.value = false
   }
 }
-
+const modalCategoria = ref(false)
+function onCategoriaCreada(c: CategoriaConConteo) {
+  categorias.value.push(c)
+  formInfo.categoriaId = c.id_categoria   // queda seleccionada en el select
+}
 // ─── Sub-modales con un único ref de control ──────────────────────────────
 type SubModal = 'edicion-form' | 'ejemplar-form' | 'estado' | 'historial' | null
 
@@ -415,6 +435,11 @@ const bibliotecaPropia = computed(() => {
 const categoriaActual = computed(() =>
   categorias.value.find(c => (c.id_categoria ?? c.idCategoria) === formInfo.categoriaId)
 )
+const opcionExtra = computed(() => {
+  const c = formInfo.idioma
+  const conocido = [...opcionesFrecuentes, ...opcionesOtros].some(o => o.value === c)
+  return c && !conocido ? { value: c, label: nombreIdioma(c) } : null
+})
 </script>
 
 <template>
@@ -485,85 +510,104 @@ const categoriaActual = computed(() =>
           <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Autores</label>
 
           <div v-if="autores.length" class="flex flex-wrap gap-1.5 mb-2">
-            <span v-for="(autor, i) in autores" :key="i"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-              :class="autor.nuevo ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-indigo-100 text-indigo-800 border border-indigo-200'">
-              <span v-if="autor.nuevo" class="font-bold text-amber-600">+</span>
+            <span v-for="(autor, i) in autores" :key="autor.idAutor"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
               {{ autor.nombre }}
-              <button @click="quitarAutor(i)" class="ml-0.5 text-slate-400 hover:text-red-500 transition-colors">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button type="button" @click="quitarAutor(i)" :aria-label="`Quitar ${autor.nombre}`"
+                class="ml-0.5 text-slate-400 hover:text-red-500 transition-colors">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </span>
           </div>
 
-          <div class="relative">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none"
-              viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <input v-model="busquedaAutor" type="text" placeholder="Buscar o crear autor..." maxlength="50"
-              @focus="mostrarDropdownAutor = busquedaAutor.length > 0"
-              @blur="cerrarDropdownAutor"
-              @input="busquedaAutor = validarSoloLetras(busquedaAutor)"
-              class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <input v-model="busquedaAutor" type="text" placeholder="Buscar autor..." maxlength="50"
+                @focus="mostrarDropdownAutor = busquedaAutor.trim().length >= 2"
+                @blur="cerrarDropdownAutor"
+                @input="busquedaAutor = validarSoloLetras(busquedaAutor)"
+                class="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
-            <div v-if="mostrarDropdownAutor"
-              class="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-              <div v-if="buscandoAutores" class="flex items-center gap-2 px-4 py-3 text-xs text-slate-400">
-                <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Buscando...
-              </div>
-              <template v-else>
-                <button v-for="autor in resultadosAutores" :key="autor.idAutor"
-                  @mousedown.prevent="agregarAutorExistente(autor)"
-                  class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-indigo-50 transition-colors">
-                  <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <span class="text-xs font-semibold text-indigo-600">{{ autor.nombre.charAt(0).toUpperCase()
-                    }}</span>
-                  </div>
-                  <span class="truncate text-slate-800">{{ autor.nombre }}</span>
-                </button>
-                <button v-if="busquedaAutor.trim()" @mousedown.prevent="crearNuevoAutor"
-                  class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-amber-50 text-amber-700 border-t border-slate-100 transition-colors">
-                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              <div v-if="mostrarDropdownAutor"
+                class="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                <div v-if="buscandoAutores" class="flex items-center gap-2 px-4 py-3 text-xs text-slate-400">
+                  <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Crear "<strong>{{ busquedaAutor }}</strong>"
-                </button>
-              </template>
+                  Buscando...
+                </div>
+                <template v-else>
+                  <button v-for="autor in resultadosAutores" :key="autor.idAutor" type="button"
+                    @mousedown.prevent="agregarAutorExistente(autor)"
+                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-indigo-50 transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <span class="text-xs font-semibold text-indigo-600">{{ autor.nombre.charAt(0).toUpperCase() }}</span>
+                    </div>
+                    <span class="truncate text-slate-800">{{ autor.nombre }}</span>
+                  </button>
+                  <div v-if="!resultadosAutores.length" class="px-4 py-3 text-xs text-slate-400">Sin resultados</div>
+                  <button type="button" @mousedown.prevent="abrirModalAutor"
+                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-amber-50 text-amber-700 border-t border-slate-100 transition-colors">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Crear autor "<strong>{{ busquedaAutor }}</strong>"
+                  </button>
+                </template>
+              </div>
             </div>
+
+            <button type="button" @click="abrirModalAutor" title="Nuevo autor" aria-label="Nuevo autor"
+              class="flex-shrink-0 w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
           </div>
+
         </div>
 
         <!-- Categoría + Idioma -->
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Categoría</label>
-            <select v-model="formInfo.categoriaId"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option :value="null">Sin categoría</option>
-              <option v-for="cat in categorias" :key="cat.id_categoria ?? cat.idCategoria"
-                :value="cat.id_categoria ?? cat.idCategoria">
-                {{ cat.nombre_categoria ?? cat.nombreCategoria }}
-              </option>
-            </select>
+           <div class="flex gap-2">
+              <select v-model="formInfo.categoriaId"
+                class="flex-1 min-w-0 text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option :value="null">Sin categoría</option>
+                <option v-for="cat in categorias" :key="cat.id_categoria ?? cat.idCategoria"
+                  :value="cat.id_categoria ?? cat.idCategoria">
+                  {{ cat.nombre_categoria ?? cat.nombreCategoria }}
+                </option>
+              </select>
+              <button type="button" @click="modalCategoria = true" title="Nueva categoría" aria-label="Nueva categoría"
+                class="flex-shrink-0 w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Idioma</label>
             <select v-model="formInfo.idioma"
-              class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="es">🇧🇴 Español</option>
-              <option value="en">🇺🇸 Inglés</option>
-              <option value="pt">🇧🇷 Portugués</option>
-              <option value="fr">🇫🇷 Francés</option>
-              <option value="de">🇩🇪 Alemán</option>
-            </select>
+            class="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+            <optgroup label="Frecuentes">
+              <option v-for="o in opcionesFrecuentes" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </optgroup>
+            <optgroup label="Otros idiomas">
+              <option v-for="o in opcionesOtros" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </optgroup>
+            <option v-if="opcionExtra" :value="opcionExtra.value">{{ opcionExtra.label }}</option>
+          </select>
           </div>
         </div>
 
@@ -943,5 +987,7 @@ const categoriaActual = computed(() =>
       `"
       @confirm="eliminarEjemplarConfirmada"
     />
+    <AutorFormModal v-model="modalAutor" :initial-nombre="nombreAutorInicial" @saved="onAutorCreado" />
+    <CategoriaFormModal v-model="modalCategoria" @saved="onCategoriaCreada" />
   </BaseModal>
 </template>
