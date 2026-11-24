@@ -10,6 +10,7 @@ import {
   type CategoriaConConteo,
   type CategoriaPayload,
 } from '@/services/categorias.service'
+import { validarSoloLetras, validarSoloNumeros } from '@/utils/validators'
 
 const props = withDefaults(
   defineProps<{
@@ -126,15 +127,17 @@ async function guardar() {
         <form class="space-y-4" @submit.prevent="guardar">
           <SInput
             v-model="form.nombre"
+            @input="form.nombre = validarSoloLetras(form.nombre)"
             label="Nombre"
             placeholder="Ej: Ciencias de la Educación"
             :required="true"
             :error-message="errores.nombre"
             :help-text="`${form.nombre.length}/${MAX_NOMBRE} caracteres`"
             @update:model-value="errores.nombre = ''"
-          />
-          <SInput
+            />
+            <SInput
             v-model="form.dewey"
+            @input="form.dewey = validarSoloNumeros(form.nombre)"
             label="Código Dewey (opcional)"
             placeholder="Ej: 370"
             :error-message="errores.dewey"

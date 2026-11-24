@@ -4,7 +4,7 @@ import SButton from '@/components/ui/SButton.vue'
 import SInput from '@/components/ui/SInput.vue'
 import { useUiStore } from '@/stores/ui.store'
 import { autoresService, getErrorMessage, type Autor } from '@/services/autores.service'
-
+import { validarCI, validarFormatoCI, validarSoloLetras, validarSoloNumeros } from '@/utils/validators'
 const props = withDefaults(
   defineProps<{
     modelValue: boolean
@@ -102,6 +102,7 @@ async function guardar() {
         <form @submit.prevent="guardar">
           <SInput
             v-model="nombre"
+            @input="nombre = validarSoloLetras(nombre)"
             label="Nombre del autor"
             placeholder="Ej: Julio Cortázar"
             :required="true"
